@@ -1,0 +1,122 @@
+erDiagram
+    direction TB
+    warehouses {
+        uuid id PK
+        uuid organization_id FK
+        uuid site_id FK
+    }
+    storage_locations {
+        uuid id PK
+        uuid organization_id FK
+        uuid warehouse_id FK
+    }
+    lots {
+        uuid id PK
+        uuid organization_id FK
+        uuid variant_id FK
+        uuid supplier_id FK
+    }
+    serial_units {
+        uuid id PK
+        uuid organization_id FK
+        uuid lot_id FK
+        uuid location_id FK
+    }
+    stock_transactions {
+        uuid id PK
+        uuid organization_id FK
+        uuid posted_by_id FK
+        uuid reverses_id FK
+    }
+    stock_transaction_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid transaction_id FK
+        uuid lot_id FK
+        uuid location_id FK
+    }
+    stock_balances {
+        uuid id PK
+        uuid organization_id FK
+        uuid lot_id FK
+        uuid location_id FK
+    }
+    stock_reservations {
+        uuid id PK
+        uuid organization_id FK
+        uuid lot_id FK
+        uuid location_id FK
+        uuid production_input_id FK
+        uuid shipment_line_id FK
+    }
+    stock_transfers {
+        uuid id PK
+        uuid organization_id FK
+        uuid source_warehouse_id FK
+        uuid destination_warehouse_id FK
+        uuid stock_transaction_id FK
+    }
+    stock_transfer_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid transfer_id FK
+        uuid lot_id FK
+        uuid source_location_id FK
+        uuid destination_location_id FK
+    }
+    stock_counts {
+        uuid id PK
+        uuid organization_id FK
+        uuid warehouse_id FK
+        uuid reviewer_id FK
+        uuid stock_transaction_id FK
+    }
+    stock_count_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid count_id FK
+        uuid lot_id FK
+        uuid location_id FK
+    }
+    organizations ||--o{ warehouses : organization_id
+    sites ||--o{ warehouses : site_id
+    organizations ||--o{ storage_locations : organization_id
+    warehouses ||--o{ storage_locations : warehouse_id
+    organizations ||--o{ lots : organization_id
+    item_variants ||--o{ lots : variant_id
+    partners |o--o{ lots : supplier_id
+    organizations ||--o{ serial_units : organization_id
+    lots ||--o{ serial_units : lot_id
+    storage_locations |o--o{ serial_units : location_id
+    organizations ||--o{ stock_transactions : organization_id
+    memberships |o--o{ stock_transactions : posted_by_id
+    stock_transactions |o--o{ stock_transactions : reverses_id
+    organizations ||--o{ stock_transaction_lines : organization_id
+    stock_transactions ||--o{ stock_transaction_lines : transaction_id
+    lots ||--o{ stock_transaction_lines : lot_id
+    storage_locations ||--o{ stock_transaction_lines : location_id
+    organizations ||--o{ stock_balances : organization_id
+    lots ||--o{ stock_balances : lot_id
+    storage_locations ||--o{ stock_balances : location_id
+    organizations ||--o{ stock_reservations : organization_id
+    lots ||--o{ stock_reservations : lot_id
+    storage_locations ||--o{ stock_reservations : location_id
+    production_inputs |o--o{ stock_reservations : production_input_id
+    shipment_lines |o--o{ stock_reservations : shipment_line_id
+    organizations ||--o{ stock_transfers : organization_id
+    warehouses ||--o{ stock_transfers : source_warehouse_id
+    warehouses ||--o{ stock_transfers : destination_warehouse_id
+    stock_transactions |o--o{ stock_transfers : stock_transaction_id
+    organizations ||--o{ stock_transfer_lines : organization_id
+    stock_transfers ||--o{ stock_transfer_lines : transfer_id
+    lots ||--o{ stock_transfer_lines : lot_id
+    storage_locations ||--o{ stock_transfer_lines : source_location_id
+    storage_locations ||--o{ stock_transfer_lines : destination_location_id
+    organizations ||--o{ stock_counts : organization_id
+    warehouses ||--o{ stock_counts : warehouse_id
+    memberships |o--o{ stock_counts : reviewer_id
+    stock_transactions |o--o{ stock_counts : stock_transaction_id
+    organizations ||--o{ stock_count_lines : organization_id
+    stock_counts ||--o{ stock_count_lines : count_id
+    lots ||--o{ stock_count_lines : lot_id
+    storage_locations ||--o{ stock_count_lines : location_id

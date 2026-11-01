@@ -1,0 +1,9 @@
+flowchart TD
+    B["Browser Jinja pages and graph"] --> P["HTTPS ingress"]
+    P --> W["Flask web workers"]
+    W --> D["PostgreSQL business data and outbox"]
+    W --> R["Shared Redis sessions limits and broker"]
+    W --> F["Private evidence storage"]
+    R --> J["Celery workers"]
+    J --> D
+    J --> F

@@ -1,0 +1,126 @@
+erDiagram
+    direction TB
+    recall_cases {
+        uuid id PK
+        uuid organization_id FK
+        uuid owner_id FK
+        uuid approver_id FK
+        uuid submitted_by_id FK
+    }
+    case_sources {
+        uuid id PK
+        uuid organization_id FK
+        uuid case_id FK
+        uuid lot_id FK
+        uuid nonconformance_id FK
+    }
+    trace_runs {
+        uuid id PK
+        uuid organization_id FK
+        uuid case_id FK
+        uuid requested_by_id FK
+    }
+    trace_results {
+        uuid id PK
+        uuid organization_id FK
+        uuid trace_run_id FK
+        uuid lot_id FK
+    }
+    case_affected_shipments {
+        uuid id PK
+        uuid organization_id FK
+        uuid case_id FK
+        uuid trace_run_id FK
+        uuid shipment_line_id FK
+    }
+    case_tasks {
+        uuid id PK
+        uuid organization_id FK
+        uuid case_id FK
+        uuid assignee_id FK
+        uuid verifier_id FK
+    }
+    case_comments {
+        uuid id PK
+        uuid organization_id FK
+        uuid case_id FK
+        uuid author_id FK
+    }
+    case_documents {
+        uuid id PK
+        uuid organization_id FK
+        uuid case_id FK
+        uuid document_id FK
+    }
+    recall_notices {
+        uuid id PK
+        uuid organization_id FK
+        uuid case_id FK
+        uuid contact_id FK
+        uuid approved_by_id FK
+        uuid created_by_id FK
+    }
+    notice_deliveries {
+        uuid id PK
+        uuid organization_id FK
+        uuid notice_id FK
+    }
+    notice_acknowledgements {
+        uuid id PK
+        uuid organization_id FK
+        uuid notice_id FK
+        uuid recorded_by_id FK
+    }
+    recovery_records {
+        uuid id PK
+        uuid organization_id FK
+        uuid case_id FK
+        uuid shipment_line_id FK
+        uuid verified_by_id FK
+        uuid notice_id FK
+        uuid customer_return_line_id FK
+    }
+    organizations ||--o{ recall_cases : organization_id
+    memberships ||--o{ recall_cases : owner_id
+    memberships |o--o{ recall_cases : approver_id
+    memberships |o--o{ recall_cases : submitted_by_id
+    organizations ||--o{ case_sources : organization_id
+    recall_cases ||--o{ case_sources : case_id
+    lots ||--o{ case_sources : lot_id
+    nonconformances |o--o{ case_sources : nonconformance_id
+    organizations ||--o{ trace_runs : organization_id
+    recall_cases ||--o{ trace_runs : case_id
+    memberships ||--o{ trace_runs : requested_by_id
+    organizations ||--o{ trace_results : organization_id
+    trace_runs ||--o{ trace_results : trace_run_id
+    lots ||--o{ trace_results : lot_id
+    organizations ||--o{ case_affected_shipments : organization_id
+    recall_cases ||--o{ case_affected_shipments : case_id
+    trace_runs ||--o{ case_affected_shipments : trace_run_id
+    shipment_lines ||--o{ case_affected_shipments : shipment_line_id
+    organizations ||--o{ case_tasks : organization_id
+    recall_cases ||--o{ case_tasks : case_id
+    memberships ||--o{ case_tasks : assignee_id
+    memberships |o--o{ case_tasks : verifier_id
+    organizations ||--o{ case_comments : organization_id
+    recall_cases ||--o{ case_comments : case_id
+    memberships ||--o{ case_comments : author_id
+    organizations ||--o{ case_documents : organization_id
+    recall_cases ||--o{ case_documents : case_id
+    documents ||--o{ case_documents : document_id
+    organizations ||--o{ recall_notices : organization_id
+    recall_cases ||--o{ recall_notices : case_id
+    partner_contacts ||--o{ recall_notices : contact_id
+    memberships |o--o{ recall_notices : approved_by_id
+    memberships |o--o{ recall_notices : created_by_id
+    organizations ||--o{ notice_deliveries : organization_id
+    recall_notices ||--o{ notice_deliveries : notice_id
+    organizations ||--o{ notice_acknowledgements : organization_id
+    recall_notices ||--o{ notice_acknowledgements : notice_id
+    memberships ||--o{ notice_acknowledgements : recorded_by_id
+    organizations ||--o{ recovery_records : organization_id
+    recall_cases ||--o{ recovery_records : case_id
+    shipment_lines ||--o{ recovery_records : shipment_line_id
+    memberships ||--o{ recovery_records : verified_by_id
+    recall_notices |o--o{ recovery_records : notice_id
+    customer_return_lines |o--o{ recovery_records : customer_return_line_id

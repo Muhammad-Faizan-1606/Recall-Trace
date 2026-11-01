@@ -1,0 +1,14 @@
+Flask>=3.1,<3.2
+Flask-SQLAlchemy>=3.1,<3.2
+SQLAlchemy>=2.0,<2.1
+Flask-Migrate
+psycopg[binary]>=3,<4
+Flask-Login
+Flask-Session
+Flask-WTF
+email-validator
+argon2-cffi
+Flask-Limiter[redis]
+redis
+python-dotenv
+gunicorn

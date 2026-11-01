@@ -1,0 +1,8 @@
+{% extends 'base.html' %}{% block content %}
+<h1>{{ record.sku if kind == 'variants' else record.name }}</h1>
+<dl class="row"><dt class="col-sm-3">Status</dt><dd class="col-sm-9">{{ 'Archived' if record.archived_at else 'Active' }}</dd>
+{% if kind == 'variants' %}<dt class="col-sm-3">Revision</dt><dd class="col-sm-9">{{ record.revision }}</dd><dt class="col-sm-3">Description</dt><dd class="col-sm-9">{{ record.description or '—' }}</dd><dt class="col-sm-3">Item</dt><dd class="col-sm-9">{{ record.item.code }} — {{ record.item.name }}</dd><dt class="col-sm-3">Base unit</dt><dd class="col-sm-9">{{ record.base_unit.code }} — {{ record.base_unit.name }}</dd>
+{% else %}<dt class="col-sm-3">Code</dt><dd class="col-sm-9">{{ record.code }}</dd>{% if kind == 'items' %}<dt class="col-sm-3">Kind</dt><dd class="col-sm-9">{{ record.kind }}</dd>{% else %}<dt class="col-sm-3">Dimension</dt><dd class="col-sm-9">{{ record.dimension }}</dd><dt class="col-sm-3">Decimal places</dt><dd class="col-sm-9">{{ record.decimal_places }}</dd>{% endif %}{% endif %}</dl>
+{% if can_manage and not record.archived_at %}<a class="btn btn-primary mb-3" href="{{ url_for('catalog.edit', company_id=company_id, kind=kind, record_id=record.id) }}">Edit</a>
+<form method="post" action="{{ url_for('catalog.delete', company_id=company_id, kind=kind, record_id=record.id) }}">{{ action_form.hidden_tag() }}<p>Unused records are deleted. Referenced items and units are archived, preserving existing variants.</p><button class="btn btn-outline-danger" type="submit">Delete unused / archive referenced</button></form>{% endif %}
+{% endblock %}

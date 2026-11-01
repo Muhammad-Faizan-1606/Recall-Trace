@@ -1,0 +1,48 @@
+erDiagram
+    direction TB
+    documents {
+        uuid id PK
+        uuid organization_id FK
+        uuid uploaded_by_id FK
+    }
+    notifications {
+        uuid id PK
+        uuid organization_id FK
+        uuid membership_id FK
+    }
+    notification_preferences {
+        uuid id PK
+        uuid organization_id FK
+        uuid membership_id FK
+    }
+    job_outbox {
+        uuid id PK
+        uuid organization_id FK
+        uuid created_by_id FK
+    }
+    import_jobs {
+        uuid id PK
+        uuid organization_id FK
+        uuid source_document_id FK
+        uuid requested_by_id FK
+    }
+    export_jobs {
+        uuid id PK
+        uuid organization_id FK
+        uuid output_document_id FK
+        uuid requested_by_id FK
+    }
+    organizations ||--o{ documents : organization_id
+    memberships ||--o{ documents : uploaded_by_id
+    organizations ||--o{ notifications : organization_id
+    memberships ||--o{ notifications : membership_id
+    organizations ||--o{ notification_preferences : organization_id
+    memberships ||--o{ notification_preferences : membership_id
+    organizations ||--o{ job_outbox : organization_id
+    memberships |o--o{ job_outbox : created_by_id
+    organizations ||--o{ import_jobs : organization_id
+    documents ||--o{ import_jobs : source_document_id
+    memberships ||--o{ import_jobs : requested_by_id
+    organizations ||--o{ export_jobs : organization_id
+    documents |o--o{ export_jobs : output_document_id
+    memberships ||--o{ export_jobs : requested_by_id

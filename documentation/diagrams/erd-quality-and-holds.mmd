@@ -1,0 +1,120 @@
+erDiagram
+    direction TB
+    inspection_templates {
+        uuid id PK
+        uuid organization_id FK
+    }
+    inspection_checks {
+        uuid id PK
+        uuid organization_id FK
+        uuid template_id FK
+        uuid unit_id FK
+    }
+    inspections {
+        uuid id PK
+        uuid organization_id FK
+        uuid lot_id FK
+        uuid template_id FK
+        uuid inspector_id FK
+    }
+    inspection_results {
+        uuid id PK
+        uuid organization_id FK
+        uuid inspection_id FK
+        uuid check_id FK
+    }
+    test_methods {
+        uuid id PK
+        uuid organization_id FK
+        uuid unit_id FK
+    }
+    test_samples {
+        uuid id PK
+        uuid organization_id FK
+        uuid lot_id FK
+        uuid collector_id FK
+    }
+    test_results {
+        uuid id PK
+        uuid organization_id FK
+        uuid sample_id FK
+        uuid method_id FK
+        uuid reviewer_id FK
+    }
+    nonconformances {
+        uuid id PK
+        uuid organization_id FK
+        uuid lot_id FK
+        uuid inspection_id FK
+        uuid test_result_id FK
+        uuid owner_id FK
+    }
+    nonconformance_actions {
+        uuid id PK
+        uuid organization_id FK
+        uuid nonconformance_id FK
+        uuid assignee_id FK
+        uuid verifier_id FK
+    }
+    quality_holds {
+        uuid id PK
+        uuid organization_id FK
+        uuid lot_id FK
+        uuid placed_by_id FK
+        uuid case_id FK
+        uuid nonconformance_id FK
+    }
+    hold_reviews {
+        uuid id PK
+        uuid organization_id FK
+        uuid hold_id FK
+        uuid reviewer_id FK
+    }
+    quality_documents {
+        uuid id PK
+        uuid organization_id FK
+        uuid inspection_id FK
+        uuid nonconformance_id FK
+        uuid document_id FK
+    }
+    organizations ||--o{ inspection_templates : organization_id
+    organizations ||--o{ inspection_checks : organization_id
+    inspection_templates ||--o{ inspection_checks : template_id
+    units_of_measure |o--o{ inspection_checks : unit_id
+    organizations ||--o{ inspections : organization_id
+    lots ||--o{ inspections : lot_id
+    inspection_templates ||--o{ inspections : template_id
+    memberships ||--o{ inspections : inspector_id
+    organizations ||--o{ inspection_results : organization_id
+    inspections ||--o{ inspection_results : inspection_id
+    inspection_checks ||--o{ inspection_results : check_id
+    organizations ||--o{ test_methods : organization_id
+    units_of_measure |o--o{ test_methods : unit_id
+    organizations ||--o{ test_samples : organization_id
+    lots ||--o{ test_samples : lot_id
+    memberships ||--o{ test_samples : collector_id
+    organizations ||--o{ test_results : organization_id
+    test_samples ||--o{ test_results : sample_id
+    test_methods ||--o{ test_results : method_id
+    memberships |o--o{ test_results : reviewer_id
+    organizations ||--o{ nonconformances : organization_id
+    lots ||--o{ nonconformances : lot_id
+    inspections |o--o{ nonconformances : inspection_id
+    test_results |o--o{ nonconformances : test_result_id
+    memberships ||--o{ nonconformances : owner_id
+    organizations ||--o{ nonconformance_actions : organization_id
+    nonconformances ||--o{ nonconformance_actions : nonconformance_id
+    memberships ||--o{ nonconformance_actions : assignee_id
+    memberships |o--o{ nonconformance_actions : verifier_id
+    organizations ||--o{ quality_holds : organization_id
+    lots ||--o{ quality_holds : lot_id
+    memberships ||--o{ quality_holds : placed_by_id
+    recall_cases |o--o{ quality_holds : case_id
+    nonconformances |o--o{ quality_holds : nonconformance_id
+    organizations ||--o{ hold_reviews : organization_id
+    quality_holds ||--o{ hold_reviews : hold_id
+    memberships ||--o{ hold_reviews : reviewer_id
+    organizations ||--o{ quality_documents : organization_id
+    inspections |o--o{ quality_documents : inspection_id
+    nonconformances |o--o{ quality_documents : nonconformance_id
+    documents ||--o{ quality_documents : document_id

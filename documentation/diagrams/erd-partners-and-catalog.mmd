@@ -1,0 +1,90 @@
+erDiagram
+    direction TB
+    partners {
+        uuid id PK
+        uuid organization_id FK
+    }
+    partner_role_assignments {
+        uuid id PK
+        uuid organization_id FK
+        uuid partner_id FK
+    }
+    partner_contacts {
+        uuid id PK
+        uuid organization_id FK
+        uuid partner_id FK
+    }
+    partner_addresses {
+        uuid id PK
+        uuid organization_id FK
+        uuid partner_id FK
+    }
+    partner_qualifications {
+        uuid id PK
+        uuid organization_id FK
+        uuid partner_id FK
+        uuid document_id FK
+    }
+    items {
+        uuid id PK
+        uuid organization_id FK
+    }
+    item_variants {
+        uuid id PK
+        uuid organization_id FK
+        uuid item_id FK
+        uuid base_unit_id FK
+    }
+    item_categories {
+        uuid id PK
+        uuid organization_id FK
+        uuid parent_id FK
+    }
+    item_category_assignments {
+        uuid id PK
+        uuid organization_id FK
+        uuid item_id FK
+        uuid category_id FK
+    }
+    units_of_measure {
+        uuid id PK
+        uuid organization_id FK
+    }
+    unit_conversions {
+        uuid id PK
+        uuid organization_id FK
+        uuid from_unit_id FK
+        uuid to_unit_id FK
+    }
+    supplier_items {
+        uuid id PK
+        uuid organization_id FK
+        uuid partner_id FK
+        uuid variant_id FK
+    }
+    organizations ||--o{ partners : organization_id
+    organizations ||--o{ partner_role_assignments : organization_id
+    partners ||--o{ partner_role_assignments : partner_id
+    organizations ||--o{ partner_contacts : organization_id
+    partners ||--o{ partner_contacts : partner_id
+    organizations ||--o{ partner_addresses : organization_id
+    partners ||--o{ partner_addresses : partner_id
+    organizations ||--o{ partner_qualifications : organization_id
+    partners ||--o{ partner_qualifications : partner_id
+    documents |o--o{ partner_qualifications : document_id
+    organizations ||--o{ items : organization_id
+    organizations ||--o{ item_variants : organization_id
+    items ||--o{ item_variants : item_id
+    units_of_measure ||--o{ item_variants : base_unit_id
+    organizations ||--o{ item_categories : organization_id
+    item_categories |o--o{ item_categories : parent_id
+    organizations ||--o{ item_category_assignments : organization_id
+    items ||--o{ item_category_assignments : item_id
+    item_categories ||--o{ item_category_assignments : category_id
+    organizations ||--o{ units_of_measure : organization_id
+    organizations ||--o{ unit_conversions : organization_id
+    units_of_measure ||--o{ unit_conversions : from_unit_id
+    units_of_measure ||--o{ unit_conversions : to_unit_id
+    organizations ||--o{ supplier_items : organization_id
+    partners ||--o{ supplier_items : partner_id
+    item_variants ||--o{ supplier_items : variant_id

@@ -1,0 +1,27 @@
+# Dependency proposal only. Resolve test and pin exact versions during bootstrap.
+# This is not the rubric-required accurate requirements.txt or a verified lock file.
+Flask>=3.1,<3.2
+Flask-SQLAlchemy>=3.1,<3.2
+SQLAlchemy>=2.0,<2.1
+Flask-Migrate
+psycopg[binary,pool]>=3,<4
+Flask-Login
+Flask-Session
+Flask-WTF
+WTForms
+email-validator
+argon2-cffi
+pyotp
+cryptography
+Flask-Limiter[redis]
+celery[redis]>=5.6,<5.7
+gunicorn
+python-dotenv
+Pillow
+python-magic
+pytest
+pytest-cov
+playwright
+ruff
+pip-audit
+locust

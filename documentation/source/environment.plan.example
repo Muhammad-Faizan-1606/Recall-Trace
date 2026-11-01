@@ -1,0 +1,19 @@
+# Configuration contract. Values are deliberately blank; generate secrets locally.
+# Not a runnable production environment and not an application .env file.
+APP_ENV=development
+SECRET_KEY=
+DATABASE_URL=
+SESSION_REDIS_URL=
+RATELIMIT_STORAGE_URI=
+CELERY_BROKER_URL=
+MFA_ENCRYPTION_KEY=
+ALLOWED_HOSTS=localhost,127.0.0.1
+TRUSTED_PROXY_HOPS=0
+STORAGE_BACKEND=private_local
+PRIVATE_STORAGE_ROOT=
+MAIL_MODE=local_sink
+MAIL_HOST=
+MAIL_PORT=
+SCAN_MODE=quarantine_until_scanned
+SCANNER_ENDPOINT=
+LOG_LEVEL=INFO

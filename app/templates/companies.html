@@ -1,0 +1,4 @@
+{% extends 'base.html' %}{% block content %}
+<h1>Your companies</h1><p>Choose an active company to work with its catalog.</p>
+<div class="row g-3">{% for company in companies %}<div class="col-md-6"><article class="card"><div class="card-body"><h2 class="h4">{{ company.name }}</h2><a class="btn btn-primary" href="{{ url_for('catalog.listing', company_id=company.id, kind='items') }}">Open catalog</a></div></article></div>{% else %}<p>No active internal memberships. Contact your company administrator.</p>{% endfor %}</div>
+{% endblock %}

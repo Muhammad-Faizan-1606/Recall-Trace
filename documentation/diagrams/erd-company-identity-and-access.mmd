@@ -1,0 +1,84 @@
+erDiagram
+    direction TB
+    organizations {
+        uuid id PK
+    }
+    sites {
+        uuid id PK
+        uuid organization_id FK
+    }
+    users {
+        uuid id PK
+    }
+    memberships {
+        uuid id PK
+        uuid organization_id FK
+        uuid user_id FK
+        uuid partner_id FK
+    }
+    roles {
+        uuid id PK
+        uuid organization_id FK
+    }
+    permissions {
+        uuid id PK
+    }
+    role_permissions {
+        uuid id PK
+        uuid organization_id FK
+        uuid role_id FK
+        uuid permission_id FK
+    }
+    membership_roles {
+        uuid id PK
+        uuid organization_id FK
+        uuid membership_id FK
+        uuid role_id FK
+    }
+    invitations {
+        uuid id PK
+        uuid organization_id FK
+        uuid invited_by_id FK
+        uuid partner_id FK
+    }
+    auth_sessions {
+        uuid id PK
+        uuid user_id FK
+    }
+    password_reset_tokens {
+        uuid id PK
+        uuid user_id FK
+    }
+    email_verification_tokens {
+        uuid id PK
+        uuid user_id FK
+    }
+    mfa_factors {
+        uuid id PK
+        uuid user_id FK
+    }
+    audit_events {
+        uuid id PK
+        uuid organization_id FK
+        uuid actor_id FK
+    }
+    organizations ||--o{ sites : organization_id
+    organizations ||--o{ memberships : organization_id
+    users ||--o{ memberships : user_id
+    partners |o--o{ memberships : partner_id
+    organizations ||--o{ roles : organization_id
+    organizations ||--o{ role_permissions : organization_id
+    roles ||--o{ role_permissions : role_id
+    permissions ||--o{ role_permissions : permission_id
+    organizations ||--o{ membership_roles : organization_id
+    memberships ||--o{ membership_roles : membership_id
+    roles ||--o{ membership_roles : role_id
+    organizations ||--o{ invitations : organization_id
+    memberships ||--o{ invitations : invited_by_id
+    partners |o--o{ invitations : partner_id
+    users ||--o{ auth_sessions : user_id
+    users ||--o{ password_reset_tokens : user_id
+    users ||--o{ email_verification_tokens : user_id
+    users ||--o{ mfa_factors : user_id
+    organizations ||--o{ audit_events : organization_id
+    memberships |o--o{ audit_events : actor_id

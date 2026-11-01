@@ -1,0 +1,6 @@
+-r requirements.in
+pytest
+pytest-cov
+ruff
+pip-audit
+playwright>=1,<2

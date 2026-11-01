@@ -1,0 +1,98 @@
+erDiagram
+    direction TB
+    sales_orders {
+        uuid id PK
+        uuid organization_id FK
+        uuid customer_id FK
+        uuid address_id FK
+    }
+    sales_order_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid sales_order_id FK
+        uuid variant_id FK
+    }
+    shipments {
+        uuid id PK
+        uuid organization_id FK
+        uuid sales_order_id FK
+        uuid warehouse_id FK
+        uuid carrier_id FK
+        uuid stock_transaction_id FK
+    }
+    shipment_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid shipment_id FK
+        uuid sales_order_line_id FK
+        uuid lot_id FK
+        uuid source_location_id FK
+    }
+    shipment_serial_assignments {
+        uuid id PK
+        uuid organization_id FK
+        uuid shipment_line_id FK
+        uuid serial_unit_id FK
+    }
+    carriers {
+        uuid id PK
+        uuid organization_id FK
+    }
+    shipment_events {
+        uuid id PK
+        uuid organization_id FK
+        uuid shipment_id FK
+        uuid recorded_by_id FK
+    }
+    delivery_confirmations {
+        uuid id PK
+        uuid organization_id FK
+        uuid shipment_id FK
+        uuid document_id FK
+    }
+    customer_returns {
+        uuid id PK
+        uuid organization_id FK
+        uuid shipment_id FK
+        uuid stock_transaction_id FK
+    }
+    customer_return_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid return_id FK
+        uuid shipment_line_id FK
+        uuid destination_location_id FK
+    }
+    organizations ||--o{ sales_orders : organization_id
+    partners ||--o{ sales_orders : customer_id
+    partner_addresses |o--o{ sales_orders : address_id
+    organizations ||--o{ sales_order_lines : organization_id
+    sales_orders ||--o{ sales_order_lines : sales_order_id
+    item_variants ||--o{ sales_order_lines : variant_id
+    organizations ||--o{ shipments : organization_id
+    sales_orders ||--o{ shipments : sales_order_id
+    warehouses ||--o{ shipments : warehouse_id
+    carriers |o--o{ shipments : carrier_id
+    stock_transactions |o--o{ shipments : stock_transaction_id
+    organizations ||--o{ shipment_lines : organization_id
+    shipments ||--o{ shipment_lines : shipment_id
+    sales_order_lines ||--o{ shipment_lines : sales_order_line_id
+    lots ||--o{ shipment_lines : lot_id
+    storage_locations ||--o{ shipment_lines : source_location_id
+    organizations ||--o{ shipment_serial_assignments : organization_id
+    shipment_lines ||--o{ shipment_serial_assignments : shipment_line_id
+    serial_units ||--o{ shipment_serial_assignments : serial_unit_id
+    organizations ||--o{ carriers : organization_id
+    organizations ||--o{ shipment_events : organization_id
+    shipments ||--o{ shipment_events : shipment_id
+    memberships |o--o{ shipment_events : recorded_by_id
+    organizations ||--o{ delivery_confirmations : organization_id
+    shipments ||--o{ delivery_confirmations : shipment_id
+    documents |o--o{ delivery_confirmations : document_id
+    organizations ||--o{ customer_returns : organization_id
+    shipments ||--o{ customer_returns : shipment_id
+    stock_transactions |o--o{ customer_returns : stock_transaction_id
+    organizations ||--o{ customer_return_lines : organization_id
+    customer_returns ||--o{ customer_return_lines : return_id
+    shipment_lines ||--o{ customer_return_lines : shipment_line_id
+    storage_locations ||--o{ customer_return_lines : destination_location_id

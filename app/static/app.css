@@ -1,0 +1,5 @@
+body { background: #f8fafc; color: #192a3a; }
+main { min-height: 65vh; }
+.form-panel { max-width: 38rem; }
+h1 { margin-bottom: 1.5rem; }
+:focus-visible { outline: 3px solid #135bca; outline-offset: 3px; }

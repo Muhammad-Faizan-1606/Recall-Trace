@@ -1,0 +1,122 @@
+erDiagram
+    direction TB
+    bills_of_materials {
+        uuid id PK
+        uuid organization_id FK
+        uuid output_variant_id FK
+    }
+    bom_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid bom_id FK
+        uuid component_variant_id FK
+    }
+    production_runs {
+        uuid id PK
+        uuid organization_id FK
+        uuid site_id FK
+        uuid bom_id FK
+        uuid posted_by_id FK
+        uuid stock_transaction_id FK
+    }
+    production_run_steps {
+        uuid id PK
+        uuid organization_id FK
+        uuid production_run_id FK
+        uuid assignee_id FK
+    }
+    production_inputs {
+        uuid id PK
+        uuid organization_id FK
+        uuid production_run_id FK
+        uuid lot_id FK
+        uuid source_location_id FK
+    }
+    production_outputs {
+        uuid id PK
+        uuid organization_id FK
+        uuid production_run_id FK
+        uuid lot_id FK
+        uuid destination_location_id FK
+    }
+    production_allocations {
+        uuid id PK
+        uuid organization_id FK
+        uuid input_id FK
+        uuid output_id FK
+    }
+    lot_transformations {
+        uuid id PK
+        uuid organization_id FK
+        uuid site_id FK
+        uuid stock_transaction_id FK
+    }
+    lot_transformation_inputs {
+        uuid id PK
+        uuid organization_id FK
+        uuid transformation_id FK
+        uuid lot_id FK
+        uuid location_id FK
+    }
+    lot_transformation_outputs {
+        uuid id PK
+        uuid organization_id FK
+        uuid transformation_id FK
+        uuid lot_id FK
+        uuid location_id FK
+    }
+    production_deviations {
+        uuid id PK
+        uuid organization_id FK
+        uuid production_run_id FK
+        uuid nonconformance_id FK
+        uuid owner_id FK
+    }
+    production_documents {
+        uuid id PK
+        uuid organization_id FK
+        uuid production_run_id FK
+        uuid document_id FK
+    }
+    organizations ||--o{ bills_of_materials : organization_id
+    item_variants ||--o{ bills_of_materials : output_variant_id
+    organizations ||--o{ bom_lines : organization_id
+    bills_of_materials ||--o{ bom_lines : bom_id
+    item_variants ||--o{ bom_lines : component_variant_id
+    organizations ||--o{ production_runs : organization_id
+    sites ||--o{ production_runs : site_id
+    bills_of_materials |o--o{ production_runs : bom_id
+    memberships |o--o{ production_runs : posted_by_id
+    stock_transactions |o--o{ production_runs : stock_transaction_id
+    organizations ||--o{ production_run_steps : organization_id
+    production_runs ||--o{ production_run_steps : production_run_id
+    memberships |o--o{ production_run_steps : assignee_id
+    organizations ||--o{ production_inputs : organization_id
+    production_runs ||--o{ production_inputs : production_run_id
+    lots ||--o{ production_inputs : lot_id
+    storage_locations ||--o{ production_inputs : source_location_id
+    organizations ||--o{ production_outputs : organization_id
+    production_runs ||--o{ production_outputs : production_run_id
+    lots ||--o{ production_outputs : lot_id
+    storage_locations ||--o{ production_outputs : destination_location_id
+    organizations ||--o{ production_allocations : organization_id
+    production_inputs ||--o{ production_allocations : input_id
+    production_outputs ||--o{ production_allocations : output_id
+    organizations ||--o{ lot_transformations : organization_id
+    sites ||--o{ lot_transformations : site_id
+    stock_transactions |o--o{ lot_transformations : stock_transaction_id
+    organizations ||--o{ lot_transformation_inputs : organization_id
+    lot_transformations ||--o{ lot_transformation_inputs : transformation_id
+    lots ||--o{ lot_transformation_inputs : lot_id
+    storage_locations ||--o{ lot_transformation_inputs : location_id
+    organizations ||--o{ lot_transformation_outputs : organization_id
+    lot_transformations ||--o{ lot_transformation_outputs : transformation_id
+    lots ||--o{ lot_transformation_outputs : lot_id
+    storage_locations ||--o{ lot_transformation_outputs : location_id
+    organizations ||--o{ production_deviations : organization_id
+    production_runs ||--o{ production_deviations : production_run_id
+    nonconformances |o--o{ production_deviations : nonconformance_id
+    memberships ||--o{ production_deviations : owner_id
+    organizations ||--o{ production_documents : organization_id
+    production_runs ||--o{ production_documents : production_run_id
+    documents ||--o{ production_documents : document_id

@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Your sessions · RecallTrace{% endblock %}
+{% block content %}
+<h1>Your sessions</h1><p>Review your latest 100 sign-ins. Revoke any session you no longer use. Times are shown in UTC.</p>
+<div class="table-responsive"><table class="table"><thead><tr><th>Signed in</th><th>Last activity</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead><tbody>
+{% for record in records %}<tr><td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ record.last_seen_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ record.expires_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{% if record.revoked_at %}Revoked{% elif record.token_digest == current_digest %}This session{% else %}Other session{% endif %}</td><td>{% if not record.revoked_at %}<form method="post" action="{{ url_for('sessions.revoke', session_id=record.id) }}">{{ form.hidden_tag() }}<button class="btn btn-outline-danger btn-sm">Revoke{% if record.token_digest == current_digest %} this session{% endif %}</button></form>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

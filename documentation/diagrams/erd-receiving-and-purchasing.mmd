@@ -1,0 +1,102 @@
+erDiagram
+    direction TB
+    purchase_orders {
+        uuid id PK
+        uuid organization_id FK
+        uuid supplier_id FK
+        uuid delivery_site_id FK
+    }
+    purchase_order_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid purchase_order_id FK
+        uuid variant_id FK
+    }
+    supplier_deliveries {
+        uuid id PK
+        uuid organization_id FK
+        uuid supplier_id FK
+    }
+    supplier_delivery_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid delivery_id FK
+        uuid purchase_order_line_id FK
+    }
+    goods_receipts {
+        uuid id PK
+        uuid organization_id FK
+        uuid supplier_id FK
+        uuid warehouse_id FK
+        uuid received_by_id FK
+        uuid stock_transaction_id FK
+    }
+    goods_receipt_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid receipt_id FK
+        uuid purchase_order_line_id FK
+        uuid lot_id FK
+        uuid location_id FK
+        uuid supplier_delivery_line_id FK
+    }
+    receipt_documents {
+        uuid id PK
+        uuid organization_id FK
+        uuid receipt_id FK
+        uuid document_id FK
+    }
+    supplier_returns {
+        uuid id PK
+        uuid organization_id FK
+        uuid receipt_id FK
+        uuid stock_transaction_id FK
+    }
+    supplier_return_lines {
+        uuid id PK
+        uuid organization_id FK
+        uuid return_id FK
+        uuid receipt_line_id FK
+        uuid location_id FK
+    }
+    supplier_return_shipments {
+        uuid id PK
+        uuid organization_id FK
+        uuid return_id FK
+        uuid carrier_id FK
+    }
+    organizations ||--o{ purchase_orders : organization_id
+    partners ||--o{ purchase_orders : supplier_id
+    sites ||--o{ purchase_orders : delivery_site_id
+    organizations ||--o{ purchase_order_lines : organization_id
+    purchase_orders ||--o{ purchase_order_lines : purchase_order_id
+    item_variants ||--o{ purchase_order_lines : variant_id
+    organizations ||--o{ supplier_deliveries : organization_id
+    partners ||--o{ supplier_deliveries : supplier_id
+    organizations ||--o{ supplier_delivery_lines : organization_id
+    supplier_deliveries ||--o{ supplier_delivery_lines : delivery_id
+    purchase_order_lines ||--o{ supplier_delivery_lines : purchase_order_line_id
+    organizations ||--o{ goods_receipts : organization_id
+    partners ||--o{ goods_receipts : supplier_id
+    warehouses ||--o{ goods_receipts : warehouse_id
+    memberships ||--o{ goods_receipts : received_by_id
+    stock_transactions |o--o{ goods_receipts : stock_transaction_id
+    organizations ||--o{ goods_receipt_lines : organization_id
+    goods_receipts ||--o{ goods_receipt_lines : receipt_id
+    purchase_order_lines ||--o{ goods_receipt_lines : purchase_order_line_id
+    lots ||--o{ goods_receipt_lines : lot_id
+    storage_locations ||--o{ goods_receipt_lines : location_id
+    supplier_delivery_lines |o--o{ goods_receipt_lines : supplier_delivery_line_id
+    organizations ||--o{ receipt_documents : organization_id
+    goods_receipts ||--o{ receipt_documents : receipt_id
+    documents ||--o{ receipt_documents : document_id
+    organizations ||--o{ supplier_returns : organization_id
+    goods_receipts ||--o{ supplier_returns : receipt_id
+    stock_transactions |o--o{ supplier_returns : stock_transaction_id
+    organizations ||--o{ supplier_return_lines : organization_id
+    supplier_returns ||--o{ supplier_return_lines : return_id
+    goods_receipt_lines ||--o{ supplier_return_lines : receipt_line_id
+    storage_locations ||--o{ supplier_return_lines : location_id
+    organizations ||--o{ supplier_return_shipments : organization_id
+    supplier_returns ||--o{ supplier_return_shipments : return_id
+    carriers |o--o{ supplier_return_shipments : carrier_id

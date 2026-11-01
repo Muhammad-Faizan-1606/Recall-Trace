@@ -1,0 +1,2 @@
+{% extends 'base.html' %}{% from 'macros.html' import field %}
+{% block content %}<h1>Accept an invitation</h1><p>Use the code in your invitation. If you have an account, <a href="{{ url_for('auth.login') }}">sign in</a> first. New users must enter a display name and a password with 15–128 characters.</p><form method="post" class="form-panel">{{ form.hidden_tag() }}{% for input in form %}{% if input.type != 'CSRFTokenField' %}{{ field(input) }}{% endif %}{% endfor %}<button class="btn btn-primary">Accept invitation</button></form>{% endblock %}
