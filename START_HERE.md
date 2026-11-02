@@ -6,9 +6,9 @@ Extract the archive and open the enclosed recalltrace folder as the local projec
 
 The package contains the project files and a focused decision summary. It is not an imported Codex chat history. It does not configure credentials, create a remote repository or publish the application.
 
-## First task to paste
+## Current project
 
-Build RecallTrace from this project folder. Read AGENTS.md, HANDOFF.md, PLAN.md and STATUS.md, then the original rubric in references/Flask_Project_Rubric.pdf and the relevant specification files under documentation. This is currently documentation only. The full target is the documented 100-model Flask/Jinja/PostgreSQL product, with the complete 72-model Core release first and 28 Expanded models afterward. Start with M1: inspect the toolchain, bootstrap the real application, and deliver an authenticated company-scoped catalog CRUD slice with migrations, server validation, CSRF, flash messages, Post-Redirect-Get and meaningful PostgreSQL/authorization tests. Make necessary local changes and verify them; continue through the plan in complete working increments rather than returning only a plan or empty table scaffolding. Preserve protected history, do not invent test results, and update STATUS.md and DECISIONS.md with actual evidence and the next task.
+The application is implemented locally with the final 72-model Core scope. Read README.md and STATUS.md, then follow documentation/CORE_GUIDE.md for the demonstration. The 28 Expanded models in the original specification are excluded. Do not restart the project from its earlier documentation-only state.
 
 ## Resume in a later session
 

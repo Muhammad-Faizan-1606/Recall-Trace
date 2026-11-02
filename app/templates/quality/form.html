@@ -1,0 +1,2 @@
+{% extends 'base.html' %}{% from 'macros.html' import field %}
+{% block content %}<a href="{{ url_for('quality.dashboard',company_id=company_id) }}">Quality workspace</a><h1>{{ title }}</h1><form method="post">{{ form.hidden_tag() }}{% for input in form if input.type not in ['CSRFTokenField','HiddenField'] %}{{ field(input) }}{% endfor %}<button class="btn btn-primary">Save</button></form>{% endblock %}

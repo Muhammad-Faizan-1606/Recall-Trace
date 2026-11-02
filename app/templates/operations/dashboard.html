@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Operations</h1>
+<p>Receive supplier lots, record production genealogy and dispatch finished stock. Quantities use each SKU's base unit.</p>
+<nav aria-label="Operations" class="d-flex flex-wrap gap-2 mb-4">{% for key in kinds %}<a class="btn btn-outline-primary" href="{{ url_for('operations.listing',company_id=company_id,kind=key) }}">{{ key.replace('-',' ').title() }}</a>{% endfor %}<a class="btn btn-outline-secondary" href="{{ url_for('operations.journal',company_id=company_id) }}">Stock journal</a></nav>
+<h2 class="h4">Stock by lot and location</h2>
+{% if mismatches %}<div class="alert alert-danger" role="alert">Stock reconciliation found {{ mismatches|length }} discrepancies. Investigate before posting further movements.</div>{% else %}<p class="text-success">Recorded balances reconcile with the posted stock journal.</p>{% endif %}
+<div class="table-responsive"><table class="table"><thead><tr><th>Lot</th><th>Location</th><th>Quantity</th></tr></thead><tbody>{% for row in balances %}<tr><td>{{ lots[row.lot_id].lot_code }}</td><td>{{ locations[row.location_id].name }}</td><td>{{ row.quantity }}</td></tr>{% else %}<tr><td colspan="3">No stock yet. Create a purchase order and post its receipt to add stock.</td></tr>{% endfor %}</tbody></table></div>
+<p class="text-secondary">Showing up to 200 balances. The stock journal preserves every posting and compensating reversal.</p>
+{% endblock %}

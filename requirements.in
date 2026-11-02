@@ -12,3 +12,5 @@ Flask-Limiter[redis]
 redis
 python-dotenv
 gunicorn
+cryptography>=50,<51
+requests>=2.34.2,<3

@@ -1,0 +1,42 @@
+# This declares a web service only. Supabase/Redis/mail/scanner need separate setup.
+# Free-tier resource availability/limits are provider controlled; see DEPLOYMENT.md.
+services:
+  - type: web
+    name: recalltrace
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/ready
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MFA_ENCRYPTION_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_REDIS_URL
+        sync: false
+      - key: RATELIMIT_STORAGE_URI
+        sync: false
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: recalltrace-private
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SCANNER_ENDPOINT
+        sync: false
+      - key: MAIL_MODE
+        value: resend
+      - key: MAIL_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: WEB_CONCURRENCY
+        value: "1"

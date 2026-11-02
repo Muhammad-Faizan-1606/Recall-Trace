@@ -6,17 +6,11 @@ The user selected RecallTrace after comparing procurement, paper trading, recall
 
 The team has four or more active builders and more than four weeks before submission. The exact deadline, weekly availability, team names and production hosting budget have not been specified. Use the dependency-based milestones and avoid inventing commitments. These details do not block local implementation.
 
-## What exists
+## Current scope and implementation
 
-- A visually reviewed 26-page project specification, copied under references.
-- The original four-page course rubric, copied byte-for-byte as references/Flask_Project_Rubric.pdf. Its original upload name was Flask_Project_Rubric(1).pdf.
-- Thirteen detailed implementation guides under documentation/docs.
-- A logical field dictionary with 100 distinct model definitions and 297 foreign-key relationships, split into 72 Core and 28 Expanded models.
-- Thirty functional requirements, ten nonfunctional targets, and 62 planned acceptance scenarios.
-- CRUD/lifecycle coverage for every model, nine module ERD source files, architecture/genealogy diagrams, dependency and environment proposals.
-- Documentation consistency checks. These did not execute application software.
+The user confirmed the final release contains 72 Core models, no Expanded phase. This is a university project with business-quality controls and no hosting budget. Flask/Jinja/PostgreSQL/Redis remain the chosen stack. Local application, migrations, hashed dependencies and meaningful integration/browser tests exist; the earlier documentation-only starting state is historical.
 
-The application, executable migrations, finalized lock files, implemented tests and deployment do not exist yet. Do not import or build Meridian or ProcureFlow; those were alternative project ideas, not source for this selected implementation.
+Read README.md, STATUS.md, documentation/CORE_GUIDE.md and documentation/DEPLOYMENT.md for current setup, verification and external requirements. Do not infer production readiness from the model count. No public provider accounts, external credentials or production database were created; the connected database is the private local PostgreSQL development service. Retain the original rubric and logical schema references.
 
 ## The product demonstration
 
@@ -34,4 +28,4 @@ Maintain real UI CRUD for mutable business records; document supporting associat
 
 ## Next action
 
-Read AGENTS.md and PLAN.md, inspect the toolchain, and implement the foundation plus a complete company-scoped catalog CRUD slice. Establish configuration, database transactions, shared templates and meaningful negative authorization tests before broad schema expansion. Continue through the roadmap in working increments and record actual progress.
+Use the existing checkout, restart services using the saved setup/start instructions and inspect actual health. Review current verification and external hosting limitations in STATUS.md. Finish provider account/resource configuration and validate live TLS, storage, scanning, mail, worker supervision, least-privilege database roles and recovery before treating a deployment as business ready. Keep secret values out of chat/source and do not send real recall messages during development.

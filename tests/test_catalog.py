@@ -231,7 +231,12 @@ def test_live_membership_and_partner_scope(client, records):
     login(client)
     user = db.session.scalar(select(User).where(User.email == "catalog-editor@aurora.test"))
     membership = db.session.scalar(select(Membership).where(Membership.user_id == user.id))
-    membership.partner_id = uuid.uuid4()
+    from app.models.master import Partner
+
+    partner = Partner(organization_id=membership.organization_id, code="LIMITED", name="Partner")
+    db.session.add(partner)
+    db.session.flush()
+    membership.partner_id = partner.id
     db.session.commit()
     assert client.get(root(records)).status_code == 404
     membership.partner_id = None
@@ -270,7 +275,7 @@ def test_association_company_constraint(records):
 
 
 def test_migration_inventory_and_clean_drift(app):
-    assert len(db.metadata.tables) == 14
+    assert len(db.metadata.tables) == 72
     assert set(inspect(db.engine).get_table_names()) == set(db.metadata.tables) | {
         "alembic_version"
     }

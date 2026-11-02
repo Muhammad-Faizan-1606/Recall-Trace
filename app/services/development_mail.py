@@ -1,5 +1,10 @@
-"""Opt-in local-only delivery. No network mail integration is configured."""
+"""Private local account delivery or explicitly configured production HTTPS mail.
 
+The historical function names remain for callers; no raw token is saved to an
+outbox or logged. Production never writes the development mailbox.
+"""
+
+import hashlib
 import json
 import os
 import secrets
@@ -23,15 +28,36 @@ def _directory():
 
 
 def development_mail_configured():
+    if current_app.config.get("APP_ENV") == "production":
+        return bool(
+            current_app.config.get("MAIL_MODE") == "resend"
+            and current_app.config.get("MAIL_API_KEY")
+            and current_app.config.get("MAIL_FROM")
+        )
     return _directory() is not None
 
 
 def deliver_development_message(recipient, subject, body):
-    """Write a private mailbox message, returning False without disclosing its contents.
+    """Return transport acceptance, never a guarantee that a recipient read mail.
 
-    The caller owns the database transaction. A development spool file is not proof
-    of external delivery, and this adapter must not be used for production mail.
+    Challenge issuance commits before this call. Production sends synchronously
+    through verified TLS. Failed/ambiguous delivery returns False; a fresh request
+    creates a new challenge, rather than storing raw account tokens in job payloads.
     """
+    if current_app.config.get("APP_ENV") == "production":
+        if not development_mail_configured():
+            return False
+        from app.services.notices import send_message
+
+        fingerprint = hashlib.sha256(
+            json.dumps([recipient, subject, body], ensure_ascii=False).encode()
+        ).hexdigest()
+        outcome, _reference, _error = send_message(
+            recipient, subject, body, "account-" + fingerprint
+        )
+        if outcome != "sent":
+            current_app.logger.warning("Production account mail was not confirmed accepted.")
+        return outcome == "sent"
     directory = _directory()
     if directory is None:
         return False

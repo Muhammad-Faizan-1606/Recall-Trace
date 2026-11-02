@@ -1,0 +1,54 @@
+name: PostgreSQL integration
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: recalltrace
+          POSTGRES_PASSWORD: ci-only-isolated-password
+          POSTGRES_DB: recalltrace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recalltrace"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      APP_ENV: testing
+      SECRET_KEY: ci-only-isolated-signing-secret-not-for-deployment
+      DATABASE_URL: postgresql+psycopg://recalltrace:ci-only-isolated-password@127.0.0.1:5432/recalltrace
+      SESSION_REDIS_URL: redis://127.0.0.1:6379/0
+      RATELIMIT_STORAGE_URI: redis://127.0.0.1:6379/1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - run: python -m pip install --require-hashes -r requirements-dev.txt
+      - run: flask --app wsgi:app db upgrade
+      - run: python -m pytest -q
+      - run: flask --app wsgi:app db check
+      - run: ruff check app tests scripts migrations wsgi.py gunicorn.conf.py
+      - run: ruff format --check app tests scripts migrations wsgi.py gunicorn.conf.py
+      - run: python -m pip check
+      - run: pip-audit --disable-pip --no-deps -r requirements.txt
+      - run: docker build -t recalltrace-ci .
+      - name: Verify runtime-only image imports
+        run: >-
+          docker run --rm --env SECRET_KEY --env DATABASE_URL --env SESSION_REDIS_URL
+          --env RATELIMIT_STORAGE_URI --env APP_ENV recalltrace-ci python -c
+          'from app import create_app; from app.extensions import db; create_app(); assert len(db.metadata.tables) == 72'

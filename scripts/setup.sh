@@ -11,5 +11,6 @@ else
   .venv/bin/python -m pip install --require-hashes -r requirements-dev.txt
 fi
 .venv/bin/python scripts/init_local.py
+.venv/bin/python scripts/init_security.py
 docker compose up -d --wait
 .venv/bin/flask --app wsgi:app db upgrade

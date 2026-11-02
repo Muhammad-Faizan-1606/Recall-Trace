@@ -2,12 +2,15 @@
 
 import secrets
 from datetime import timedelta
+from functools import wraps
 
-from flask import abort
+from flask import abort, current_app
 from flask_login import current_user
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
 
+from app.core_admin import CORE_PERMISSIONS
 from app.extensions import db
 from app.models import (
     AuthSession,
@@ -21,19 +24,46 @@ from app.models import (
     now,
 )
 from app.models.invitations import Invitation
+from app.models.master import Partner
 from app.policies import membership_for, require
 from app.services.account_recovery import TOKEN_PATTERN
+from app.services.audit import record as audit
 from app.services.auth import digest, password_hash
 from app.services.development_mail import deliver_development_message, development_mail_configured
 
-ACTIONS = {"catalog.read", "catalog.manage", "access.manage"}
+ACTIONS = set(CORE_PERMISSIONS)
+PARTNER_ACTIONS = {"notice.read", "notice.acknowledge"}
+_UNCHANGED = object()
 
 
 class AccessConflict(Exception):
     pass
 
 
+def mutation(function):
+    @wraps(function)
+    def checked(*args, **kwargs):
+        try:
+            result = function(*args, **kwargs)
+            if result is False:
+                db.session.rollback()
+            return result
+        except (IntegrityError, StaleDataError) as exc:
+            db.session.rollback()
+            raise AccessConflict(
+                "The record changed or conflicts with existing data. Reload before retrying."
+            ) from exc
+        except Exception:
+            db.session.rollback()
+            raise
+
+    return checked
+
+
 def lock_company(company_id):
+    # Resolve session validation before taking any transaction guard; its heartbeat commits.
+    if not current_user.is_authenticated:
+        abort(401)
     db.session.scalar(
         select(Organization)
         .where(Organization.id == company_id)
@@ -41,15 +71,19 @@ def lock_company(company_id):
         .execution_options(populate_existing=True)
     )
     require(company_id, "access.manage")
+    if current_app.config.get("APP_ENV") == "production":
+        from app.services.mfa import require_recent_mfa
+
+        require_recent_mfa(company_id)
 
 
-def permissions_for(member):
-    if member.status != "active" or member.archived_at or member.partner_id:
+def permissions_for(member, allow_partner=False):
+    if member.status != "active" or member.archived_at or (member.partner_id and not allow_partner):
         return set()
     user = db.session.get(User, member.user_id)
     if not user or not user.is_active:
         return set()
-    return set(
+    codes = set(
         db.session.scalars(
             select(Permission.code)
             .join(RolePermission)
@@ -63,6 +97,7 @@ def permissions_for(member):
             )
         )
     )
+    return codes & PARTNER_ACTIONS if member.partner_id else codes
 
 
 def role_permissions(role):
@@ -93,6 +128,18 @@ def grantable(role, member):
     return role.archived_at is None and role_permissions(role) <= permissions_for(member)
 
 
+def validate_partner_role(company_id, role, partner_id):
+    if not partner_id:
+        return None
+    partner = scoped(Partner, company_id, partner_id)
+    if partner.archived_at or partner.status != "active":
+        raise AccessConflict("Choose an active partner in this company.")
+    codes = role_permissions(role)
+    if role.protected or "notice.read" not in codes or not codes <= PARTNER_ACTIONS:
+        raise AccessConflict("Partner accounts require a portal-only role with notice.read.")
+    return partner.id
+
+
 def revoke_users(user_ids):
     for user_id in sorted(set(user_ids), key=str):
         user = db.session.scalar(
@@ -109,6 +156,7 @@ def revoke_users(user_ids):
         )
 
 
+@mutation
 def save_role(company_id, code, name, codes, role_id=None, version=None):
     lock_company(company_id)
     actor = membership_for(company_id)
@@ -130,6 +178,28 @@ def save_role(company_id, code, name, codes, role_id=None, version=None):
         raise AccessConflict(
             "This role is protected, changed, archived, or exceeds your authority."
         )
+    if role_id and ("notice.read" not in codes or not codes <= PARTNER_ACTIONS):
+        partner_use = db.session.scalar(
+            select(Membership.id)
+            .join(MembershipRole, MembershipRole.membership_id == Membership.id)
+            .where(MembershipRole.role_id == role_id, Membership.partner_id.is_not(None))
+            .limit(1)
+        )
+        pending_partner_invite = db.session.scalar(
+            select(Invitation.id)
+            .where(
+                Invitation.role_id == role_id,
+                Invitation.partner_id.is_not(None),
+                Invitation.accepted_at.is_(None),
+                Invitation.revoked_at.is_(None),
+                Invitation.expires_at > now(),
+            )
+            .limit(1)
+        )
+        if partner_use or pending_partner_invite:
+            raise AccessConflict(
+                "A role used by partners must remain limited to portal permissions."
+            )
     try:
         role.code, role.name = code, name
         # Force a version change even when only association rows change.
@@ -157,19 +227,19 @@ def save_role(company_id, code, name, codes, role_id=None, version=None):
         raise AccessConflict("Role code already exists.") from exc
 
 
-def change_membership(company_id, membership_id, role_id, status, version):
+@mutation
+def change_membership(company_id, membership_id, role_id, status, version, partner_id=_UNCHANGED):
     lock_company(company_id)
     actor = membership_for(company_id)
     member = scoped(Membership, company_id, membership_id)
     role = scoped(Role, company_id, role_id)
-    if (
-        status not in {"active", "inactive"}
-        or member.version != version
-        or member.partner_id
-        or member.archived_at
-    ):
-        raise AccessConflict("Membership changed or is not an editable internal membership.")
-    if not grantable(role, actor) or not permissions_for(member) <= permissions_for(actor):
+    if status not in {"active", "inactive"} or member.version != version or member.archived_at:
+        raise AccessConflict("Membership changed or is archived; reload before editing.")
+    binding = member.partner_id if partner_id is _UNCHANGED else partner_id
+    binding = validate_partner_role(company_id, role, binding)
+    if not grantable(role, actor) or not permissions_for(
+        member, allow_partner=True
+    ) <= permissions_for(actor):
         raise AccessConflict("The requested membership exceeds your authority.")
     # Count under the company lock so two administrators cannot remove both owners.
     owners = db.session.scalars(
@@ -189,9 +259,16 @@ def change_membership(company_id, membership_id, role_id, status, version):
             User.archived_at.is_(None),
         )
     ).all()
-    if member.id in owners and len(owners) == 1 and (status != "active" or role.code != "owner"):
+    if (
+        member.id in owners
+        and len(owners) == 1
+        and (status != "active" or role.code != "owner" or binding)
+    ):
         raise AccessConflict("The company must retain an active owner.")
+    # Capture the currently authorized actor before a legitimate self-step-down.
+    audit(company_id, "access.membership.updated", "memberships", member.id, {"status": status})
     member.status = status
+    member.partner_id = binding
     member.version += 1
     db.session.execute(delete(MembershipRole).where(MembershipRole.membership_id == member.id))
     db.session.add(
@@ -201,14 +278,16 @@ def change_membership(company_id, membership_id, role_id, status, version):
     db.session.commit()
 
 
-def invite(company_id, email, role_id):
+@mutation
+def invite(company_id, email, role_id, partner_id=None):
     lock_company(company_id)
     actor = membership_for(company_id)
     role = scoped(Role, company_id, role_id)
     if not grantable(role, actor):
         raise AccessConflict("You cannot invite with that role.")
+    binding = validate_partner_role(company_id, role, partner_id)
     if not development_mail_configured():
-        raise AccessConflict("Local account delivery must be configured before inviting users.")
+        raise AccessConflict("Account delivery must be configured before inviting users.")
     email = email.strip().lower()
     db.session.execute(
         update(Invitation)
@@ -225,30 +304,40 @@ def invite(company_id, email, role_id):
         organization_id=company_id,
         email=email,
         role_id=role.id,
+        partner_id=binding,
         invited_by_id=actor.id,
         token_digest=digest(token),
         expires_at=now() + timedelta(days=2),
     )
     db.session.add(invitation)
+    db.session.flush()
+    audit(company_id, "access.invitation.created", "invitations", invitation.id)
     db.session.commit()
     if not deliver_development_message(
         email,
         "RecallTrace company invitation",
         f"Open /invitations/accept and paste this one-time code:\n{token}\nSign in first if you already have an account.",
     ):
-        raise AccessConflict("Invitation saved but local delivery failed. Revoke or resend it.")
+        raise AccessConflict(
+            "Invitation saved but delivery was not confirmed. Revoke or resend it."
+        )
 
 
+@mutation
 def revoke_invitation(company_id, invitation_id):
     lock_company(company_id)
     invitation = scoped(Invitation, company_id, invitation_id)
     if invitation.accepted_at:
         raise AccessConflict("Accepted invitations are retained as history.")
     invitation.revoked_at = now()
+    audit(company_id, "access.invitation.revoked", "invitations", invitation.id)
     db.session.commit()
 
 
+@mutation
 def accept_invitation(token, display_name, password):
+    signed_in = current_user.is_authenticated
+    signed_in_id = current_user.id if signed_in else None
     if not TOKEN_PATTERN.fullmatch(token or ""):
         return False
     preview = db.session.scalar(select(Invitation).where(Invitation.token_digest == digest(token)))
@@ -280,8 +369,12 @@ def accept_invitation(token, display_name, password):
     role = scoped(Role, company.id, invitation.role_id)
     if "access.manage" not in permissions_for(issuer) or not grantable(role, issuer):
         return False
+    try:
+        binding = validate_partner_role(company.id, role, invitation.partner_id)
+    except AccessConflict:
+        return False
     if user:
-        if not current_user.is_authenticated or current_user.id != user.id or not user.is_active:
+        if not signed_in or signed_in_id != user.id or not user.is_active:
             raise AccessConflict("Sign in to the invited account before accepting this invitation.")
         existing = db.session.scalar(
             select(Membership).where(
@@ -293,7 +386,7 @@ def accept_invitation(token, display_name, password):
                 "This account already has a membership; ask the owner to manage it."
             )
     else:
-        if current_user.is_authenticated:
+        if signed_in:
             raise AccessConflict("Sign out before creating the invited account.")
         if not display_name or len(display_name) > 120:
             raise AccessConflict("Enter a display name of at most 120 characters.")
@@ -305,7 +398,7 @@ def accept_invitation(token, display_name, password):
         db.session.add(user)
         db.session.flush()
     user.email_verified_at = now()
-    member = Membership(organization_id=company.id, user_id=user.id)
+    member = Membership(organization_id=company.id, user_id=user.id, partner_id=binding)
     db.session.add(member)
     db.session.flush()
     db.session.add(
@@ -317,6 +410,7 @@ def accept_invitation(token, display_name, password):
     return True
 
 
+@mutation
 def remove_role(company_id, role_id, version):
     lock_company(company_id)
     role = scoped(Role, company_id, role_id)
@@ -347,5 +441,11 @@ def remove_role(company_id, role_id, version):
         db.session.execute(delete(RolePermission).where(RolePermission.role_id == role.id))
         db.session.delete(role)
         result = "Unused role deleted."
+    audit(
+        company_id,
+        "access.role.archived" if referenced else "access.role.deleted",
+        "roles",
+        role.id,
+    )
     db.session.commit()
     return result

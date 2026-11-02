@@ -59,7 +59,7 @@ with sync_playwright() as playwright:
     page.get_by_label("Email", exact=True).fill(email)
     page.get_by_label("Role", exact=True).select_option(label=f"Browser viewer {suffix}")
     page.get_by_role("button", name="Send invitation", exact=True).click()
-    expect(page.get_by_role("status")).to_contain_text("private development mailbox")
+    expect(page.get_by_role("status")).to_contain_text("Invitation saved and delivery confirmed")
     token = code_for(email, "company invitation")
     assert token not in page.content()
     page.get_by_role("button", name="Sign out", exact=True).click()

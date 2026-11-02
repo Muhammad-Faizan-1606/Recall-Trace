@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Account security</h1>
+{% if factor and factor.verified_at %}
+<p>An authenticator is enrolled. {{ factor.recovery_code_hashes|length }} recovery codes remain.</p>
+<p><a class="btn btn-primary" href="{{ url_for('security.challenge') }}">Verify authenticator</a> <a class="btn btn-outline-danger" href="{{ url_for('security.disable') }}">Remove authenticator</a></p>
+{% elif configured %}
+<p>Use a TOTP authenticator app to protect each login and confirm high impact actions. Save the one-time recovery codes privately when enrollment finishes.</p>
+<p><a class="btn btn-primary" href="{{ url_for('security.enroll') }}">Enroll authenticator</a></p>
+{% else %}<p>MFA encryption is not configured. Ask the deployment operator to supply the private encryption key.</p>{% endif %}
+<p>Recovery codes are single use. Password recovery does not bypass an enrolled authenticator.</p>
+{% endblock %}

@@ -1,6 +1,6 @@
 # RecallTrace implementation plan
 
-This plan carries the selected specification into implementation. Work in dependency order; each slice includes its UI, service rules, migrations and verification. The full target is the documented 100-model product. Core 72 must be coherent and complete before the 28-model expansion is presented as delivered.
+This plan carries the selected specification into implementation. Work in dependency order; each slice includes its UI, service rules, migrations and verification. The final scope confirmed by the user is the documented 72-model Core product. The 28 Expanded models are excluded. See STATUS.md for current implementation and executed verification; the milestones below describe dependency order rather than unchecked completion claims.
 
 ## M1 Foundation and first working slice
 
@@ -26,9 +26,9 @@ Implement versioned inspections, nonconformances, holds and independent release,
 
 Implement private evidence, authorized CSV imports/exports, durable job outbox, recipient notices, acknowledgements, verified recovery/disposition and closure. Finish the selected 72-model inventory with real workflows and planned lifecycle coverage. Demonstrate the complete C10 fixture and cross-company/partner isolation.
 
-## M6 Expanded workflows
+## M6 Scope boundary
 
-Implement the 28 additional models with their features and tested migrations: qualifications, advance delivery records, BOM revisions, explicit allocations, split/merge/repack, serials, reservations, stock counts, sample testing, corrective actions, delivery evidence and returns. Prove clean full installation and Core-to-Expanded upgrade. Count only actual implemented model tables; keep the logical schema synchronized with justified design changes.
+The 28 Expanded models and their qualification, BOM/allocation, serial, reservation, count, advanced test, return and delivery-evidence workflows are excluded by the user's final 72-model decision. Do not add them merely to increase the table count.
 
 ## M7 Verification and submission
 

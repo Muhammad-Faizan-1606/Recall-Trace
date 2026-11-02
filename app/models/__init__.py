@@ -1,4 +1,4 @@
-"""M1 subset of the logical schema. All tenant references use composite FKs."""
+"""Core model registry. All tenant references use composite foreign keys."""
 
 import uuid
 from datetime import UTC, datetime
@@ -70,13 +70,16 @@ class Membership(Owned, db.Model):
     joined_at: Mapped[datetime] = mapped_column(
         db.DateTime(timezone=True), default=now, server_default=func.now()
     )
-    # M2 will add partners and its composite FK. Non-null denies all internal catalog access.
+    # Partner-restricted memberships are denied internal catalog access.
     partner_id: Mapped[uuid.UUID | None]
     archived_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
     user: Mapped[User] = relationship()
     __table_args__ = (
         UniqueConstraint("organization_id", "id"),
         UniqueConstraint("organization_id", "user_id"),
+        ForeignKeyConstraint(
+            ["organization_id", "partner_id"], ["partners.organization_id", "partners.id"]
+        ),
     )
 
 
@@ -185,5 +188,6 @@ class ItemVariant(Owned, db.Model):
 
 
 # Import implemented extensions after the common model base is defined.
+from app.models import evidence, master, operations, quality, recall, security  # noqa: E402,F401
 from app.models.account_tokens import EmailVerificationToken, PasswordResetToken  # noqa: E402,F401
 from app.models.invitations import Invitation  # noqa: E402,F401

@@ -1,0 +1,7 @@
+{% extends 'base.html' %}{% from 'macros.html' import field %}
+{% block content %}<h1>{{ record.original_name }}</h1><dl><dt>Content type</dt><dd>{{ record.media_type }}</dd><dt>Bytes</dt><dd>{{ record.size_bytes }}</dd><dt>SHA-256</dt><dd class="text-break">{{ record.sha256 }}</dd><dt>Scan</dt><dd>{{ record.scan_status }}</dd><dt>State</dt><dd>{{ record.state }}</dd></dl>
+{% if record.scan_status == 'clean' and record.state == 'active' %}<a class="btn btn-primary" href="{{ url_for('evidence.download',company_id=company_id,document_id=record.id) }}">Download evidence</a>{% else %}<p role="status">This file is quarantined. No download is available.</p>{% endif %}
+{% if can_upload %}{% if record.state == 'quarantined' %}<form class="my-3" method="post" action="{{ url_for('evidence.rescan',company_id=company_id,document_id=record.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-primary">Request scanner check</button></form>{% endif %}
+<form class="my-3" method="post" action="{{ url_for('evidence.rename',company_id=company_id,document_id=record.id) }}">{{ rename_form.hidden_tag() }}{{ field(rename_form.original_name) }}<button class="btn btn-outline-primary">Rename display filename</button></form>
+<form class="my-3" method="post" action="{{ url_for('evidence.delete',company_id=company_id,document_id=record.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-danger">Delete unused document</button></form>{% endif %}
+<a href="{{ url_for('evidence.listing',company_id=company_id) }}">All evidence</a>{% endblock %}

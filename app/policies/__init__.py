@@ -22,6 +22,7 @@ def membership_for(company_id):
             Organization.status == "active",
             Organization.archived_at.is_(None),
         )
+        .execution_options(populate_existing=True)
     )
     if membership is None or membership.partner_id is not None:
         abort(404)

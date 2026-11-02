@@ -1,0 +1,5 @@
+{% extends 'base.html' %}{% from 'macros.html' import field %}{% block content %}
+<h1>{{ 'Edit' if record else 'New' }} {{ kind.replace('-',' ') }}</h1>
+{% if has_lines %}<p>Related records stay fixed while the draft has lines. Remove its lines first to change its supplier, customer, site or warehouse.</p>{% endif %}
+<form method="post">{{ form.hidden_tag() }}{% for input in form if input.type not in ['CSRFTokenField','HiddenField'] %}{{ field(input) }}{% endfor %}<button class="btn btn-primary">Save draft</button></form>
+{% endblock %}

@@ -1,0 +1,181 @@
+"""Explicit operator bootstrap for the implemented Core permission catalogue."""
+
+import re
+
+import click
+from flask import current_app
+from flask.cli import with_appcontext
+from flask_login import login_user
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+
+from app.extensions import db
+from app.models import (
+    Membership,
+    MembershipRole,
+    Organization,
+    Permission,
+    Role,
+    RolePermission,
+    User,
+)
+
+CORE_PERMISSIONS = {
+    "catalog.read": "Read internal master data and operational records",
+    "catalog.manage": "Maintain master records and validate item imports",
+    "access.manage": "Administer company access",
+    "inventory.receive": "Post supplier receipts",
+    "inventory.transfer": "Transfer stock between locations",
+    "inventory.dispatch": "Dispatch shipments",
+    "production.post": "Record production consumption and output",
+    "quality.inspect": "Manage inspection templates and observations",
+    "quality.hold": "Place quality holds",
+    "quality.release": "Independently review hold releases",
+    "trace.run": "Compute scoped upstream and downstream traces",
+    "case.prepare": "Prepare cases, tasks and investigation notes",
+    "case.approve": "Independently approve current recall scopes",
+    "case.close": "Verify recall closure",
+    "notice.prepare": "Prepare recipient-specific recall notices",
+    "notice.read": "Read approved recipient-scoped notices in the partner portal",
+    "notice.approve": "Independently approve and queue notices",
+    "notice.acknowledge": "Record an acknowledgement",
+    "recovery.record": "Verify physical recovery and disposition",
+    "evidence.read": "Read authorized private evidence",
+    "evidence.upload": "Upload quarantined evidence",
+    "reports.export": "Create scoped private exports",
+    "audit.read": "Read company audit metadata",
+}
+
+
+def initialize(company):
+    role = db.session.scalar(
+        select(Role).where(
+            Role.organization_id == company.id,
+            Role.code == "owner",
+            Role.protected.is_(True),
+            Role.archived_at.is_(None),
+        )
+    )
+    if role is None:
+        raise click.ClickException("Bootstrap the first owner using create-owner first.")
+    for code, description in CORE_PERMISSIONS.items():
+        permission = db.session.scalar(select(Permission).where(Permission.code == code))
+        if permission is None:
+            permission = Permission(code=code, description=description)
+            db.session.add(permission)
+            db.session.flush()
+        if not db.session.scalar(
+            select(RolePermission.id).where(
+                RolePermission.role_id == role.id, RolePermission.permission_id == permission.id
+            )
+        ):
+            db.session.add(
+                RolePermission(
+                    organization_id=company.id, role_id=role.id, permission_id=permission.id
+                )
+            )
+    db.session.commit()
+
+
+@click.command("init-business")
+@click.option(
+    "--company", required=True, help="Existing company slug; grants its owner Core actions."
+)
+@with_appcontext
+def init_business(company):
+    """Install explicit Core permission definitions and grants, idempotently."""
+    row = db.session.scalar(select(Organization).where(Organization.slug == company))
+    if not row or row.status != "active" or row.archived_at:
+        raise click.ClickException("Choose an existing active company.")
+    initialize(row)
+    click.echo("Core permissions initialized; passwords and business records preserved.")
+
+
+def register(app):
+    app.cli.add_command(create_company)
+    app.cli.add_command(init_business)
+    app.cli.add_command(seed_investigation_demo)
+
+
+@click.command("create-company")
+@click.option("--name", required=True, help="Company display name.")
+@click.option("--slug", required=True, help="Unique lowercase identifier.")
+@with_appcontext
+def create_company(name, slug):
+    """Create a real empty company before create-owner; no fictional records."""
+    name, slug = name.strip(), slug.strip()
+    if (
+        not 1 <= len(name) <= 120
+        or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug)
+        or len(slug) > 80
+    ):
+        raise click.ClickException("Use a bounded name and a lowercase alphanumeric/hyphen slug.")
+    row = db.session.scalar(select(Organization).where(Organization.slug == slug))
+    if row:
+        if row.name == name and row.status == "active" and row.archived_at is None:
+            click.echo("Company already exists; preserved unchanged.")
+            return
+        raise click.ClickException("Company slug is already in use; existing records preserved.")
+    db.session.add(Organization(name=name, slug=slug))
+    try:
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise click.ClickException(
+            "Company slug was claimed concurrently; choose another."
+        ) from exc
+    click.echo("Empty company created. Bootstrap its first owner, then run init-business.")
+
+
+@click.command("seed-investigation-demo")
+@click.option("--company", required=True)
+@click.option("--owner-email", required=True, help="Existing active owner; development only.")
+@with_appcontext
+def seed_investigation_demo(company, owner_email):
+    """Create/reuse the fictional C10 demonstration through real posting services."""
+    if current_app.config["APP_ENV"] != "development":
+        raise click.ClickException("Fictional investigation fixtures require development mode.")
+    organization = db.session.scalar(select(Organization).where(Organization.slug == company))
+    user = db.session.scalar(select(User).where(db.func.lower(User.email) == owner_email.lower()))
+    if organization is None or user is None or not user.is_active:
+        raise click.ClickException("Choose an existing active company owner.")
+    owner = db.session.scalar(
+        select(Membership.id)
+        .join(MembershipRole, MembershipRole.membership_id == Membership.id)
+        .join(Role, Role.id == MembershipRole.role_id)
+        .where(
+            Membership.organization_id == organization.id,
+            Membership.user_id == user.id,
+            Membership.status == "active",
+            Membership.archived_at.is_(None),
+            Membership.partner_id.is_(None),
+            Role.code == "owner",
+            Role.protected.is_(True),
+            Role.archived_at.is_(None),
+        )
+    )
+    if owner is None:
+        raise click.ClickException("The selected account must be an active company owner.")
+    initialize(organization)
+    from app.services.business import DomainError
+    from app.services.recall import current_trace
+    from app.services.trace import compute, summary
+    from app.services.trace_fixture import seed_c10
+
+    with current_app.test_request_context():
+        login_user(user)
+        try:
+            result = seed_c10(organization.id)
+            try:
+                run = current_trace(organization.id, result["case_id"])
+            except DomainError:
+                run = compute(organization.id, result["case_id"])
+            totals = summary(organization.id, run.id)
+        except DomainError as exc:
+            raise click.ClickException(str(exc)) from exc
+        click.echo("Fictional C10 investigation seeded; no external communications sent.")
+        for entry in totals:
+            click.echo(str(entry))
+        click.echo(
+            "Use Investigations to review scope; approval needs a different MFA-enrolled reviewer."
+        )

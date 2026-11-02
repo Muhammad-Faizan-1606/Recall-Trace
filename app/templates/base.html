@@ -15,7 +15,16 @@
 <main id="main" class="container pb-5">
 {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert alert-{{ category }}" role="status">{{ message }}</div>{% endfor %}{% endwith %}
 {% if company is defined %}<p class="text-secondary">{{ company.name }} / Catalog</p><nav aria-label="Catalog" class="mb-4">{% for section in ['items', 'variants', 'units'] %}<a class="btn btn-outline-primary me-2" href="{{ url_for('catalog.listing', company_id=company_id, kind=section) }}">{{ section|capitalize }}</a>{% endfor %}{% if can_access_company(company_id) %}<a class="btn btn-outline-secondary" href="{{ url_for('access.dashboard', company_id=company_id) }}">Company access</a>{% endif %}</nav>{% endif %}
+{% if company is defined %}<nav aria-label="Workspace" class="d-flex flex-wrap gap-2 mb-4">
+<a class="btn btn-outline-dark" href="{{ url_for('master.dashboard', company_id=company_id) }}">Master data</a>
+<a class="btn btn-outline-dark" href="{{ url_for('operations.dashboard', company_id=company_id) }}">Operations</a>
+<a class="btn btn-outline-dark" href="{{ url_for('quality.dashboard', company_id=company_id) }}">Quality</a>
+<a class="btn btn-outline-dark" href="{{ url_for('recall.dashboard', company_id=company_id) }}">Investigations</a>
+<a class="btn btn-outline-dark" href="{{ url_for('notices.listing', company_id=company_id) }}">Notices</a>
+<a class="btn btn-outline-dark" href="{{ url_for('evidence.listing', company_id=company_id) }}">Evidence &amp; reports</a>
+<a class="btn btn-outline-dark" href="{{ url_for('security.index') }}">Account security</a>
+</nav>{% endif %}
 {% block content %}{% endblock %}
 </main>
-<footer class="container border-top py-3 text-secondary">RecallTrace · Development workspace</footer>
+<footer class="container border-top py-3 text-secondary">RecallTrace · {{ 'Development' if config.APP_ENV != 'production' else 'Business' }} workspace · Quantities and trace scope reflect recorded evidence</footer>
 </body></html>

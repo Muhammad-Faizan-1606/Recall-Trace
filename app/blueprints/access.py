@@ -13,6 +13,7 @@ from app.extensions import db, limiter
 from app.forms import ActionForm, email_syntax, trimmed
 from app.models import Membership, Organization, Role
 from app.models.invitations import Invitation
+from app.models.master import Partner
 from app.policies import membership_for, require
 from app.services import access
 
@@ -27,6 +28,7 @@ class RoleForm(ActionForm):
 
 class MembershipForm(ActionForm):
     role_id = SelectField("Role", validators=[DataRequired()])
+    partner_id = SelectField("Partner restriction (blank for internal users)", default="")
     status = SelectField(
         "Status", choices=[SelectChoice("active", "Active"), SelectChoice("inactive", "Inactive")]
     )
@@ -37,6 +39,7 @@ class InviteForm(FlaskForm):
         "Email", validators=[DataRequired(), email_syntax, Length(max=254)], filters=[trimmed]
     )
     role_id = SelectField("Role", validators=[DataRequired()])
+    partner_id = SelectField("Partner restriction (blank for internal users)", default="")
 
 
 class AcceptForm(FlaskForm):
@@ -62,6 +65,21 @@ def role_choices(company_id):
             .order_by(Role.name)
         )
         if access.grantable(r, actor)
+    ]
+
+
+def partner_choices(company_id):
+    return [SelectChoice("", "Internal company user")] + [
+        SelectChoice(str(p.id), f"{p.code} — {p.name}")
+        for p in db.session.scalars(
+            select(Partner)
+            .where(
+                Partner.organization_id == company_id,
+                Partner.status == "active",
+                Partner.archived_at.is_(None),
+            )
+            .order_by(Partner.code)
+        )
     ]
 
 
@@ -136,6 +154,9 @@ def member_edit(company_id, membership_id):
     member = access.scoped(Membership, company_id, membership_id)
     form = MembershipForm(obj=member)
     form.role_id.choices = role_choices(company_id)
+    form.partner_id.choices = partner_choices(company_id)
+    if request.method == "GET" or "partner_id" not in request.form:
+        form.partner_id.data = str(member.partner_id) if member.partner_id else ""
     if request.method == "GET":
         form.version.data = str(member.version)
     status = 422 if request.method == "POST" else 200
@@ -147,6 +168,7 @@ def member_edit(company_id, membership_id):
                 uuid.UUID(form.role_id.data),
                 form.status.data,
                 int(form.version.data),
+                partner_id=uuid.UUID(form.partner_id.data) if form.partner_id.data else None,
             )
         except access.AccessConflict as exc:
             db.session.rollback()
@@ -171,16 +193,25 @@ def invite(company_id):
     ctx = context(company_id)
     form = InviteForm()
     form.role_id.choices = role_choices(company_id)
+    form.partner_id.choices = partner_choices(company_id)
     status = 422 if request.method == "POST" else 200
     if form.validate_on_submit():
         try:
-            access.invite(company_id, form.email.data, uuid.UUID(form.role_id.data))
+            access.invite(
+                company_id,
+                form.email.data,
+                uuid.UUID(form.role_id.data),
+                partner_id=uuid.UUID(form.partner_id.data) if form.partner_id.data else None,
+            )
         except access.AccessConflict as exc:
             db.session.rollback()
             flash(str(exc), "danger")
             status = 409
         else:
-            flash("Invitation saved to the private development mailbox.", "success")
+            flash(
+                "Invitation saved and delivery confirmed by the configured account adapter.",
+                "success",
+            )
             return redirect(url_for("access.dashboard", company_id=company_id), code=303)
     return render_template(
         "form.html", form=form, title="Invite a company member", submit="Send invitation", **ctx

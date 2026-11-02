@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import timedelta
 
-from flask import Flask, session
+from flask import Flask, g, render_template, session
 from flask_login import current_user, logout_user
 from redis import Redis
 from redis.exceptions import RedisError
@@ -23,7 +23,7 @@ def create_app(config=None):
         SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SESSION_TYPE="redis",
-        SESSION_REDIS=Redis.from_url(os.getenv("SESSION_REDIS_URL", "redis://127.0.0.1:6379/0")),
+        SESSION_REDIS_URL=os.getenv("SESSION_REDIS_URL", "redis://127.0.0.1:6379/0"),
         SESSION_KEY_PREFIX="recalltrace:",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
@@ -31,8 +31,10 @@ def create_app(config=None):
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
         SESSION_REFRESH_EACH_REQUEST=True,
         RATELIMIT_STORAGE_URI=os.getenv("RATELIMIT_STORAGE_URI", "redis://127.0.0.1:6379/1"),
-        MAX_CONTENT_LENGTH=1024 * 1024,
+        MAX_CONTENT_LENGTH=11 * 1024 * 1024,
         ACCOUNT_MAIL_DIR=os.getenv("ACCOUNT_MAIL_DIR"),
+        MFA_ENCRYPTION_KEY=os.getenv("MFA_ENCRYPTION_KEY"),
+        MFA_KEY_VERSION=os.getenv("MFA_KEY_VERSION", "v1"),
     )
     if config:
         app.config.update(config)
@@ -40,9 +42,12 @@ def create_app(config=None):
         raise RuntimeError("Configure a random SECRET_KEY of at least 32 characters.")
     if not (app.config["SQLALCHEMY_DATABASE_URI"] or "").startswith("postgresql+psycopg://"):
         raise RuntimeError("DATABASE_URL must use PostgreSQL with psycopg.")
-    if app.config["APP_ENV"] == "production":
-        # This release is development only until MFA, private evidence and deployment checks exist.
-        raise RuntimeError("Production deployment is not supported by this development release.")
+    from app.configuration import configure_environment
+
+    configure_environment(app)
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"].setdefault("hide_parameters", True)
+    if "SESSION_REDIS" not in app.config:
+        app.config["SESSION_REDIS"] = Redis.from_url(app.config["SESSION_REDIS_URL"])
     db.init_app(app)
     migrate.init_app(app, db)
     sessions.init_app(app)
@@ -91,6 +96,7 @@ def create_app(config=None):
 
     @app.before_request
     def validate_session():
+        g.correlation_id = uuid.uuid4()
         if session.get("_user_id") and not current_user.is_authenticated:
             logout_user()
             session.clear()
@@ -103,14 +109,37 @@ def create_app(config=None):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Request-ID"] = str(getattr(g, "correlation_id", uuid.uuid4()))
+        if app.config["APP_ENV"] == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
+
+    @app.errorhandler(500)
+    def unavailable(_error):
+        db.session.rollback()
+        return render_template("unavailable.html", correlation_id=g.correlation_id), 500
+
+    def safe_log_exception(info):
+        # Avoid logging SQL parameters, form fields or provider response bodies.
+        app.logger.error(
+            "Unhandled %s; request_id=%s",
+            info[0].__name__,
+            getattr(g, "correlation_id", "unknown"),
+        )
+
+    app.log_exception = safe_log_exception
+
+    @app.get("/health/live")
+    def live():
+        return {"status": "alive"}
 
     @app.get("/health/ready")
     def ready():
         try:
             db.session.execute(text("SELECT 1"))
             app.config["SESSION_REDIS"].ping()
-            limiter.limiter.storage.check()
+            if not limiter.limiter.storage.check():
+                return {"status": "unavailable"}, 503
         except (SQLAlchemyError, RedisError, OSError):
             db.session.rollback()
             return {"status": "unavailable"}, 503
@@ -127,7 +156,32 @@ def create_app(config=None):
     app.register_blueprint(sessions_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(catalog_bp)
+    from app.blueprints.master import bp as master_bp
+
+    app.register_blueprint(master_bp)
+    from app.blueprints.security import bp as security_bp
+
+    app.register_blueprint(security_bp)
+    from app.blueprints.operations import bp as operations_bp
+
+    app.register_blueprint(operations_bp)
+    from app.blueprints.evidence import bp as evidence_bp
+    from app.blueprints.notices import bp as notices_bp
+    from app.blueprints.quality import bp as quality_bp
+
+    app.register_blueprint(evidence_bp)
+    app.register_blueprint(notices_bp)
+    app.register_blueprint(quality_bp)
+    from app.blueprints.recall import bp as recall_bp
+
+    app.register_blueprint(recall_bp)
     from app.cli import register
 
     register(app)
+    from app.core_admin import register as register_core
+
+    register_core(app)
+    from app.services.jobs import register as register_jobs
+
+    register_jobs(app)
     return app

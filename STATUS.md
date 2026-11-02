@@ -1,5 +1,58 @@
 # RecallTrace implementation status
 
+Updated 3 November 2026 (Asia/Karachi). The selected final release is the **72-model Core application**, not the original 100-model plan. The 28 Expanded models are excluded. The Core schema, connected local PostgreSQL/Redis environment, operational workflows and deployment artifacts are implemented and validated locally. **No public production deployment has been provisioned or verified.**
+
+## Current Core implementation
+
+- Exactly 72 related ORM tables, matching the Core table set in the original logical schema, with reviewed Alembic migrations through `c72a02`; Alembic's infrastructure table is not counted.
+- Company/owner bootstrap for real empty installations; explicit 23-action permission catalogue, role/membership management, internal and partner invitations, recovery/verification and revocable shared sessions. Partner accounts require live portal grants and recipient scope; they cannot access internal catalog, evidence or genealogy.
+- Encrypted TOTP enrollment, per-login verification, step replay protection, digest-only one-time recovery codes, recent independent approval/release controls and safe removal/revocation. Company-scoped audited operations and immutable audit history.
+- Finite validated catalog/master forms for partners, roles/contacts/addresses, facilities/locations, categories, supplier SKUs and lot identities. Referenced identities freeze, linked records archive, and positive stock prevents unsafe lot/facility archival.
+- Purchase orders, receipts, production inputs/outputs, transfers, sales orders, shipment lines/events, an atomic stock journal/balance projection, stable company-first/lot locking, Decimal precision, payload-bound idempotency, order fulfillment caps, holds and journal reconciliation. Receipt/transfer reversal preserves original history.
+- Published inspection criteria/completed observations, nonconformances, lot holds with independent reviews, and accepted private evidence attachment. Database guards protect posted business documents/lines, quality snapshots and immutable journal/history rows.
+- Upstream/downstream bounded trace snapshots, graph/table evidence, separate SKU totals and exposure deduplication. Complete current downstream scope, recent MFA and independent approval create holds atomically. Reopening preserves holds and requires fresh submission/approval; a later snapshot cannot silently expand approved scope.
+- Investigation sources/tasks/comments/evidence, independent task verification, recovery/disposition with durable evidence references/payload checks and quantity caps, and reviewed closure conditions.
+- Private bounded PDF/PNG/JPEG storage, integrity checks, fail-closed scanner integration, validated item CSV dry-run/atomic import, requester-restricted expiring exports, notifications/preferences, recipient notices, independent approval, durable outbox, execution-time authorization and safe retry/ambiguous reconciliation. Local delivery is visibly `local_written`.
+- Non-root pinned-base Docker image, Gunicorn configuration, Render blueprint, fail-closed production configuration, CI workflow and private SHA-verified database backup/restore tooling. Requirements are hash locked, including cryptography 50.0.2 and an explicit runtime HTTP client.
+
+## Executed current-instance verification
+
+| Check | Observed result |
+| --- | --- |
+| `bash scripts/setup.sh`, repeated on final source | Passed; preserved private local credentials/MFA key and existing development business data, synced 73 packages, restarted/reused PostgreSQL 17 and Redis 7.4, migrated safely. |
+| `.venv/bin/python -m pytest -q --tb=short` | **188 passed in 75.43s (0:01:15)**, no skips in the final run. Includes the original 60 regressions and new Core/security/operational/production-configuration tests. |
+| Ruff check and format check | Passed, 82 Python files. |
+| `.venv/bin/flask --app wsgi:app db check` | No new upgrade operations detected; current head `c72a02`. |
+| Fresh isolated PostgreSQL database | All migrations from empty passed; 72 Core tables plus Alembic; verification database removed. |
+| C10 public-service fixture and repeat seed | 150 affected lamp outputs, 110 dispatched, 40 lamps in stock; 50 unused switches reported separately; unrelated L3/S3 excluded. Repeat preserved posted stock and identities. |
+| Original catalog Chromium smoke | Passed sign-in, narrow navigation, catalog/item CRUD, refresh, concurrent authenticated requests and signout; no JavaScript errors. |
+| Access Chromium smoke | Passed role creation, invitation/limited member, recovery and session revocation. Verification request passed; consumption was not repeated because the existing demo owner was already verified. Synthetic access history retained. |
+| New Core Chromium smoke | Passed narrow master CRUD, operations/quality navigation, C10 graph/totals, CSV preview/commit, actual private export download, quarantine/no download, notifications and signout; no JavaScript errors. Synthetic import/export history retained. |
+| Final runtime image | `sha256:d980b615de5792b639626f3e4f3dc4a9199e8b22f048ccb974d9e1c08204472f`; built with verified runtime hashes. UID 10001, no copied .env/password, cryptography 50.0.2, 72 models; real Gunicorn inside the image reached ready against connected PostgreSQL/Redis. |
+| Dependency consistency/audit | `pip check`: no broken requirements. Final `pip-audit --disable-pip --no-deps -r requirements.txt`: no known vulnerabilities found at execution time. Not certification. |
+| Populated database backup/restore | Private custom archive+SHA manifest restored into a new random database, migration `c72a02`, 72 Core tables, 11 journal lines, 3 trace results, stock reconciliation passed; restore verification 0.953801s for this tiny fixture; temporary database removed. This is not a measured business RTO. |
+| Original reference manifest | `sha256sum -c MANIFEST.sha256` from documentation passed; original specification/schema/rubric references retained. |
+| Reusable environment configuration | Updated `install_script` and `start_skill` saved successfully to the draft. Saving did not publish a snapshot or deploy an app. |
+
+Earlier integration runs correctly exposed problems: colliding composite-FK names, stale role catalogue/partner bindings, self-step-down auditing after deactivation, tests trying to mutate immutable traces, inaccessible duplicate file-control IDs, a runtime-only image missing its explicit HTTP dependency, and advisories against the initial MFA encryption-library selection. The relevant sources/locks/tests were corrected, the fixed encryption release audited, and the final checks above passed. Do not reuse earlier failing logs as current readiness evidence.
+
+## Remaining external work and limits
+
+1. No Render/Supabase/Redis/mail/scanner provider accounts or credentials are connected. The database created and tested here is **private local development PostgreSQL**, not a public Supabase database. Follow documentation/DEPLOYMENT.md to create resources and securely supply real values. Never send passwords/API keys in chat.
+2. Production settings validation is tested, but live provider TLS/certificates, HTTPS ingress/cookies, least-privilege runtime/migration roles, private bucket persistence, malware scanning and real authorized email have not been exercised. Missing scanner leaves uploaded files quarantined. No real recall communication was sent.
+3. Free plans can sleep/pause and may not provide durable workers, backups or an uptime commitment. A supervised outbox runner, monitoring/operator, retention policy and external backup/key recovery remain deployment responsibilities. Manual bounded local drains are available for the university demo.
+4. Database restore passed for the synthetic populated fixture. External evidence-object restoration, separate MFA-key recovery, full end-to-end disaster recovery, target workload performance and a business SLA remain unverified. No production-readiness/security certification claim is made.
+5. Core CSV import supports items; exports expose documented scoped kinds. Production/shipment history cannot be arbitrarily rewritten; receipt/transfer corrections use compensating events. The 28 Expanded workflows are excluded. The instructor's interpretation of CRUD for protected/security/history records still needs confirmation.
+6. Source publication is recorded separately in Git history and the accompanying push result. GitHub Actions execution, public application publication and fresh-task snapshot restoration have not been verified here. Review/save environment settings and publish the environment snapshot to retain the prepared workspace.
+
+README.md and documentation/CORE_GUIDE.md describe the runnable workflow. Continue from this implementation, not from the historical documentation-only state below.
+
+---
+
+## Historical pre-Core implementation records
+
+# RecallTrace implementation status
+
 Updated 1 November 2026 (Asia/Karachi). M1 and the first M2 access slice are implemented in the existing published checkout. The original specification and its 62 planned acceptance scenarios remain design references, not evidence that the full product works.
 
 ## Implemented — M1

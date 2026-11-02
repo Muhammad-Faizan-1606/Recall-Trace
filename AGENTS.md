@@ -4,9 +4,9 @@
 
 Build RecallTrace, a batch traceability and product recall investigation application for Web Engineering CSE601330. The selected product connects supplier component lots to production outputs, stock locations, shipments, quality evidence and controlled recall workflows. Its defining experience is an evidence-backed trace graph and investigation workspace.
 
-This folder starts with documentation only. There is no application, database migration, tested dependency lock, passing software suite or deployment yet. The 62 scenarios are planned acceptance cases. Documentation validation is not application verification. Read STATUS.md and inspect the live files before reporting progress; update those records as real implementation replaces this starting state.
+The Flask/Jinja application and its 72-model Core schema are implemented in this checkout. Read STATUS.md and inspect current files/test evidence before reporting progress. The original 62 acceptance scenarios are planning references, not automatically executed checks; live provider deployment and operational limits remain explicit.
 
-The full design targets 100 related ORM models: 72 Core and 28 Expanded. Complete connected workflows in increments and keep the actual schema inventory honest. Do not manufacture empty tables or routes to claim completion. The original rubric requires at least 40 meaningful related SQLAlchemy models and functional CRUD across the schema.
+The user selected a final release of 72 related Core ORM models. The original 28 Expanded models are excluded from this release; preserve their specification as historical reference. Complete connected workflows and keep the actual schema inventory honest. Do not manufacture empty tables or routes to claim completion. The original rubric requires at least 40 meaningful related SQLAlchemy models and functional CRUD across the schema.
 
 ## Read before implementation
 

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% from 'macros.html' import field %}
+{% block content %}
+<h1>Set up your authenticator</h1>
+<p>In your authenticator app, add a time-based six-digit code with this manual setup key. This page displays the key once. Keep it private.</p>
+<p><code>{{ secret }}</code></p>
+<details><summary>Authenticator provisioning URI</summary><p class="text-break"><code>{{ uri }}</code></p></details>
+<form method="post" action="{{ url_for('security.confirm') }}">{{ form.hidden_tag() }}{{ field(form.code) }}<button class="btn btn-primary">Confirm enrollment</button></form>
+<p>If you close this page before confirming, begin enrollment again.</p>
+{% endblock %}

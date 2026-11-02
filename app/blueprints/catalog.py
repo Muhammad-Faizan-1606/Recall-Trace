@@ -32,7 +32,22 @@ def companies():
         )
         .order_by(Organization.name)
     ).all()
-    return render_template("companies.html", companies=companies)
+    partner_companies = db.session.scalars(
+        select(Organization)
+        .join(Membership)
+        .where(
+            Membership.user_id == current_user.id,
+            Membership.status == "active",
+            Membership.archived_at.is_(None),
+            Membership.partner_id.is_not(None),
+            Organization.status == "active",
+            Organization.archived_at.is_(None),
+        )
+        .order_by(Organization.name)
+    ).all()
+    return render_template(
+        "companies.html", companies=companies, partner_companies=partner_companies
+    )
 
 
 def context(company_id, kind):

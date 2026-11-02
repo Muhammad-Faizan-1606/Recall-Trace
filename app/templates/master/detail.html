@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block title %}{{ label(record) }} · RecallTrace{% endblock %}
+{% block content %}<p><a href="{{ url_for('master.listing', company_id=company_id, resource=resource) }}">{{ title }}</a></p><h1>{{ label(record) }}</h1>
+{% if record.archived_at is defined and record.archived_at %}<p class="alert alert-secondary">Archived. Existing history is preserved.</p>{% endif %}
+<dl class="row">{% for field_name, value in fields %}<dt class="col-sm-4">{{ field_name }}</dt><dd class="col-sm-8">{{ value if value is not none else '—' }}</dd>{% endfor %}</dl>
+{% if resource == 'partners' %}<nav aria-label="Partner records" class="mb-3">{% for child, child_title in [('partner-roles', 'Roles'), ('contacts', 'Contacts'), ('addresses', 'Addresses'), ('supplier-items', 'Supplier items')] %}<a class="me-3" href="{{ url_for('master.listing', company_id=company_id, resource=child) }}">{{ child_title }}</a>{% endfor %}</nav>{% endif %}
+{% if can_manage %}{% if record.archived_at is not defined or not record.archived_at %}<a class="btn btn-primary mb-3" href="{{ url_for('master.edit', company_id=company_id, resource=resource, record_id=record.id) }}">Edit</a>{% endif %}<form method="post" action="{{ url_for('master.delete', company_id=company_id, resource=resource, record_id=record.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-danger">Delete unused / archive referenced</button></form>{% endif %}{% endblock %}

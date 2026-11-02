@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Save your recovery codes</h1>
+<p>Enrollment is complete. These codes appear once. Save them in a private password manager; each code can replace your authenticator once.</p>
+<ul>{% for code in codes %}<li><code>{{ code }}</code></li>{% endfor %}</ul>
+<p>Other signed-in sessions have been revoked.</p>
+<a class="btn btn-primary" href="{{ url_for('catalog.companies') }}">Continue</a>
+{% endblock %}

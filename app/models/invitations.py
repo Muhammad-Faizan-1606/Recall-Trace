@@ -17,10 +17,14 @@ class Invitation(Owned, db.Model):
     revoked_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
     invited_by_id: Mapped[uuid.UUID]
     role_id: Mapped[uuid.UUID]
+    partner_id: Mapped[uuid.UUID | None]
     __table_args__ = (
         UniqueConstraint("organization_id", "id"),
         ForeignKeyConstraint(
             ["organization_id", "invited_by_id"], ["memberships.organization_id", "memberships.id"]
         ),
         ForeignKeyConstraint(["organization_id", "role_id"], ["roles.organization_id", "roles.id"]),
+        ForeignKeyConstraint(
+            ["organization_id", "partner_id"], ["partners.organization_id", "partners.id"]
+        ),
     )
