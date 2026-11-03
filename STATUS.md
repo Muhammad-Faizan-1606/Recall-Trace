@@ -1,5 +1,11 @@
 # RecallTrace implementation status
 
+## Production deployment preparation — 3 November 2026
+
+The owner confirmed existing Render, Supabase and Resend accounts. No provider credentials, inspected resources or public production URL are connected here. Secure API-key requirements and API destinations were saved to the cloud environment draft; saving does not apply/publish the configuration or provision resources. GitHub source pushes work, but the Actions API request was forbidden in the current runtime. Redis and free-eligible worker/scanner hosting still need to be arranged. See documentation/PRODUCTION_LAUNCH.md for the explicit external release gates; none is marked passed based on local testing alone.
+
+Added host-only `operations/database_access.py` with explicit atomic provisioning and a read-only verifier for a separate restricted runtime role, exact Core tables/functions, immutable history and direct API/default ACLs. Unexpected public views/definer routines fail for review; provider Data API exposure still requires separate validation. **19 new isolated PostgreSQL role/ACL tests passed in 6.12s**; temporary databases/roles were removed without changing development/test database grants. Independent static review found no blocking defect. Ruff check/format (93 files), operator Bandit and diff/credential-marker checks passed. The existing 343-test application result below is unchanged and was not repeated for this host-only tooling; all 119 previously scanned image build inputs remain unchanged. See documentation/DATABASE_ACCESS.md for privileged-operation scope and remaining Supabase boundaries.
+
 ## Latest remediation — 3 November 2026
 
 Both requested follow-ups are implemented and tested. **343 PostgreSQL/Redis tests passed in 131.02s** with deprecations treated as errors, and catalog/access/Core Chromium checks passed with the live account worker. Runtime/development pip-audit and the application Bandit scan are clean. Ruff and schema drift checks passed; the schema remains exactly 72 Core tables at migration `c72a03`.

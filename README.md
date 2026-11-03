@@ -70,8 +70,8 @@ Invite a second reviewer through Company access with explicit quality/case/notic
 
 ```sh
 .venv/bin/python -m pytest -q --tb=short
-.venv/bin/ruff check app tests scripts migrations wsgi.py gunicorn.conf.py
-.venv/bin/ruff format --check app tests scripts migrations wsgi.py gunicorn.conf.py
+.venv/bin/ruff check app tests scripts operations migrations wsgi.py gunicorn.conf.py
+.venv/bin/ruff format --check app tests scripts operations migrations wsgi.py gunicorn.conf.py
 .venv/bin/flask --app wsgi:app db check
 .venv/bin/python -m pip check
 .venv/bin/pip-audit --disable-pip --no-deps -r requirements.txt
@@ -93,6 +93,8 @@ Chromium defaults to `/usr/bin/chromium`; the isolated synthetic test browser us
 See [the adversarial security review](documentation/SECURITY_REVIEW.md) for the latest regression results, confirmed fixes and scan evidence. The reviewed Alpine web and separate PostgreSQL-tools images each returned zero Trivy findings across all severities without suppression; this is a dated scan result, not a guarantee against future advisories.
 
 ## Hosting and operational limits
+
+Follow [the production launch record](documentation/PRODUCTION_LAUNCH.md) for secure account connections and the remaining deployment checks.
 
 The deployment path is **Render web + Supabase PostgreSQL/private storage + authenticated TLS Redis + Resend + a trusted malware scanner**, with an independently supervised outbox runner. `render.yaml`, the non-root Alpine web image, a separate `database-tools` Docker target, configuration validation, CI workflow and backup/restore tools are included. Production rejects missing/insecure configuration; see the deployment guide for exact fields, certificate trust, migrations and runtime database privileges.
 

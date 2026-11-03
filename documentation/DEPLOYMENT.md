@@ -2,6 +2,8 @@
 
 The final application scope is the 72-model Core design. This deployment guide describes an installation path, not a claim that every business workflow or a public deployment has passed validation. See STATUS.md for checks actually executed.
 
+Use [the production launch record](PRODUCTION_LAUNCH.md) for current account-access requirements and deployment gates. The owner has Render, Supabase and Resend accounts; provider credentials and live resources are not connected to this environment yet. Use [database access provisioning](DATABASE_ACCESS.md) to prepare and verify the restricted application role before switching web/worker credentials.
+
 ## University demonstration and free services
 
 Use the existing local Docker Compose PostgreSQL/Redis stack for an offline university demonstration with fictional `.test` identities. `bash scripts/setup.sh` installs the hash-locked Python environment and applies migrations. Run the application and browser checks as described in README.md. Keep generated secrets private and preserve the ignored `instance/` directory when appropriate. Do not create an extra Git worktree for a cloud task: the task already has an isolated checkout.
