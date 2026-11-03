@@ -52,6 +52,8 @@ def test_validated_configuration_sets_host_cookie_and_bounded_pool(tmp_path):
     [
         ("SECRET_KEY", "x" * 64),
         ("MFA_ENCRYPTION_KEY", "not-a-key"),
+        ("MFA_KEY_VERSION", ""),
+        ("MFA_KEY_VERSION", "v" * 21),
         ("DEBUG", True),
         ("TESTING", True),
         ("SQLALCHEMY_ECHO", True),

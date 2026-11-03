@@ -4,7 +4,7 @@ The agreed final scope is the 72 Core models. The 28 Expanded models in the orig
 
 ## Demonstration preparation
 
-Follow README.md for setup, first-owner bootstrap, `init-business` and the development-only `seed-investigation-demo` command. Sign in as the owner, open Aurora and use the workspace navigation. Local account messages stay in the private `instance/account-mail` directory. Never distribute its codes, demo passwords or MFA enrollment material with source/screenshots.
+Follow README.md for setup, first-owner bootstrap, `init-business` and the development-only `seed-investigation-demo` command. Sign in as the owner, open Aurora and use the workspace navigation. Run both Gunicorn and the outbox worker with `ACCOUNT_MAIL_DIR=account-mail MAIL_MODE=local`, as shown in README.md. Public password recovery and email verification enqueue encrypted requests; the worker must process them within 15 minutes before local messages appear. A bounded `outbox-run --limit 20` drain can replace watch mode for a manual demonstration. Local account messages stay in the private `instance/account-mail` directory. Never distribute its codes, demo passwords or MFA enrollment material with source/screenshots.
 
 Create a separate reviewer through **Company access**. A useful restricted reviewer role includes `catalog.read`, `evidence.read`, `quality.inspect`, `quality.release`, `case.approve`, `case.close`, `notice.approve`, and `recovery.record`; add task/case preparation permissions only if that reviewer also needs to manage tasks. Grant only implemented actions needed by that user. Both participants can enroll authenticator apps through Account security. High-impact actions require a currently verified factor and recent session MFA; different accounts must submit and approve cases/notices and place/release holds.
 
@@ -42,7 +42,7 @@ Create a recipient contact for the affected customer's partner. Prepare the case
 .venv/bin/flask --app wsgi:app outbox-run --limit 20
 ```
 
-The worker needs the same `MAIL_MODE=local ACCOUNT_MAIL_DIR=account-mail` process configuration as the web application for local notice delivery. A local attempt is `local_written`; it is never described as external `sent`. Missing mail configuration produces a failed attempt that can be reviewed/retried within its limit. Interrupted/ambiguous deliveries require independent, evidence-backed reconciliation, not automatic repetition.
+The worker needs the same `MAIL_MODE=local ACCOUNT_MAIL_DIR=account-mail` process configuration as the web application for local account and notice delivery. It also needs the same `MFA_ENCRYPTION_KEY` and `MFA_KEY_VERSION` to decrypt account requests. Authenticated company invitations retain their direct delivery path. A local attempt is `local_written`; it is never described as external `sent`. Missing mail configuration produces a failed attempt that can be reviewed/retried within its limit. Interrupted/ambiguous deliveries require independent, evidence-backed reconciliation, not automatic repetition.
 
 Record recipient acknowledgement independently of physical recovery. Recovery/disposition requires shipment scope, a positive base-unit quantity, evidence text/reference, no over-recovery and payload-consistent repeat handling. Mandatory tasks require independent verification. Close only after reviewing current scope, resolved exposure, task completion and delivery/acknowledgement exceptions; holds continue to need their own independent release.
 

@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import secrets
 import stat
 import subprocess
@@ -68,12 +69,88 @@ def run_private(command, child):
     # PostgreSQL error output can include connection information. Emit a bounded safe
     # outcome, not the command's stdout/stderr or credentials.
     try:
-        result = subprocess.run(command, env=child, capture_output=True, check=False)
+        if child.get("RECALLTRACE_PG_TOOLS_IMAGE"):
+            result = run_container_client(command, child)
+        else:
+            result = subprocess.run(command, env=child, capture_output=True, check=False)
     except OSError as exc:
         raise BackupError(f"Required PostgreSQL client is unavailable: {command[0]}.") from exc
     if result.returncode:
         raise BackupError(
             f"{command[0]} failed (exit {result.returncode}); inspect the database/provider privately."
+        )
+
+
+def run_container_client(command, child):
+    """Stream archives through a separate trusted PostgreSQL client container.
+
+    Only PG variable names appear in arguments; Docker receives their values
+    from the protected client environment. No daemon runs in the web image.
+    """
+    if not command or command[0] not in {"pg_dump", "pg_restore"}:
+        raise BackupError("Only PostgreSQL dump/restore clients are supported.")
+    image = child["RECALLTRACE_PG_TOOLS_IMAGE"]
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/:@-]+", image):
+        raise BackupError("Select a trusted PostgreSQL tools image name or digest.")
+    environment = dict(child)
+    if child.get("RECALLTRACE_PG_TOOLS_HOST"):
+        environment["PGHOST"] = child["RECALLTRACE_PG_TOOLS_HOST"]
+    invocation = ["docker", "run", "--rm", "-i"]
+    if hasattr(os, "getuid"):
+        invocation += ["--user", f"{os.getuid()}:{os.getgid()}"]
+    network = child.get("RECALLTRACE_PG_TOOLS_NETWORK")
+    if network:
+        if network == "host" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", network):
+            raise BackupError("Select an existing private Docker network, not host networking.")
+        invocation += ["--network", network]
+    for variable in ("PGSSLROOTCERT", "PGSSLCERT", "PGSSLKEY"):
+        if not environment.get(variable):
+            continue
+        source = Path(environment[variable]).resolve(strict=True)
+        if not source.is_file() or any(c in str(source) for c in (",", "\r", "\n")):
+            raise BackupError("TLS client files must be regular files with supported paths.")
+        destination = f"/run/recalltrace-{variable.lower()}.pem"
+        invocation += ["--mount", f"type=bind,source={source},target={destination},readonly"]
+        environment[variable] = destination
+    for variable in (
+        "PGHOST",
+        "PGPORT",
+        "PGUSER",
+        "PGPASSWORD",
+        "PGDATABASE",
+        "PGCONNECT_TIMEOUT",
+        "PGSSLMODE",
+        "PGSSLROOTCERT",
+        "PGSSLCERT",
+        "PGSSLKEY",
+    ):
+        if variable in environment:
+            invocation += ["--env", variable]
+    invocation += ["--entrypoint", command[0], image]
+    arguments = list(command[1:])
+    if command[0] == "pg_dump":
+        file_arguments = [arg for arg in arguments if arg.startswith("--file=")]
+        if len(file_arguments) != 1:
+            raise BackupError("A single private dump destination is required.")
+        file_argument = file_arguments[0]
+        arguments.remove(file_argument)
+        with open(file_argument.split("=", 1)[1], "wb") as target:
+            return subprocess.run(
+                invocation + arguments,
+                env=environment,
+                stdout=target,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+    if not arguments:
+        raise BackupError("A private restore archive is required.")
+    with open(arguments.pop(), "rb") as source:
+        return subprocess.run(
+            invocation + arguments,
+            env=environment,
+            stdin=source,
+            capture_output=True,
+            check=False,
         )
 
 

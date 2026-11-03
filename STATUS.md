@@ -1,6 +1,16 @@
 # RecallTrace implementation status
 
-## Latest adversarial review — 3 November 2026
+## Latest remediation — 3 November 2026
+
+Both requested follow-ups are implemented and tested. **343 PostgreSQL/Redis tests passed in 131.02s** with deprecations treated as errors, and catalog/access/Core Chromium checks passed with the live account worker. Runtime/development pip-audit and the application Bandit scan are clean. Ruff and schema drift checks passed; the schema remains exactly 72 Core tables at migration `c72a03`.
+
+The supported Alpine web and separate PostgreSQL-tools images each have **zero Trivy 0.76.1 vulnerabilities across all severities**, with inventories retained and no findings suppressed. This removes the affected Debian package set; it does not invent upstream fixes. Final local image IDs: web `sha256:b7116147ccd8a6bc04185ebe4d6032a2186ca63501fcf0c42af38c460aa86f64`, tools `sha256:f8dd4035db79d2147439c8753d84a33c6ac75fcf4c2c4ebef8a4a4f592d38f56`. Native crypto/content checks, source permissions, PostgreSQL/Redis and Gunicorn readiness passed in the final web image. Fresh migrations and populated database backup/restore passed using the separate PostgreSQL 17.11 tools.
+
+Public password-reset/email-verification requests now enqueue encrypted global intent before any user eligibility lookup or mail I/O. The worker creates codes in memory, stores their digests, commits and releases locks before transport. Key derivation/versioning, expiry, tampering, supersession, claim recovery and database job-scope constraints are covered. A supervised outbox worker is required for automatic account delivery; a bounded manual drain supports the demo. Authenticated invitations retain direct delivery. Shared database contention remains possible, so this is not a formal constant-time guarantee.
+
+See [the security review](documentation/SECURITY_REVIEW.md) for dated scan evidence, reproduction and remaining deployment limits. This section supersedes the historical image/advisory/test records below. Public hosting and live provider integrations remain unprovisioned; local validation is not security certification.
+
+## Historical adversarial review before remediation — 3 November 2026
 
 The completed Core release was tested beyond its original happy-path/regression suite. **307 tests passed in 140.97s**, with deprecations treated as errors, including 119 additional adversarial cases. Catalog, access and Core Chromium smoke checks passed. Runtime 43 and development 76 locked distributions have no known pip-audit advisories; Bandit's application scan has zero findings. Combined line/branch coverage is 80.3% (83.0% statements, 69.6% branches), not proof of complete security coverage.
 
@@ -13,7 +23,7 @@ Updated 3 November 2026 (Asia/Karachi). The selected final release is the **72-m
 
 ## Current Core implementation
 
-- Exactly 72 related ORM tables, matching the Core table set in the original logical schema, with reviewed Alembic migrations through `c72a02`; Alembic's infrastructure table is not counted.
+- Exactly 72 related ORM tables, matching the Core table set in the original logical schema, with reviewed Alembic migrations through `c72a03`; Alembic's infrastructure table is not counted.
 - Company/owner bootstrap for real empty installations; explicit 23-action permission catalogue, role/membership management, internal and partner invitations, recovery/verification and revocable shared sessions. Partner accounts require live portal grants and recipient scope; they cannot access internal catalog, evidence or genealogy.
 - Encrypted TOTP enrollment, per-login verification, step replay protection, digest-only one-time recovery codes, recent independent approval/release controls and safe removal/revocation. Company-scoped audited operations and immutable audit history.
 - Finite validated catalog/master forms for partners, roles/contacts/addresses, facilities/locations, categories, supplier SKUs and lot identities. Referenced identities freeze, linked records archive, and positive stock prevents unsafe lot/facility archival.

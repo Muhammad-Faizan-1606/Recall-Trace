@@ -59,6 +59,10 @@ def run_one():
     job.status, job.claimed_at = "processing", now()
     job.attempts += 1
     db.session.commit()
+    if company_id is None:
+        from app.services.account_delivery import process_claimed
+
+        return process_claimed(job_id)
     try:
         company_lock(company_id)
         job = scoped(JobOutbox, company_id, job_id, lock=True)
@@ -99,6 +103,20 @@ def recover_abandoned():
     db.session.rollback()
     count = 0
     for company_id, job_id in candidates:
+        if company_id is None:
+            job = db.session.scalar(
+                select(JobOutbox)
+                .where(JobOutbox.id == job_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if job and job.status == "processing" and job.claimed_at < now() - timedelta(minutes=5):
+                job.status, job.error_code = "ambiguous", "account_worker_interrupted"
+                db.session.commit()
+                count += 1
+            else:
+                db.session.rollback()
+            continue
         try:
             company_lock(company_id)
         except HTTPException:

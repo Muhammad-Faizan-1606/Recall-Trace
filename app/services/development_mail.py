@@ -78,3 +78,16 @@ def deliver_development_message(recipient, subject, body):
             message_path.unlink(missing_ok=True)
         current_app.logger.warning("Private development account delivery failed.")
         return False
+
+
+def deliver_account_message(recipient, subject, body, idempotency_key):
+    """Worker-only account transport with explicit definitive/ambiguous outcomes."""
+    if current_app.config.get("APP_ENV") == "production":
+        if not development_mail_configured():
+            return "failed", None, "account_mail_unconfigured"
+        from app.services.notices import send_message
+
+        return send_message(recipient, subject, body, idempotency_key)
+    if deliver_development_message(recipient, subject, body):
+        return "local_written", None, None
+    return "failed", None, "local_mail_unavailable"

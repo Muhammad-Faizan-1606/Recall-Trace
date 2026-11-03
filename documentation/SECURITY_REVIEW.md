@@ -1,3 +1,67 @@
+# Security remediation review — 3 November 2026
+
+The two follow-ups from the earlier review are addressed: the shipped images use supported Alpine bases without the affected Debian packages, and public account recovery/verification requests enqueue encrypted intent before any account lookup or mail transport. The application still has exactly 72 Core models. This is local verification, not certification or proof that no vulnerabilities remain.
+
+## Current verification
+
+| Check | Observed result |
+| --- | --- |
+| Complete PostgreSQL/Redis suite | **343 passed in 131.02s**, deprecations treated as errors. |
+| Browser workflows | Catalog, access and Core Chromium scripts passed; recovery was delivered by the live background worker. The existing owner was already verified; verification consumption is covered by integration tests. |
+| Python dependencies and static checks | Runtime 43 and development 76 locked distributions: no known pip-audit advisories. Application Bandit: zero findings. Ruff check/format passed. The old coverage percentages below were not remeasured for this release. |
+| Final web image | Trivy 0.76.1, **zero vulnerabilities across all severities**, no suppressions; 29 OS and 43 Python packages inventoried. |
+| Final database-tools image | Same unsuppressed scanner, **zero vulnerabilities across all severities**; 45 OS packages inventoried. |
+| Actual image runtime | Alpine 3.24.3, Python 3.13.18; native Argon2/Fernet/HKDF/TOTP and content validation; UID 10001, source read-only, private writable instance directory 0700, no pip/ensurepip or copied secrets; PostgreSQL/Redis and Gunicorn readiness passed. |
+| Real account queue in image | Encrypted fictional unknown-account request committed and processed by `jobs.run_one`; no challenge or mail transport for the unknown address. |
+| Migration and recovery | Fresh database upgraded to `c72a03`; no schema drift and 72 Core tables. Populated archive restored with separate PostgreSQL 17.11 tools into an isolated database: 11 journal lines, 3 trace results, reconciliation passed in 4.312001s; temporary databases removed. |
+
+The new regression cases cover encrypted payload privacy, no user lookup/provider I/O on the public path, current eligibility in the worker, tampering, rotation, expiry, supersession, simultaneous consumption, missing configuration, ambiguous delivery, abandoned claims, global/company scope constraints and backup tooling credential/TLS handling. A separate read-only review found no concrete defect in the account queue changes.
+
+## Supported container replacement
+
+The earlier nine Debian CVEs were not repaired upstream. Their affected Debian package set is absent from the new supported Alpine runtime. This is a base/platform change, with native musllinux wheels installed using the unchanged fully hashed application lock. There are no unsupported package substitutions or vulnerability exclusions. OS package inventories remain available to the scanner.
+
+The default `web` target uses official `python:3.13-alpine` pinned by digest. Administrative `pg_dump`/`pg_restore` run from a separate `database-tools` target based on official `postgres:17-alpine`, also pinned. The web image needs no PostgreSQL client, libmagic, compiler, package installer or Bash. Bounded content signature checks and fail-closed malware scanning remain enforced. Operator backups run from a trusted host, with either local clients or the tools image; database credentials stay out of arguments, TLS material is mounted read-only, and archives stream through private host files.
+
+| Final local image ID | SHA-256 |
+| --- | --- |
+| Web | `b7116147ccd8a6bc04185ebe4d6032a2186ca63501fcf0c42af38c460aa86f64` |
+| Database tools | `f8dd4035db79d2147439c8753d84a33c6ac75fcf4c2c4ebef8a4a4f592d38f56` |
+
+Trivy used the official `ghcr.io/aquasecurity/trivy-db:2` through verified proxy/CA trust. Advisory database updated `2026-11-03T07:14:02Z`; final scans completed at `2026-11-03T16:20:23Z` (web) and `2026-11-03T16:20:06Z` (tools). These are point-in-time results; future advisory updates require rebuilding and rescanning. These local image IDs are not published registry manifest digests.
+
+Private instance artifacts: `/tmp/recall-alpine-final-web.json` (report SHA-256 `28e832f768e0638fd5b2bf05e54aac050196487cd614db5ff478192fed3629b2`), `/tmp/recall-alpine-final-tools.json` (`858b968f5e5c896790d9984b3a79880c0dfc240ed3bf8738850f1eab55ecd016`), `/tmp/recall-alpine-final-smoke.log` and `/tmp/recall-alpine-backup-restore.log`. Final build inputs were rehashed unchanged after verification. Temporary artifacts are not a durable off-machine archive.
+
+## Account-email timing remediation
+
+Every syntactically valid public password-reset or email-verification request performs the same normalized, encrypted global outbox insertion. The request handler does not query `users`, decide eligibility, create a token, write a mailbox or call a provider. Eligibility and transport run only after the worker claims committed intent. Existing rate limits and generic response text remain enabled. This removes account/provider-dependent HTTP work; shared database contention means it is not a formal constant-time guarantee.
+
+HKDF derives separate Fernet and HMAC keys from the existing MFA encryption key and validated key version. Outbox rows contain an authenticated ciphertext and keyed recipient/purpose pseudonym, never a plaintext address or any raw challenge code. Codes are generated only in worker memory, stored as digests in challenge tables and delivered privately. Requests expire after 15 minutes; a newer request supersedes previous codes even before its worker runs. Per-recipient/purpose serialization orders enqueue, issuance and consumption, and all locks are released before external I/O. Rotation, corruption and missing keys fail closed.
+
+Migration `c72a03` reuses `job_outbox`, with a database CHECK allowing unscoped rows only for system account challenges without an actor. Company jobs still require a company, and company UI/retry paths exclude system rows. No new table was added. Ambiguous delivery and abandoned claims are retained without automatic resending; a fresh request creates fresh intent/code. Downgrade refuses to discard existing global security history.
+
+A supervised `flask --app wsgi:app outbox-run --watch` process is now required for automatic recovery/verification delivery. A bounded manual drain is supported for a synthetic demo; stopping the worker does not deliver instructions. Existing authenticated company invitations remain synchronous and do not use account-existence eligibility branching. Key rotation requires coordinated web/worker configuration and recovery of the private encryption key.
+
+## Reproduce and remaining boundaries
+
+After `bash scripts/setup.sh`, run:
+
+```sh
+.venv/bin/python -m pytest -q -W error::DeprecationWarning --tb=short
+bash scripts/security_checks.sh
+docker build --target web -t recalltrace-web-review .
+docker build --target database-tools -t recalltrace-tools-review .
+```
+
+Scan both images with the official Trivy 0.76.1 image using its configured proxy/CA, `image --scanners vuln --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 1 --db-repository ghcr.io/aquasecurity/trivy-db:2`, without an ignore list. The CI workflow builds both targets, verifies runtime contracts and scans both images at all severities using a digest-pinned scanner; GitHub Actions results are separate from these local results. See [deployment instructions](DEPLOYMENT.md) for worker supervision and host backup commands.
+
+No public provider, real email, ingress TLS/host assessment, full workload benchmark, external evidence/key disaster recovery or business SLA was verified. Application Bandit has zero findings; intentional smoke assertions and controlled operator subprocess/temp-file usage remain reviewable static notices outside that application-only scan. Scanning and tests do not establish full security or always-on availability on free hosting.
+
+<details>
+<summary>Historical adversarial review before this remediation (307 tests; Debian image findings)</summary>
+
+The following records the previous image and implementation. Its remaining-CVE and synchronous-public-email statements are superseded by the remediation above.
+
 # Adversarial security review — 3 November 2026
 
 This review tested RecallTrace's local 72-model Core implementation. It is a code/integration/container review, not a production penetration test, ASVS certification, public provider assessment or assurance that no vulnerabilities remain. Only fictional local data and mocked external responses were used. No real recall mail or third-party targets were exercised.
@@ -86,3 +150,5 @@ bash scripts/security_checks.sh
 The last command intentionally returns a nonzero result for the reviewed script notices; review its report rather than treating it as a clean application scan. CI now checks both dependency locks, the application Bandit scan, and the non-root immutable-source image contract. CI execution on GitHub is separate from these local results.
 
 Container checks require the managed Docker daemon or another trusted Docker host. Use the official scanner with the configured proxy/CA and cached/official advisory repository. Runtime advisory reports contain machine metadata; the sanitized findings above are the repository record. Full execution artifacts are retained privately in `/tmp/recall-security-*`, `/tmp/recall-container-vulns-final.json` and `/tmp/recall-container-security-smoke-final.log` for this instance only.
+
+</details>

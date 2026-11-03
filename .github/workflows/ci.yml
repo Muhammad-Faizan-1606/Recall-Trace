@@ -58,3 +58,22 @@ jobs:
           assert not os.access("/app/app/__init__.py", os.W_OK);
           assert importlib.util.find_spec("pip") is None;
           assert importlib.util.find_spec("ensurepip") is None'
+      - run: docker build --target database-tools -t recalltrace-dbtools-ci .
+      - run: docker run --rm --entrypoint pg_dump recalltrace-dbtools-ci --version
+      - run: docker run --rm --entrypoint pg_restore recalltrace-dbtools-ci --version
+      - name: Scan both images for known vulnerabilities
+        env:
+          # Official Trivy 0.76.1; pin the reviewed scanner independently of tags.
+          TRIVY_IMAGE: aquasec/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        run: |
+          scan_status=0
+          for image in recalltrace-ci recalltrace-dbtools-ci; do
+            docker run --rm \
+              --volume /var/run/docker.sock:/var/run/docker.sock \
+              --volume recalltrace-trivy-cache:/root/.cache/trivy \
+              "$TRIVY_IMAGE" image --image-src docker --scanners vuln \
+              --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+              --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+              --ignorefile /dev/null --exit-code 1 "$image" || scan_status=1
+          done
+          exit "$scan_status"

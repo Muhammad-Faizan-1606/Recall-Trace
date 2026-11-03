@@ -5,6 +5,7 @@ import getpass
 import json
 import re
 import secrets
+import time
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -27,13 +28,18 @@ new_password = secrets.token_urlsafe(24)
 
 
 def code_for(recipient, subject):
-    for path in sorted(
-        args.mail_dir.glob("*.json"), key=lambda p: p.stat().st_mtime_ns, reverse=True
-    ):
-        message = json.loads(path.read_text())
-        if message["recipient"] == recipient and subject in message["subject"]:
-            return re.search(r"\n([A-Za-z0-9_-]{43})\n", message["body"]).group(1)
-    raise AssertionError("Expected private development message was not delivered")
+    # Recovery/verification delivery is asynchronous. A separately supervised
+    # outbox worker must process the committed request before the code exists.
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        for path in sorted(
+            args.mail_dir.glob("*.json"), key=lambda p: p.stat().st_mtime_ns, reverse=True
+        ):
+            message = json.loads(path.read_text())
+            if message["recipient"] == recipient and subject in message["subject"]:
+                return re.search(r"\n([A-Za-z0-9_-]{43})\n", message["body"]).group(1)
+        time.sleep(0.1)
+    raise AssertionError("Account mail was not delivered; start the local outbox worker.")
 
 
 with sync_playwright() as playwright:

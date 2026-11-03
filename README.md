@@ -21,6 +21,14 @@ bash scripts/setup.sh
 ACCOUNT_MAIL_DIR=account-mail MAIL_MODE=local .venv/bin/gunicorn --config gunicorn.conf.py --bind 127.0.0.1:8000 wsgi:app
 ```
 
+Keep a second terminal running the account/notice worker with the same local mail settings:
+
+```sh
+ACCOUNT_MAIL_DIR=account-mail MAIL_MODE=local .venv/bin/flask --app wsgi:app outbox-run --watch
+```
+
+Password recovery and email verification require this worker. For a manual demonstration, replace watch mode with `--limit 20` after submitting a request; account requests expire after 15 minutes in the queue. Starting the web server alone does not deliver them.
+
 `seed-demo` and `create-owner` prompt privately for passwords. No default password is shipped. `init-business` explicitly grants the owner's role the implemented Core permission catalogue; assign narrower roles through **Company access**. All commands preserve existing accounts and business records. The fictional investigation seed is development-only and repeatable; it sends no notices.
 
 Setup installs hash-verified dependencies, creates `.env` once with generated local database/signing secrets, adds an MFA encryption key if absent, starts loopback PostgreSQL 17 and Redis 7.4, and runs Alembic migrations. Existing values and volumes are preserved. Keep `.env`, the entire private `instance/` directory, passwords, MFA recovery codes and backups out of Git. A restored cloud task must restart its services; live processes are not part of a durable snapshot.
@@ -52,7 +60,7 @@ For the seeded C10 case, expect **150 potentially affected lamps: 110 dispatched
 
 ## Account delivery, MFA and partner access
 
-`ACCOUNT_MAIL_DIR=account-mail` enables a private local account mailbox under `instance/account-mail`. Message files contain one-time codes and are never served by the application. Use them locally for invitations, verification and password recovery; no real email is sent. `MAIL_MODE=local` similarly records development notice attempts as `local_written`, never external `sent`.
+`ACCOUNT_MAIL_DIR=account-mail` enables a private local account mailbox under `instance/account-mail`. Message files contain one-time codes and are never served by the application. Use them locally for invitations, verification and password recovery; no real email is sent. Public recovery/verification requests enqueue encrypted account requests before any account lookup. The worker checks eligibility and creates/delivers the code; only its digest is stored in the challenge table. Authenticated company invitations still use their existing direct delivery path. `MAIL_MODE=local` similarly records development notice attempts as `local_written`, never external `sent`.
 
 Open **Account security** to enroll an authenticator. Enrollment confirms the current password, encrypts the TOTP secret, and displays one-time recovery codes privately. Enrolled accounts must verify each login; approval/release/closure actions require recent MFA. TOTP steps and recovery codes cannot be replayed. Password recovery does not bypass an enrolled factor. Back up the MFA encryption key/version separately from the database.
 
@@ -72,7 +80,7 @@ bash scripts/security_checks.sh
 
 Integration tests use only the dedicated **recalltrace_test** database and Redis databases 2/3. The test PostgreSQL user needs database-creation privileges. Never point these checks at shared business infrastructure. CSRF, sessions, rate limiting, PostgreSQL constraints and transaction locks remain enabled. The suite covers real competing stock consumption and access changes, not just syntax or model counts.
 
-With Gunicorn running and the appropriate private password files:
+With Gunicorn and the outbox worker running with local mail enabled, and the appropriate private password files:
 
 ```sh
 .venv/bin/python scripts/browser_smoke.py --password-file /private/demo-password
@@ -82,11 +90,11 @@ With Gunicorn running and the appropriate private password files:
 
 Chromium defaults to `/usr/bin/chromium`; the isolated synthetic test browser uses `--no-sandbox` and must not browse untrusted sites. Account/access smoke retains uniquely named fictional access records. `/health/live` reports process liveness; `/health/ready` checks PostgreSQL, shared sessions and rate storage without exposing credentials.
 
-See [the adversarial security review](documentation/SECURITY_REVIEW.md) for the latest regression results, confirmed fixes and unresolved container advisories.
+See [the adversarial security review](documentation/SECURITY_REVIEW.md) for the latest regression results, confirmed fixes and scan evidence. The reviewed Alpine web and separate PostgreSQL-tools images each returned zero Trivy findings across all severities without suppression; this is a dated scan result, not a guarantee against future advisories.
 
 ## Hosting and operational limits
 
-The deployment path is **Render web + Supabase PostgreSQL/private storage + authenticated TLS Redis + Resend + a trusted malware scanner**, with an independently supervised outbox runner. `render.yaml`, the non-root Docker image, configuration validation, CI workflow and backup/restore tools are included. Production rejects missing/insecure configuration; see the deployment guide for exact fields, certificate trust, migrations and runtime database privileges.
+The deployment path is **Render web + Supabase PostgreSQL/private storage + authenticated TLS Redis + Resend + a trusted malware scanner**, with an independently supervised outbox runner. `render.yaml`, the non-root Alpine web image, a separate `database-tools` Docker target, configuration validation, CI workflow and backup/restore tools are included. Production rejects missing/insecure configuration; see the deployment guide for exact fields, certificate trust, migrations and runtime database privileges.
 
 No external accounts, public database, DNS, production credentials, scanner or authorized mail sender have been provisioned here. Free-tier services may sleep, pause or lack durable workers/backups. The app's filesystem is not durable evidence storage on an ephemeral web host. Production provider connectivity, HTTPS ingress, real delivery, shared storage, worker supervision and full disaster recovery must be verified in the selected deployment before claiming business readiness.
 

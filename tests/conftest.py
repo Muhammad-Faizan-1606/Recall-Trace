@@ -4,6 +4,7 @@ import secrets
 
 import psycopg
 import pytest
+from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from flask.testing import FlaskClient
 from flask_migrate import upgrade
@@ -36,6 +37,8 @@ def app():
         {
             "TESTING": True,
             "SECRET_KEY": secrets.token_hex(32),
+            "MFA_ENCRYPTION_KEY": Fernet.generate_key().decode(),
+            "MFA_KEY_VERSION": "v1",
             "SQLALCHEMY_DATABASE_URI": test_url.render_as_string(hide_password=False),
             "SESSION_REDIS": Redis.from_url("redis://127.0.0.1:6379/3"),
             "SESSION_KEY_PREFIX": "recalltrace-test:",
@@ -126,6 +129,21 @@ def mail_spool(app):
 
 def read_mail_token(mail_spool, subject):
     import json
+
+    from app.models.evidence import JobOutbox
+    from app.services.jobs import run_one
+
+    # Public recovery requests are asynchronous. Simulate the real worker in
+    # tests that deliberately await account mail; never in the HTTP handler.
+    for _ in range(100):
+        pending = db.session.scalar(
+            select(JobOutbox.id)
+            .where(JobOutbox.kind == "account.challenge", JobOutbox.status == "pending")
+            .limit(1)
+        )
+        if pending is None:
+            break
+        run_one()
 
     for path in sorted(mail_spool.glob("*.json"), key=lambda p: p.stat().st_mtime_ns, reverse=True):
         message = json.loads(path.read_text())

@@ -7,9 +7,10 @@ from flask_wtf import FlaskForm
 from wtforms import PasswordField, StringField
 from wtforms.validators import DataRequired, EqualTo, Length
 
-from app.extensions import limiter
+from app.extensions import db, limiter
 from app.forms import email_syntax, trimmed
 from app.models.account_tokens import EmailVerificationToken, PasswordResetToken
+from app.services.account_delivery import AccountDeliveryError
 from app.services.account_recovery import request_challenge, reset_password, verify_email
 from app.services.development_mail import development_mail_configured
 
@@ -52,16 +53,26 @@ def email_rate_key():
 
 def request_view(model, title):
     form = RequestForm()
+    status = 422 if request.method == "POST" else 200
     if form.validate_on_submit():
-        request_challenge(form.email.data, model)
-        flash(GENERIC_RESPONSE, "info")
-        return redirect(url_for(request.endpoint), code=303)
+        try:
+            request_challenge(form.email.data, model)
+        except AccountDeliveryError:
+            db.session.rollback()
+            flash(
+                "Account instructions are temporarily unavailable. Please try again later.",
+                "danger",
+            )
+            status = 503
+        else:
+            flash(GENERIC_RESPONSE, "info")
+            return redirect(url_for(request.endpoint), code=303)
     return render_template(
         "account_recovery/request.html",
         form=form,
         title=title,
         delivery_configured=development_mail_configured(),
-    ), (422 if request.method == "POST" else 200)
+    ), status
 
 
 @bp.route("/reset/request", methods=["GET", "POST"])

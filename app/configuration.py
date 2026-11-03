@@ -3,6 +3,7 @@
 import base64
 import ipaddress
 import os
+import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -129,6 +130,10 @@ def validate_config(app):
             raise ValueError
     except (ValueError, TypeError, AttributeError, UnicodeError):
         _failure("a valid Fernet MFA_ENCRYPTION_KEY from secure configuration")
+    if not isinstance(cfg.get("MFA_KEY_VERSION"), str) or not re.fullmatch(
+        r"[A-Za-z0-9_.-]{1,20}", cfg["MFA_KEY_VERSION"]
+    ):
+        _failure("a bounded MFA_KEY_VERSION for encrypted account requests and factors")
     try:
         database = make_url(cfg.get("SQLALCHEMY_DATABASE_URI", ""))
         if (

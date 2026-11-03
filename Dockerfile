@@ -1,15 +1,23 @@
 # syntax=docker/dockerfile:1
-FROM python:3.13-slim-trixie@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1
+# Operator-only PostgreSQL clients. Build with --target database-tools; the web
+# image never includes administrative clients or their operating-system packages.
+FROM postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b AS database-tools
+# This stage executes clients directly as postgres, never the database daemon or
+# its root-to-postgres privilege helper.
+RUN rm -f /usr/local/bin/gosu /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-ensure-initdb.sh
+USER postgres
+ENTRYPOINT []
+CMD ["pg_dump", "--help"]
+
+FROM python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8 AS web
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
-RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates libmagic1 postgresql-client-17 \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 10001 recalltrace && useradd --uid 10001 --gid 10001 --create-home recalltrace
+RUN addgroup -g 10001 recalltrace && adduser -D -u 10001 -G recalltrace recalltrace
 WORKDIR /app
 COPY requirements.txt ./
 RUN --mount=type=secret,id=proxy_ca \
     set -eu; \
     if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca; fi; \
-    python -m pip install --no-cache-dir --require-hashes -r requirements.txt; \
+    python -m pip install --no-cache-dir --only-binary=:all: --require-hashes -r requirements.txt; \
     python -m pip check; \
     # Installers and their vendored dependencies are not needed by the runtime.
     python -m pip uninstall --yes pip; \

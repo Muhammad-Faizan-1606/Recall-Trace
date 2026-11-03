@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -72,6 +72,11 @@ class NotificationPreference(Owned, db.Model):
 
 class JobOutbox(Owned, db.Model):
     __tablename__ = "job_outbox"
+    # Public account challenges have no company until the worker resolves eligibility.
+    # Every business intent remains company-owned, enforced by the scope constraint.
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id"), nullable=True, index=True
+    )
     kind: Mapped[str] = mapped_column(db.String(60))
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
     deduplication_key: Mapped[str] = mapped_column(db.String(140))
@@ -84,6 +89,24 @@ class JobOutbox(Owned, db.Model):
     __table_args__ = owned_constraints(
         ("created_by_id", "memberships"), unique=(("deduplication_key",),)
     ) + (
+        CheckConstraint(
+            "(kind = 'account.challenge' AND organization_id IS NULL AND created_by_id IS NULL) "
+            "OR (kind <> 'account.challenge' AND organization_id IS NOT NULL)",
+            name="job_scope",
+        ),
+        db.Index(
+            "uq_job_outbox_system_deduplication_key",
+            "deduplication_key",
+            unique=True,
+            postgresql_where=db.text("organization_id IS NULL"),
+        ),
+        db.Index(
+            "ix_job_outbox_account_request_order",
+            db.text("(payload ->> 'request_key')"),
+            "created_at",
+            "id",
+            postgresql_where=db.text("kind = 'account.challenge' AND organization_id IS NULL"),
+        ),
         CheckConstraint("attempts >= 0", name="job_attempts"),
         CheckConstraint(
             "status IN ('pending','processing','completed','failed','ambiguous','cancelled')",
