@@ -52,14 +52,32 @@ def mutation(function):
 
 def text(value, maximum=4000):
     value = str(value or "").strip()
-    if not value or len(value) > maximum:
+    if not value or len(value) > maximum or "\x00" in value:
         raise DomainError(f"Enter text between 1 and {maximum} characters.")
     return value
 
 
 def expected(row, version):
-    if version is not None and row.version != int(version):
+    if version is None:
+        return
+    raw = str(version)
+    if not raw.isascii() or not raw.isdecimal() or not 1 <= len(raw) <= 10:
+        raise DomainError("Version must be a positive integer. Reload before saving.")
+    number = int(raw)
+    if not 1 <= number <= 2147483647:
+        raise DomainError("Version must be a positive integer. Reload before saving.")
+    if row.version != number:
         raise DomainError("This record changed. Reload before saving.")
+
+
+def positive_integer(value, label):
+    raw = str(value)
+    if not raw.isascii() or not raw.isdecimal() or not 1 <= len(raw) <= 10:
+        raise DomainError(f"{label} must be a positive integer within the supported range.")
+    result = int(raw)
+    if not 1 <= result <= 2147483647:
+        raise DomainError(f"{label} must be a positive integer within the supported range.")
+    return result
 
 
 def draft(row):
@@ -79,12 +97,7 @@ def save_template(company_id, code, revision=1, template_id=None, version=None):
     if template_id:
         expected(row, version)
         draft(row)
-    try:
-        revision = int(revision)
-    except (ValueError, TypeError) as exc:
-        raise DomainError("Revision must be a positive integer.") from exc
-    if revision < 1:
-        raise DomainError("Revision must be a positive integer.")
+    revision = positive_integer(revision, "Revision")
     row.code, row.revision = text(code, 60), revision
     db.session.add(row)
     return row
@@ -108,6 +121,13 @@ def save_check(
             validated[key] = str(quantity(value, positive=False))
         elif key != "equals":
             raise DomainError("Text and boolean checks accept an equals rule only.")
+        elif value_type == "boolean":
+            if isinstance(value, bool):
+                validated[key] = "true" if value else "false"
+            elif isinstance(value, str) and value in {"true", "false"}:
+                validated[key] = value
+            else:
+                raise DomainError("Boolean criteria use true or false.")
         else:
             validated[key] = text(value, 1000)
     if (
@@ -116,12 +136,7 @@ def save_check(
         and quantity(validated["min"], positive=False) > quantity(validated["max"], positive=False)
     ):
         raise DomainError("Minimum cannot exceed maximum.")
-    try:
-        sequence = int(sequence)
-    except (ValueError, TypeError) as exc:
-        raise DomainError("Sequence must be a positive integer.") from exc
-    if sequence < 1:
-        raise DomainError("Sequence must be a positive integer.")
+    sequence = positive_integer(sequence, "Sequence")
     row = (
         scoped(InspectionCheck, company_id, check_id, True)
         if check_id
@@ -214,6 +229,8 @@ def observe(company_id, inspection_id, check_id, value, comment="", version=None
     if check.template_id != inspection.template_id:
         raise DomainError("The check belongs to another template revision.")
     numeric, rendered = None, str(value or "").strip()
+    if check.value_type == "boolean" and isinstance(value, bool):
+        rendered = "true" if value else "false"
     rule = check.rule_definition
     if check.value_type == "number":
         numeric = quantity(value, positive=False)
@@ -229,8 +246,9 @@ def observe(company_id, inspection_id, check_id, value, comment="", version=None
         if check.value_type == "boolean" and rendered not in {"true", "false"}:
             raise DomainError("Boolean observations use true or false.")
         passed = "equals" not in rule or rendered == rule["equals"]
-    if len(comment) > 4000:
-        raise DomainError("Observation comment is too long.")
+    comment = "" if comment is None else str(comment)
+    if len(comment) > 4000 or "\x00" in comment:
+        raise DomainError("Observation comment is invalid or too long.")
     row = db.session.scalar(
         select(InspectionResult).where(
             InspectionResult.inspection_id == inspection.id, InspectionResult.check_id == check.id
@@ -316,6 +334,18 @@ def save_nonconformance(
     expected(row, version)
     if record_id and (row.archived_at or row.status != "open"):
         raise DomainError("Resolved or archived quality issues cannot be edited.")
+    if record_id and (
+        row.lot_id != lot.id or row.inspection_id != (inspection.id if inspection else None)
+    ):
+        from app.models.recall import CaseSource
+
+        referenced = db.session.scalar(
+            select(QualityHold.id).where(QualityHold.nonconformance_id == row.id).limit(1)
+        ) or db.session.scalar(
+            select(CaseSource.id).where(CaseSource.nonconformance_id == row.id).limit(1)
+        )
+        if referenced:
+            raise DomainError("Referenced quality issue lot and inspection evidence cannot change.")
     row.reference, row.lot_id, row.description, row.severity = (
         text(reference, 80),
         lot.id,

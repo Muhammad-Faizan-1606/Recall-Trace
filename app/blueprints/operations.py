@@ -658,8 +658,10 @@ def posting(company_id, record_id):
         lots=lots,
         locations=locations,
         form=form,
-        can_reverse=allowed(company_id, "inventory.transfer")
-        and row.kind in ("receipts", "transfers"),
+        can_reverse=row.kind in ("receipts", "transfers")
+        and allowed(
+            company_id, "inventory.receive" if row.kind == "receipts" else "inventory.transfer"
+        ),
         **ctx,
     ), (422 if request.method == "POST" else 200)
 

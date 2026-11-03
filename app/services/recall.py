@@ -1,6 +1,8 @@
 """Independent, revision-aware recall approval and verified resolution workflows."""
 
-from sqlalchemy import func, select
+import uuid
+
+from sqlalchemy import select
 
 from app.extensions import db
 from app.models import ItemVariant, Membership, now
@@ -235,11 +237,14 @@ def complete_task(company_id, task_id, note, verify=False, version=None):
     row = scoped(CaseTask, company_id, task_id, True)
     case = scoped(RecallCase, company_id, row.case_id, True)
     expected(row, version)
-    if case.status == "closed" or row.archived_at:
+    if case.status in {"closed", "cancelled"} or row.archived_at:
         raise DomainError("This task is no longer editable.")
     if verify:
         if row.status != "completed" or row.assignee_id == member.id:
             raise DomainError("A different reviewer must verify completed work.")
+        from app.services.mfa import require_recent_mfa
+
+        require_recent_mfa(company_id)
         row.status, row.verifier_id = "verified", member.id
     else:
         if row.status != "open" or row.assignee_id != member.id:
@@ -319,6 +324,7 @@ def record_recovery(
     affected = db.session.scalar(
         select(CaseAffectedShipment)
         .where(
+            CaseAffectedShipment.organization_id == company_id,
             CaseAffectedShipment.case_id == case.id,
             CaseAffectedShipment.trace_run_id == run.id,
             CaseAffectedShipment.shipment_line_id == line.id,
@@ -337,6 +343,12 @@ def record_recovery(
     amount = quantity(amount, unit.decimal_places)
     reference = text(evidence_reference, 100)
     note = text(evidence_note)
+    notice_key = None
+    if notice_id:
+        try:
+            notice_key = uuid.UUID(str(notice_id))
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise DomainError("Choose a valid recipient notice.") from exc
     old = db.session.scalar(
         select(RecoveryRecord).where(
             RecoveryRecord.organization_id == company_id,
@@ -350,22 +362,28 @@ def record_recovery(
             old.quantity,
             old.disposition,
             old.evidence_note,
-        ) != (case.id, line.id, amount, disposition, note):
+            old.notice_id,
+        ) != (case.id, line.id, amount, disposition, note, notice_key):
             raise DomainError("This evidence reference already identifies a different recovery.")
         return old
-    total = db.session.scalar(
-        select(func.coalesce(func.sum(RecoveryRecord.quantity), 0)).where(
-            RecoveryRecord.organization_id == company_id, RecoveryRecord.shipment_line_id == line.id
-        )
-    )
+    from app.services.trace import physical_resolutions
+
+    total, returned_total = physical_resolutions(company_id, [line.id]).get(line.id, (0, 0))
     if total + amount > line.quantity:
         raise DomainError("Cumulative verified dispositions cannot exceed the dispatched quantity.")
-    if notice_id:
+    if notice_key:
         from app.models.evidence import RecallNotice
+        from app.models.master import PartnerContact
+        from app.models.operations import SalesOrder, Shipment
 
-        notice = scoped(RecallNotice, company_id, notice_id)
+        notice = scoped(RecallNotice, company_id, notice_key)
         if notice.case_id != case.id:
             raise DomainError("The notice belongs to another case.")
+        contact = scoped(PartnerContact, company_id, notice.contact_id)
+        shipment = scoped(Shipment, company_id, line.shipment_id)
+        order = scoped(SalesOrder, company_id, shipment.sales_order_id)
+        if contact.partner_id != order.customer_id:
+            raise DomainError("The notice recipient does not own this shipment exposure.")
     row = RecoveryRecord(
         organization_id=company_id,
         case_id=case.id,
@@ -375,21 +393,21 @@ def record_recovery(
         evidence_note=note,
         evidence_reference=reference,
         verified_by_id=member.id,
-        notice_id=notice_id,
+        notice_id=notice_key,
     )
     db.session.add(row)
-    # Each snapshot projects immutable evidence belonging to the same case and line.
+    # The same physical shipment cannot be recovered separately for overlapping
+    # cases. Reuse its immutable evidence without inserting duplicate allocations.
     for exposure in db.session.scalars(
         select(CaseAffectedShipment)
         .where(
-            CaseAffectedShipment.case_id == case.id,
+            CaseAffectedShipment.organization_id == company_id,
             CaseAffectedShipment.shipment_line_id == line.id,
         )
         .with_for_update()
     ):
-        exposure.quantity_resolved += amount
-        if disposition == "returned":
-            exposure.quantity_recovered += amount
+        exposure.quantity_resolved = total + amount
+        exposure.quantity_recovered = returned_total + (amount if disposition == "returned" else 0)
     return row
 
 
@@ -411,8 +429,19 @@ def close(company_id, case_id, note, acknowledgement_exception="", version=None)
     if any(row.status != "verified" or row.verifier_id is None for row in tasks):
         raise DomainError("Verify every mandatory task before closure.")
     exposures = db.session.scalars(
-        select(CaseAffectedShipment).where(CaseAffectedShipment.trace_run_id == run.id)
+        select(CaseAffectedShipment).where(
+            CaseAffectedShipment.organization_id == company_id,
+            CaseAffectedShipment.case_id == case.id,
+            CaseAffectedShipment.trace_run_id == run.id,
+        )
     ).all()
+    from app.services.trace import physical_resolutions
+
+    # Reconcile derived projections from immutable evidence, including records
+    # first entered through another authorized overlapping investigation.
+    physical = physical_resolutions(company_id, [row.shipment_line_id for row in exposures])
+    for row in exposures:
+        row.quantity_resolved, row.quantity_recovered = physical.get(row.shipment_line_id, (0, 0))
     if any(row.quantity_resolved != row.quantity_dispatched for row in exposures):
         raise DomainError(
             "Record verified dispositions for all dispatched exposure before closure."

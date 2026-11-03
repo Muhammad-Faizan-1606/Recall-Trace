@@ -139,7 +139,7 @@ def test_task_requires_independent_evidence_verification(app, records):
         recall.complete_task(company_id, task_id, "Counted all items")
         with pytest.raises(DomainError, match="different reviewer"):
             recall.complete_task(company_id, task_id, "Self verify", verify=True)
-    with signed(app, company_id, "auditor@aurora.test"):
+    with signed(app, company_id, "auditor@aurora.test", verified=True):
         task = recall.complete_task(company_id, task_id, "Reviewed count evidence", verify=True)
         assert task.status == "verified"
         assert task.verifier_id != task.assignee_id

@@ -1,5 +1,14 @@
 # RecallTrace implementation status
 
+## Latest adversarial review — 3 November 2026
+
+The completed Core release was tested beyond its original happy-path/regression suite. **307 tests passed in 140.97s**, with deprecations treated as errors, including 119 additional adversarial cases. Catalog, access and Core Chromium smoke checks passed. Runtime 43 and development 76 locked distributions have no known pip-audit advisories; Bandit's application scan has zero findings. Combined line/branch coverage is 80.3% (83.0% statements, 69.6% branches), not proof of complete security coverage.
+
+Confirmed permission, malformed-input, stale-parent, evidence-disclosure, provider-redirect, worker-payload, slow-I/O lock, overlapping-recovery and stale-notice defects were fixed with regressions. Unknown APP_ENV fails startup. Non-root runtime code is read-only; unneeded pip/ensurepip were removed. CI now audits both locks and the application and verifies runtime source permissions. No schema change or new model was required.
+
+The final image has zero Python/CRITICAL Trivy matches in the HIGH/CRITICAL scan, but **48 HIGH Debian package records across nine distinct CVEs remain without an available vendor fix**. No findings were suppressed. Synchronous account-mail timing and untested live-provider/deployment limits remain documented. See documentation/SECURITY_REVIEW.md for exact fixes, evidence, reproduction commands, remaining advisories and final image digest. This section supersedes earlier validation counts/image hashes below; it is not a production security certification.
+
+
 Updated 3 November 2026 (Asia/Karachi). The selected final release is the **72-model Core application**, not the original 100-model plan. The 28 Expanded models are excluded. The Core schema, connected local PostgreSQL/Redis environment, operational workflows and deployment artifacts are implemented and validated locally. **No public production deployment has been provisioned or verified.**
 
 ## Current Core implementation

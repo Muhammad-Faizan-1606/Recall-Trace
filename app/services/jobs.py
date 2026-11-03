@@ -1,6 +1,7 @@
 """Database-backed durable outbox runner; claims never depend on live web memory."""
 
 import time
+import uuid
 from datetime import timedelta
 
 import click
@@ -12,6 +13,33 @@ from app.extensions import db
 from app.models import Organization, now
 from app.models.evidence import JobOutbox, NoticeDelivery, RecallNotice
 from app.services.business import DomainError, actor, company_lock, scoped
+
+
+def _associated_delivery(job):
+    """A malformed intent must neither poison the runner nor alter another delivery."""
+    if job.kind != "notice.send" or not isinstance(job.payload, dict):
+        return None
+    try:
+        notice_id = uuid.UUID(str(job.payload["notice_id"]))
+        delivery_id = uuid.UUID(str(job.payload["delivery_id"]))
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+    notice = db.session.scalar(
+        select(RecallNotice).where(
+            RecallNotice.organization_id == job.organization_id, RecallNotice.id == notice_id
+        )
+    )
+    if notice is None or job.deduplication_key != f"notice:{notice.id}:{notice.revision}":
+        return None
+    return db.session.scalar(
+        select(NoticeDelivery)
+        .where(
+            NoticeDelivery.organization_id == job.organization_id,
+            NoticeDelivery.id == delivery_id,
+            NoticeDelivery.notice_id == notice_id,
+        )
+        .with_for_update()
+    )
 
 
 def run_one():
@@ -38,6 +66,8 @@ def run_one():
             raise DomainError("Job claim was changed by another operator.")
         if job.kind != "notice.send":
             raise DomainError("Unsupported outbox job kind.")
+        if _associated_delivery(job) is None:
+            raise DomainError("Malformed notice delivery intent.")
         from app.services.notices import deliver_job
 
         deliver_job(job)
@@ -45,10 +75,13 @@ def run_one():
         return job.status
     except (DomainError, KeyError, ValueError, HTTPException):
         db.session.rollback()
+        db.session.scalar(
+            select(Organization).where(Organization.id == company_id).with_for_update()
+        )
         job = scoped(JobOutbox, company_id, job_id, lock=True)
         job.status, job.error_code = "failed", "execution_revalidation_failed"
-        if job.kind == "notice.send":
-            delivery = scoped(NoticeDelivery, company_id, job.payload["delivery_id"], lock=True)
+        delivery = _associated_delivery(job)
+        if delivery is not None:
             delivery.status, delivery.error_code = "failed", "execution_revalidation_failed"
         db.session.commit()
         return "failed"
@@ -78,10 +111,8 @@ def recover_abandoned():
             job = scoped(JobOutbox, company_id, job_id, lock=True)
             if job.status == "processing":
                 job.status, job.error_code = "failed", "workspace_unavailable"
-                if job.kind == "notice.send":
-                    delivery = scoped(
-                        NoticeDelivery, company_id, job.payload["delivery_id"], lock=True
-                    )
+                delivery = _associated_delivery(job)
+                if delivery is not None:
                     delivery.status, delivery.error_code = "failed", "workspace_unavailable"
                 db.session.commit()
                 count += 1
@@ -93,9 +124,9 @@ def recover_abandoned():
             db.session.rollback()
             continue
         job.status, job.error_code = "ambiguous", "worker_interrupted"
-        if job.kind == "notice.send":
-            notice = scoped(RecallNotice, company_id, job.payload["notice_id"], lock=True)
-            delivery = scoped(NoticeDelivery, company_id, job.payload["delivery_id"], lock=True)
+        delivery = _associated_delivery(job)
+        if delivery is not None:
+            notice = scoped(RecallNotice, company_id, delivery.notice_id, lock=True)
             notice.status, delivery.status = "ambiguous", "ambiguous"
             delivery.error_code = "worker_interrupted"
         db.session.commit()
@@ -113,13 +144,15 @@ def retry_failed(company_id, job_id):
         )
     if job.kind != "notice.send":
         raise DomainError("Unsupported retry kind.")
-    notice = scoped(RecallNotice, company_id, job.payload["notice_id"], lock=True)
+    previous = _associated_delivery(job)
+    if previous is None:
+        raise DomainError("Malformed notice delivery intent cannot be retried.")
+    notice = scoped(RecallNotice, company_id, previous.notice_id, lock=True)
     if notice.status != "queued":
         raise DomainError("Notice is no longer queued.")
     from app.services.notices import current_scope
 
     current_scope(company_id, notice=notice)
-    previous = scoped(NoticeDelivery, company_id, job.payload["delivery_id"], lock=True)
     delivery = NoticeDelivery(
         organization_id=company_id,
         notice_id=notice.id,

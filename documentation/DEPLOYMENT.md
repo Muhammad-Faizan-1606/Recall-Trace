@@ -88,3 +88,9 @@ The verifier checks migration metadata, reports table counts and reconciles the 
 `.github/workflows/ci.yml` installs hashed development dependencies with Python 3.13, starts actual PostgreSQL 17 and Redis, runs migrations/integration tests, checks model drift, Ruff and dependency audit. CI executes only when the workflow is pushed and GitHub Actions runs; the presence of this file is not a recorded successful CI run. Branch protection, secret configuration, required checks and release permissions are provider/repository settings.
 
 The user must create/link hosting services, securely supply credentials and complete provider verification/domain steps before a public deployment can be exercised. The repository does not create paid resources, send real recall communications, or publish a site automatically.
+
+## Security review follow-up
+
+Read SECURITY_REVIEW.md before deployment. Runtime application files are root-owned/read-only for UID 10001; only the private instance directory is writable. Package installation and dependency validation happen at build time; pip/ensurepip are deliberately absent from the runtime image. Rebuild for dependency updates rather than installing packages inside a running web container.
+
+The final reviewed image still reports nine distinct HIGH Debian CVEs without an available vendor fix (48 source/binary package records). These are retained in the report without suppression; revisit vendor fixes before a production clearance claim. Runtime and development Python lock audits are clean, which does not resolve OS findings. Synchronous account email also lacks a verified constant-time/async anti-enumeration guarantee. Public provider access remains unconfigured.

@@ -67,6 +67,7 @@ Invite a second reviewer through Company access with explicit quality/case/notic
 .venv/bin/flask --app wsgi:app db check
 .venv/bin/python -m pip check
 .venv/bin/pip-audit --disable-pip --no-deps -r requirements.txt
+bash scripts/security_checks.sh
 ```
 
 Integration tests use only the dedicated **recalltrace_test** database and Redis databases 2/3. The test PostgreSQL user needs database-creation privileges. Never point these checks at shared business infrastructure. CSRF, sessions, rate limiting, PostgreSQL constraints and transaction locks remain enabled. The suite covers real competing stock consumption and access changes, not just syntax or model counts.
@@ -80,6 +81,8 @@ With Gunicorn running and the appropriate private password files:
 ```
 
 Chromium defaults to `/usr/bin/chromium`; the isolated synthetic test browser uses `--no-sandbox` and must not browse untrusted sites. Account/access smoke retains uniquely named fictional access records. `/health/live` reports process liveness; `/health/ready` checks PostgreSQL, shared sessions and rate storage without exposing credentials.
+
+See [the adversarial security review](documentation/SECURITY_REVIEW.md) for the latest regression results, confirmed fixes and unresolved container advisories.
 
 ## Hosting and operational limits
 

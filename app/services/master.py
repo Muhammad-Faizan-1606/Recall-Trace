@@ -129,6 +129,8 @@ def _values(company_id, resource, values):
     for field in FIELDS[resource]:
         value = values.get(field)
         if isinstance(value, str):
+            if "\x00" in value:
+                raise DomainError("Text cannot contain NUL characters.")
             value = value.strip()
         if value in ("", None):
             if field in OPTIONAL:

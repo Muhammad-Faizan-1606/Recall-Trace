@@ -1,6 +1,7 @@
 """Account security screens and scoped read-only audit history."""
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask_limiter.util import get_remote_address
 from flask_login import current_user, login_required
 from flask_wtf import FlaskForm
 from sqlalchemy import select
@@ -14,6 +15,16 @@ from app.policies import require
 from app.services import mfa
 
 bp = Blueprint("security", __name__)
+
+
+def factor_attempt_key():
+    # Use account identity across password-authenticated sessions and IPs.
+    return current_user.get_id() if current_user.is_authenticated else get_remote_address()
+
+
+factor_attempt_limit = limiter.shared_limit(
+    "10 per minute", scope="mfa-code-attempts", key_func=factor_attempt_key, methods=["POST"]
+)
 
 
 class PasswordConfirmation(FlaskForm):
@@ -34,6 +45,8 @@ class DisableFactor(PasswordConfirmation):
 
 @bp.before_app_request
 def enforce_enrolled_factor():
+    if request.endpoint in {"live", "ready"}:
+        return None
     allowed = {
         "security.index",
         "security.enroll",
@@ -86,6 +99,7 @@ def enroll():
 @bp.post("/security/confirm")
 @login_required
 @limiter.limit("10 per minute", methods=["POST"])
+@factor_attempt_limit
 def confirm():
     form = Challenge()
     if not form.validate_on_submit():
@@ -101,6 +115,7 @@ def confirm():
 @bp.route("/security/challenge", methods=["GET", "POST"])
 @login_required
 @limiter.limit("10 per minute", methods=["POST"])
+@factor_attempt_limit
 def challenge():
     form = Challenge()
     if form.validate_on_submit():
@@ -119,6 +134,7 @@ def challenge():
 @bp.route("/security/disable", methods=["GET", "POST"])
 @login_required
 @limiter.limit("5 per minute", methods=["POST"])
+@factor_attempt_limit
 def disable():
     form = DisableFactor()
     if form.validate_on_submit():

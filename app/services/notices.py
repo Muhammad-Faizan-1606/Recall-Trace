@@ -17,6 +17,18 @@ from app.services.business import DomainError, actor, company_lock, scoped
 from app.services.evidence import notify
 
 
+def _text(value, maximum, label, single_line=False):
+    if not isinstance(value, str):
+        raise DomainError(f"Enter a valid {label}.")
+    value = value.strip()
+    permitted = "" if single_line else "\t\r\n"
+    if not 1 <= len(value) <= maximum or any(
+        ord(character) < 32 and character not in permitted for character in value
+    ):
+        raise DomainError(f"Enter a bounded {label} without invalid control characters.")
+    return value
+
+
 def viewer(company_id):
     if not current_user.is_authenticated:
         abort(401)
@@ -31,6 +43,7 @@ def viewer(company_id):
             Organization.status == "active",
             Organization.archived_at.is_(None),
         )
+        .execution_options(populate_existing=True)
     )
     if member is None:
         abort(404)
@@ -109,9 +122,7 @@ def create_notice(company_id, case_id, contact_id, subject=None, body=None):
     member = actor(company_id, "notice.prepare")
     company_lock(company_id)
     case, trace, contact, lines = current_scope(company_id, case_id=case_id, contact_id=contact_id)
-    subject = (subject or f"Recall {case.reference}: {case.title}").strip()
-    if not 1 <= len(subject) <= 160 or "\n" in subject or "\r" in subject:
-        raise DomainError("Subject must contain 1 to 160 characters on one line.")
+    subject = _text(subject or f"Recall {case.reference}: {case.title}", 160, "subject", True)
     if body is None:
         # Do not combine unlike SKUs; each line preserves its own lot/base-unit quantity.
         exposure = "\n".join(
@@ -119,9 +130,7 @@ def create_notice(company_id, case_id, contact_id, subject=None, body=None):
             for affected, line, shipment in lines
         )
         body = f"{case.title}\n\n{case.reason}\n\nYour potentially affected shipments:\n{exposure}\n\nStop use and contact the sender. Acknowledgement does not establish physical recovery."
-    body = body.strip()
-    if not 1 <= len(body) <= 20000:
-        raise DomainError("Notice body must contain 1 to 20,000 characters.")
+    body = _text(body, 20000, "notice body")
     revision = (
         db.session.scalar(
             select(func.max(RecallNotice.revision)).where(
@@ -165,13 +174,9 @@ def edit_notice(company_id, notice_id, subject, body, version):
     if notice.status != "draft" or notice.version != version:
         raise DomainError("Only an unchanged draft notice can be edited.")
     current_scope(company_id, notice=notice)
-    if (
-        not 1 <= len(subject.strip()) <= 160
-        or any(c in subject for c in "\r\n")
-        or not 1 <= len(body.strip()) <= 20000
-    ):
-        raise DomainError("Enter a bounded subject and body.")
-    notice.subject, notice.body = subject.strip(), body.strip()
+    clean_subject = _text(subject, 160, "subject", True)
+    clean_body = _text(body, 20000, "notice body")
+    notice.subject, notice.body = clean_subject, clean_body
     audit(company_id, "notice.edit", "recall_notice", notice.id, {"version": notice.version})
     db.session.commit()
     return notice
@@ -265,7 +270,12 @@ def acknowledge(company_id, notice_id, method, safe_note=""):
     notice = readable(company_id, notice_id)
     if not member.partner_id and not allowed(company_id, "notice.acknowledge"):
         abort(403)
-    if method not in {"email", "phone", "written", "portal"} or len(safe_note) > 2000:
+    if (
+        method not in {"email", "phone", "written", "portal"}
+        or not isinstance(safe_note, str)
+        or len(safe_note) > 2000
+        or any(ord(c) < 32 and c not in "\t\r\n" for c in safe_note)
+    ):
         raise DomainError(
             "Select an acknowledgement method and a note of at most 2,000 characters."
         )
@@ -322,6 +332,7 @@ def send_message(recipient, subject, body, idempotency_key):
             headers={"Authorization": f"Bearer {key}", "Idempotency-Key": idempotency_key},
             json={"from": sender, "to": [recipient], "subject": subject, "text": body},
             timeout=(5, 20),
+            allow_redirects=False,
         )
     except requests.ConnectTimeout:
         return "failed", None, "provider_connect_timeout"
@@ -331,11 +342,19 @@ def send_message(recipient, subject, body, idempotency_key):
         return "failed", None, "provider_rate_limited"
     if response.status_code >= 500:
         return "ambiguous", None, "provider_response_ambiguous"
+    if 300 <= response.status_code < 400:
+        return "ambiguous", None, "provider_unexpected_redirect"
     if not response.ok:
         return "failed", None, "provider_rejected"
     try:
-        reference = str(response.json()["id"])
-        if not reference or len(reference) > 160:
+        payload = response.json()
+        reference = payload.get("id") if isinstance(payload, dict) else None
+        if (
+            not isinstance(reference, str)
+            or not reference.strip()
+            or len(reference) > 160
+            or not reference.isprintable()
+        ):
             raise ValueError
     except (ValueError, KeyError, TypeError):
         return "ambiguous", None, "provider_receipt_missing"
@@ -397,6 +416,7 @@ def reconcile_delivery(company_id, delivery_id, outcome, document_id, provider_r
     A confirmed non-send may subsequently use the ordinary bounded retry path.
     """
     member = actor(company_id, "notice.approve")
+    actor(company_id, "evidence.read")
     company_lock(company_id)
     from app.models.evidence import Document
     from app.models.recall import CaseDocument
@@ -422,8 +442,12 @@ def reconcile_delivery(company_id, delivery_id, outcome, document_id, provider_r
         raise DomainError("Reconciliation requires clean private evidence.")
     if outcome not in {"sent", "not_sent"}:
         raise DomainError("Record provider-confirmed sent or provider-confirmed not sent.")
-    if outcome == "sent" and (not provider_reference or not 1 <= len(provider_reference) <= 160):
+    if outcome == "sent" and (
+        not isinstance(provider_reference, str) or not 1 <= len(provider_reference) <= 160
+    ):
         raise DomainError("A confirmed send requires a provider receipt reference.")
+    if outcome == "sent":
+        provider_reference = _text(provider_reference, 160, "provider receipt reference", True)
     link = db.session.scalar(
         select(CaseDocument.id).where(
             CaseDocument.organization_id == company_id,
@@ -454,3 +478,69 @@ def reconcile_delivery(company_id, delivery_id, outcome, document_id, provider_r
     )
     db.session.commit()
     return delivery
+
+
+def withdraw_notice(company_id, notice_id, reason, version):
+    """Withdraw a never-delivered revision without rewriting its reviewed content."""
+    member = actor(company_id, "notice.approve")
+    from app.models.recall import CaseComment
+    from app.services.mfa import require_recent_mfa
+
+    require_recent_mfa(company_id)
+    notice = scoped(RecallNotice, company_id, notice_id, lock=True)
+    if notice.version != version or notice.status not in {"draft", "approved", "queued"}:
+        raise DomainError("Only an unchanged, never-delivered notice may be withdrawn.")
+    if notice.created_by_id == member.id:
+        raise DomainError("A different eligible member must review this withdrawal.")
+    reason = _text(reason, 2000, "withdrawal review reason")
+    if len(reason) < 20:
+        raise DomainError("Record a withdrawal review reason of at least 20 characters.")
+    deliveries = db.session.scalars(
+        select(NoticeDelivery)
+        .where(NoticeDelivery.organization_id == company_id, NoticeDelivery.notice_id == notice.id)
+        .order_by(NoticeDelivery.attempt)
+        .with_for_update()
+    ).all()
+    if any(
+        row.status not in {"pending", "failed"}
+        or row.sent_at is not None
+        or row.provider_reference is not None
+        for row in deliveries
+    ):
+        raise DomainError("Reconcile uncertain attempts; delivered notices cannot be withdrawn.")
+    job = db.session.scalar(
+        select(JobOutbox)
+        .where(
+            JobOutbox.organization_id == company_id,
+            JobOutbox.deduplication_key == f"notice:{notice.id}:{notice.revision}",
+        )
+        .with_for_update()
+    )
+    if job and (
+        job.status not in {"pending", "failed"}
+        or (job.status == "pending" and job.claimed_at is not None)
+    ):
+        raise DomainError("A claimed or uncertain delivery cannot be withdrawn.")
+    if job:
+        job.status, job.error_code = "cancelled", "operator_withdrawn_before_delivery"
+    for delivery in deliveries:
+        if delivery.status == "pending":
+            delivery.status, delivery.error_code = "cancelled", "withdrawn_before_delivery"
+    notice.status = "cancelled"
+    db.session.add(
+        CaseComment(
+            organization_id=company_id,
+            case_id=notice.case_id,
+            author_id=member.id,
+            body=f"Notice revision {notice.revision} withdrawn before delivery. Review reason: {reason}",
+        )
+    )
+    audit(
+        company_id,
+        "notice.withdraw",
+        "recall_notice",
+        notice.id,
+        {"status": "cancelled", "reason_code": "reviewed_before_delivery"},
+    )
+    db.session.commit()
+    return notice

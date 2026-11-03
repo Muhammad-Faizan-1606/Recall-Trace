@@ -7,13 +7,19 @@ RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates
 WORKDIR /app
 COPY requirements.txt ./
 RUN --mount=type=secret,id=proxy_ca \
+    set -eu; \
     if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca; fi; \
-    python -m pip install --no-cache-dir --require-hashes -r requirements.txt
-COPY --chown=10001:10001 app ./app
-COPY --chown=10001:10001 migrations ./migrations
-COPY --chown=10001:10001 scripts ./scripts
-COPY --chown=10001:10001 wsgi.py gunicorn.conf.py ./
-RUN mkdir -p /app/instance && chown 10001:10001 /app/instance && chmod 700 /app/instance
+    python -m pip install --no-cache-dir --require-hashes -r requirements.txt; \
+    python -m pip check; \
+    # Installers and their vendored dependencies are not needed by the runtime.
+    python -m pip uninstall --yes pip; \
+    python -c 'import ensurepip, pathlib, shutil; shutil.rmtree(pathlib.Path(ensurepip.__file__).parent)'
+COPY app ./app
+COPY migrations ./migrations
+COPY scripts ./scripts
+COPY wsgi.py gunicorn.conf.py ./
+RUN chmod -R u=rwX,go=rX /app/app /app/migrations /app/scripts /app/wsgi.py /app/gunicorn.conf.py \
+    && mkdir -p /app/instance && chown 10001:10001 /app/instance && chmod 700 /app/instance
 USER 10001:10001
 EXPOSE 8000
 CMD ["gunicorn", "--config", "gunicorn.conf.py", "wsgi:app"]

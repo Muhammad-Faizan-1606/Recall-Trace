@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import timedelta
 
-from flask import Flask, g, render_template, session
+from flask import Flask, g, render_template, request, session
 from flask_login import current_user, logout_user
 from redis import Redis
 from redis.exceptions import RedisError
@@ -36,6 +36,12 @@ def create_app(config=None):
         MFA_ENCRYPTION_KEY=os.getenv("MFA_ENCRYPTION_KEY"),
         MFA_KEY_VERSION=os.getenv("MFA_KEY_VERSION", "v1"),
     )
+
+    @app.before_request
+    def request_reference():
+        # Set the reference before extension middleware can fail.
+        g.correlation_id = uuid.uuid4()
+
     if config:
         app.config.update(config)
     if not app.config["SECRET_KEY"] or len(app.config["SECRET_KEY"]) < 32:
@@ -96,7 +102,8 @@ def create_app(config=None):
 
     @app.before_request
     def validate_session():
-        g.correlation_id = uuid.uuid4()
+        if request.endpoint in {"live", "ready"}:
+            return
         if session.get("_user_id") and not current_user.is_authenticated:
             logout_user()
             session.clear()
@@ -117,6 +124,8 @@ def create_app(config=None):
     @app.errorhandler(500)
     def unavailable(_error):
         db.session.rollback()
+        if not hasattr(g, "correlation_id"):
+            g.correlation_id = uuid.uuid4()
         return render_template("unavailable.html", correlation_id=g.correlation_id), 500
 
     def safe_log_exception(info):
@@ -130,10 +139,12 @@ def create_app(config=None):
     app.log_exception = safe_log_exception
 
     @app.get("/health/live")
+    @limiter.exempt
     def live():
         return {"status": "alive"}
 
     @app.get("/health/ready")
+    @limiter.exempt
     def ready():
         try:
             db.session.execute(text("SELECT 1"))

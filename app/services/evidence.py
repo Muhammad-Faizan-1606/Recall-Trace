@@ -10,6 +10,7 @@ import socket
 import struct
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import quote, urlparse
 
 import requests
@@ -27,6 +28,13 @@ from app.services.business import DomainError, actor, company_lock, scoped
 MAX_BYTES = 10 * 1024 * 1024
 KINDS = {"component", "finished", "packaging"}
 EVENT_TYPES = {"case", "notice", "quality", "export", "import"}
+
+
+def _successful(response):
+    """Provider redirects must never forward private bytes or credential headers."""
+    response.raise_for_status()
+    if not 200 <= response.status_code < 300:
+        raise requests.HTTPError("Unexpected private provider response.", response=response)
 
 
 def _storage_root():
@@ -56,11 +64,13 @@ def _storage_url(key):
             f"{endpoint}/storage/v1/bucket/{quote(bucket, safe='')}",
             headers=headers,
             timeout=(5, 15),
+            allow_redirects=False,
         )
-        response.raise_for_status()
-        private = response.json().get("public") is False
-    except (requests.RequestException, ValueError) as exc:
-        raise DomainError("Private evidence bucket could not be verified.") from exc
+        _successful(response)
+        payload = response.json()
+        private = isinstance(payload, dict) and payload.get("public") is False
+    except (requests.RequestException, ValueError, TypeError, AttributeError) as exc:
+        raise DomainError("The private evidence bucket could not be verified.") from exc
     if not private:
         raise DomainError("Evidence bucket must be verified private before use.")
     return f"{endpoint}/storage/v1/object/{quote(bucket, safe='')}/{quote(key, safe='/')}", headers
@@ -79,8 +89,10 @@ def put_bytes(company_id, data):
         url, headers = _storage_url(key)
         headers["Content-Type"] = "application/octet-stream"
         try:
-            response = requests.post(url, headers=headers, data=data, timeout=(5, 30))
-            response.raise_for_status()
+            response = requests.post(
+                url, headers=headers, data=data, timeout=(5, 30), allow_redirects=False
+            )
+            _successful(response)
         except requests.RequestException as exc:
             raise DomainError("Private storage write failed; no evidence was accepted.") from exc
     else:
@@ -103,8 +115,10 @@ def read_bytes(document):
     if current_app.config.get("STORAGE_BACKEND", "filesystem") == "supabase":
         url, headers = _storage_url(document.object_key)
         try:
-            with requests.get(url, headers=headers, timeout=(5, 30), stream=True) as response:
-                response.raise_for_status()
+            with requests.get(
+                url, headers=headers, timeout=(5, 30), stream=True, allow_redirects=False
+            ) as response:
+                _successful(response)
                 data = response.raw.read(MAX_BYTES + 1)
         except requests.RequestException as exc:
             raise DomainError("Private storage read failed.") from exc
@@ -128,7 +142,9 @@ def _delete_bytes(key):
     if current_app.config.get("STORAGE_BACKEND", "filesystem") == "supabase":
         url, headers = _storage_url(key)
         try:
-            requests.delete(url, headers=headers, timeout=(5, 15)).raise_for_status()
+            _successful(
+                requests.delete(url, headers=headers, timeout=(5, 15), allow_redirects=False)
+            )
         except requests.RequestException:
             current_app.logger.warning("Private storage cleanup failed; maintenance required.")
     else:
@@ -173,9 +189,11 @@ def scan_bytes(data):
                 data=data,
                 headers={"Content-Type": "application/octet-stream"},
                 timeout=(3, 30),
+                allow_redirects=False,
             )
-            response.raise_for_status()
-            state = response.json().get("status")
+            _successful(response)
+            payload = response.json()
+            state = payload.get("status") if isinstance(payload, dict) else None
             return state if state in {"clean", "infected"} else "unavailable"
         except (requests.RequestException, ValueError):
             return "unavailable"
@@ -210,11 +228,29 @@ def scan_bytes(data):
     return "unavailable"
 
 
-def _document(company_id, member_id, data, name, media_type, state, scan_status):
+def _filename(name):
+    if not isinstance(name, str):
+        raise DomainError("Choose a valid filename.")
     name = Path(name.replace("\\", "/")).name.strip()
     if not name or len(name) > 240 or any(ord(c) < 32 for c in name):
         raise DomainError("Choose a filename of at most 240 printable characters.")
-    key = put_bytes(company_id, data)
+    return name
+
+
+def _discard_unlinked(key):
+    try:
+        _delete_bytes(key)
+    except (DomainError, OSError):
+        # The object remains private and unlinked if provider cleanup is unavailable.
+        current_app.logger.warning("Private unlinked object cleanup requires maintenance.")
+
+
+def _document(company_id, member_id, data, name, media_type, state, scan_status, object_key=None):
+    name = _filename(name)
+    key = object_key or put_bytes(company_id, data)
+    _valid_key(key)
+    if not key.startswith(company_id.hex + "/"):
+        raise DomainError("Private object belongs to another company.")
     record = Document(
         organization_id=company_id,
         uploaded_by_id=member_id,
@@ -232,16 +268,22 @@ def _document(company_id, member_id, data, name, media_type, state, scan_status)
 
 
 def upload(company_id, filename, stream):
-    member = actor(company_id, "evidence.upload")
+    # Network scanning/storage can be slow. Do not hold the company business guard
+    # during I/O; authorize before accepting bytes, then recheck before committing.
+    require(company_id, "evidence.upload")
+    member_id = membership_for(company_id).id
+    db.session.rollback()
+    filename = _filename(filename)
     data = stream.read(MAX_BYTES + 1)
     if not 0 < len(data) <= MAX_BYTES:
         raise DomainError("File must contain 1 byte to 10 MiB.")
     media_type = _media(data, filename)
     status = scan_bytes(data)
-    record = None
+    key = put_bytes(company_id, data)
     try:
-        company_lock(company_id)
         member = actor(company_id, "evidence.upload")
+        if member.id != member_id:
+            raise DomainError("Upload authorization changed; retry with the current membership.")
         record = _document(
             company_id,
             member.id,
@@ -250,28 +292,52 @@ def upload(company_id, filename, stream):
             media_type,
             "active" if status == "clean" else "quarantined",
             status,
+            object_key=key,
         )
         audit(company_id, "evidence.upload", "document", record.id, {"status": status})
         db.session.commit()
         return record
     except Exception:
         db.session.rollback()
-        if record:
-            _delete_bytes(record.object_key)
+        _discard_unlinked(key)
         raise
 
 
 def rescan(company_id, document_id):
-    company_lock(company_id)
-    actor(company_id, "evidence.upload")
-    record = scoped(Document, company_id, document_id, lock=True)
+    require(company_id, "evidence.upload")
+    member_id = membership_for(company_id).id
+    record = scoped(Document, company_id, document_id)
+    db.session.refresh(record)
     if record.archived_at or record.state != "quarantined":
         raise DomainError("Only quarantined evidence can be rescanned.")
-    record.scan_status = scan_bytes(read_bytes(record))
-    record.state = "active" if record.scan_status == "clean" else "quarantined"
-    audit(company_id, "evidence.scan", "document", record.id, {"status": record.scan_status})
-    db.session.commit()
-    return record
+    snapshot = SimpleNamespace(
+        object_key=record.object_key, size_bytes=record.size_bytes, sha256=record.sha256
+    )
+    version = record.version
+    db.session.rollback()
+    status = scan_bytes(read_bytes(snapshot))
+    try:
+        member = actor(company_id, "evidence.upload")
+        if member.id != member_id:
+            raise DomainError("Scan authorization changed; retry with the current membership.")
+        record = scoped(Document, company_id, document_id, lock=True)
+        if (
+            record.version != version
+            or record.object_key != snapshot.object_key
+            or record.sha256 != snapshot.sha256
+            or record.size_bytes != snapshot.size_bytes
+            or record.state != "quarantined"
+            or record.archived_at
+        ):
+            raise DomainError("Document changed while scanning; reload before retrying.")
+        record.scan_status = status
+        record.state = "active" if status == "clean" else "quarantined"
+        audit(company_id, "evidence.scan", "document", record.id, {"status": status})
+        db.session.commit()
+        return record
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 def downloadable(company_id, document_id):
@@ -348,11 +414,11 @@ def parse_items_csv(data):
         raise DomainError("CSV must use UTF-8 encoding.") from exc
     if "\x00" in text:
         raise DomainError("CSV contains an invalid character.")
-    reader = csv.DictReader(io.StringIO(text, newline=""))
-    if reader.fieldnames != ["code", "name", "kind"]:
-        raise DomainError("CSV header must be exactly code,name,kind.")
     rows, codes = [], set()
     try:
+        reader = csv.DictReader(io.StringIO(text, newline=""), strict=True)
+        if reader.fieldnames != ["code", "name", "kind"]:
+            raise DomainError("CSV header must be exactly code,name,kind.")
         for number, row in enumerate(reader, start=2):
             if number > 10001 or None in row or any(value is None for value in row.values()):
                 raise DomainError("CSV has too many rows or an incorrect column count.")

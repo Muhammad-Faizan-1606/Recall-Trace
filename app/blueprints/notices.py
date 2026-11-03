@@ -65,6 +65,13 @@ class ReconciliationForm(FlaskForm):
     provider_reference = StringField("Provider receipt reference", validators=[Length(max=160)])
 
 
+class WithdrawalForm(ActionForm):
+    reason = TextAreaField(
+        "Review reason for withdrawing this unsent revision",
+        validators=[DataRequired(), Length(min=20, max=2000)],
+    )
+
+
 def failure(exc):
     db.session.rollback()
     return render_template("error.html", message=str(exc)), 409
@@ -72,13 +79,22 @@ def failure(exc):
 
 def context(company_id):
     member = notices.viewer(company_id)
+    if member.partner_id:
+        from app.services.access import permissions_for
+
+        can_acknowledge = "notice.acknowledge" in permissions_for(member, allow_partner=True)
+    else:
+        can_acknowledge = allowed(company_id, "notice.acknowledge")
     ctx = {
         "company_id": company_id,
         "member": member,
         "partner_view": bool(member.partner_id),
         "can_prepare": not member.partner_id and allowed(company_id, "notice.prepare"),
         "can_approve": not member.partner_id and allowed(company_id, "notice.approve"),
-        "can_acknowledge": bool(member.partner_id) or allowed(company_id, "notice.acknowledge"),
+        "can_reconcile": not member.partner_id
+        and allowed(company_id, "notice.approve")
+        and allowed(company_id, "evidence.read"),
+        "can_acknowledge": can_acknowledge,
     }
     # The internal workspace navigation itself requires an unrestricted membership.
     if not member.partner_id:
@@ -179,7 +195,7 @@ def detail(company_id, notice_id):
     )
     form = AcknowledgementForm()
     reconciliation_form = ReconciliationForm()
-    if not ctx["partner_view"]:
+    if ctx["can_reconcile"]:
         documents = db.session.scalars(
             select(Document)
             .where(
@@ -204,6 +220,7 @@ def detail(company_id, notice_id):
         acknowledgement=acknowledgement,
         acknowledgement_form=form,
         reconciliation_form=reconciliation_form,
+        withdrawal_form=WithdrawalForm(version=str(row.version)),
         action_form=ActionForm(version=str(row.version)),
         **ctx,
     )
@@ -321,6 +338,7 @@ def retry(company_id, job_id):
 @login_required
 def reconcile(company_id, delivery_id):
     require(company_id, "notice.approve")
+    require(company_id, "evidence.read")
     form = ReconciliationForm()
     documents = db.session.scalars(
         select(Document)
@@ -349,3 +367,18 @@ def reconcile(company_id, delivery_id):
     return redirect(
         url_for("notices.detail", company_id=company_id, notice_id=delivery.notice_id), code=303
     )
+
+
+@bp.post(BASE + "/<uuid:notice_id>/withdraw")
+@login_required
+def withdraw(company_id, notice_id):
+    require(company_id, "notice.approve")
+    form = WithdrawalForm()
+    if not form.validate_on_submit():
+        abort(422)
+    try:
+        notices.withdraw_notice(company_id, notice_id, form.reason.data, int(form.version.data))
+    except DomainError as exc:
+        return failure(exc)
+    flash("Unsent notice withdrawn with reviewed reason; delivery history retained.", "success")
+    return redirect(url_for("notices.detail", company_id=company_id, notice_id=notice_id), code=303)

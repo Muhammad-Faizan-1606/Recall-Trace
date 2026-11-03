@@ -220,6 +220,13 @@ def save_role(company_id, code, name, codes, role_id=None, version=None):
             .where(MembershipRole.role_id == role.id)
         ).all()
         revoke_users(user_ids)
+        audit(
+            company_id,
+            "access.role.updated" if role_id else "access.role.created",
+            "roles",
+            role.id,
+            {"count": len(codes), "version": role.version},
+        )
         db.session.commit()
         return role
     except IntegrityError as exc:

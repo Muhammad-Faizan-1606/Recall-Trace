@@ -4,6 +4,7 @@ import time
 from collections import defaultdict, deque
 from decimal import Decimal
 
+from sqlalchemy import case as sql_case
 from sqlalchemy import func, select
 
 from app.extensions import db
@@ -27,6 +28,38 @@ from app.models.recall import (
 )
 from app.services.business import DomainError, actor, company_lock, scoped
 from app.services.quality import mutation
+
+MAX_EXPOSURE_LINES = 10000
+
+
+def physical_resolutions(company_id, shipment_line_ids):
+    """Project immutable physical dispositions, shared by overlapping cases.
+
+    Callers must first validate the authorized shipment/case scope and hold the
+    company guard while changing state. A physical quantity is recorded only once.
+    """
+    if not shipment_line_ids:
+        return {}
+    return {
+        line_id: (resolved, recovered)
+        for line_id, resolved, recovered in db.session.execute(
+            select(
+                RecoveryRecord.shipment_line_id,
+                func.sum(RecoveryRecord.quantity),
+                func.sum(
+                    sql_case(
+                        (RecoveryRecord.disposition == "returned", RecoveryRecord.quantity),
+                        else_=0,
+                    )
+                ),
+            )
+            .where(
+                RecoveryRecord.organization_id == company_id,
+                RecoveryRecord.shipment_line_id.in_(shipment_line_ids),
+            )
+            .group_by(RecoveryRecord.shipment_line_id)
+        )
+    }
 
 
 @mutation
@@ -131,6 +164,27 @@ def compute(company_id, case_id, direction="downstream", max_nodes=10000, max_de
                     acyclic.append(destination)
     if consumed != len(paths):
         complete, reached_limit = False, "genealogy_cycle"
+    lines, recovered_by_line = [], {}
+    if direction == "downstream":
+        lines = db.session.scalars(
+            select(ShipmentLine)
+            .join(Shipment, Shipment.id == ShipmentLine.shipment_id)
+            .where(
+                Shipment.organization_id == company_id,
+                Shipment.status == "posted",
+                ShipmentLine.organization_id == company_id,
+                ShipmentLine.lot_id.in_(paths),
+            )
+            .order_by(ShipmentLine.id)
+            .limit(MAX_EXPOSURE_LINES + 1)
+        ).all()
+        if len(lines) > MAX_EXPOSURE_LINES:
+            complete, reached_limit = False, "shipment_limit"
+            lines = lines[:MAX_EXPOSURE_LINES]
+        if lines:
+            recovered_by_line = physical_resolutions(company_id, [line.id for line in lines])
+    if time.monotonic() > deadline and complete:
+        complete, reached_limit = False, "time_limit"
     run = TraceRun(
         organization_id=company_id,
         case_id=case.id,
@@ -143,6 +197,7 @@ def compute(company_id, case_id, direction="downstream", max_nodes=10000, max_de
             "max_nodes": max_nodes,
             "max_depth": max_depth,
             "max_edges": 100000,
+            "max_shipment_lines": MAX_EXPOSURE_LINES,
             "time_seconds": 5,
             "reached_limit": reached_limit,
         },
@@ -163,31 +218,9 @@ def compute(company_id, case_id, direction="downstream", max_nodes=10000, max_de
             )
         )
     if direction == "downstream":
-        lines = db.session.scalars(
-            select(ShipmentLine)
-            .join(Shipment, Shipment.id == ShipmentLine.shipment_id)
-            .where(
-                Shipment.organization_id == company_id,
-                Shipment.status == "posted",
-                ShipmentLine.organization_id == company_id,
-                ShipmentLine.lot_id.in_(paths),
-            )
-            .order_by(ShipmentLine.id)
-        ).all()
         for line in lines:
             # Recomputed snapshots retain immutable physical recovery history exactly once per line.
-            resolved = db.session.scalar(
-                select(func.coalesce(func.sum(RecoveryRecord.quantity), 0)).where(
-                    RecoveryRecord.case_id == case.id, RecoveryRecord.shipment_line_id == line.id
-                )
-            )
-            recovered = db.session.scalar(
-                select(func.coalesce(func.sum(RecoveryRecord.quantity), 0)).where(
-                    RecoveryRecord.case_id == case.id,
-                    RecoveryRecord.shipment_line_id == line.id,
-                    RecoveryRecord.disposition == "returned",
-                )
-            )
+            resolved, recovered = recovered_by_line.get(line.id, (Decimal(0), Decimal(0)))
             db.session.add(
                 CaseAffectedShipment(
                     organization_id=company_id,

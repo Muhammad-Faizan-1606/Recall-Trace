@@ -7,6 +7,7 @@ from flask_login import login_required
 from flask_wtf import FlaskForm
 from sqlalchemy import select
 from wtforms import HiddenField, IntegerField, SelectField, StringField, TextAreaField
+from wtforms.fields import SelectChoice
 from wtforms.validators import DataRequired, Length, NumberRange
 
 from app.extensions import db
@@ -22,6 +23,7 @@ from app.models.quality import (
     QualityDocument,
     QualityHold,
 )
+from app.policies import allowed
 from app.services import quality as service
 from app.services.business import DomainError, actor, scoped
 
@@ -40,7 +42,11 @@ class CheckForm(FlaskForm):
     label = StringField("Criterion", validators=[DataRequired(), Length(max=160)])
     value_type = SelectField(
         "Observation type",
-        choices=[("number", "Number"), ("text", "Text"), ("boolean", "True/false")],
+        choices=[
+            SelectChoice("number", "Number"),
+            SelectChoice("text", "Text"),
+            SelectChoice("boolean", "True/false"),
+        ],
     )
     rule = TextAreaField(
         "Rule JSON (min, max, equals only)",
@@ -76,7 +82,8 @@ class IssueForm(FlaskForm):
     inspection_id = SelectField("Inspection evidence", choices=[])
     description = TextAreaField("Description", validators=[DataRequired(), Length(max=4000)])
     severity = SelectField(
-        "Severity", choices=[(v, v.capitalize()) for v in ("low", "medium", "high", "critical")]
+        "Severity",
+        choices=[SelectChoice(v, v.capitalize()) for v in ("low", "medium", "high", "critical")],
     )
 
 
@@ -89,7 +96,8 @@ class HoldForm(FlaskForm):
 class ReviewForm(FlaskForm):
     version = HiddenField()
     decision = SelectField(
-        "Decision", choices=[("retain", "Retain hold"), ("release", "Release hold")]
+        "Decision",
+        choices=[SelectChoice("retain", "Retain hold"), SelectChoice("release", "Release hold")],
     )
     reason = TextAreaField(
         "Independent review evidence", validators=[DataRequired(), Length(max=4000)]
@@ -111,7 +119,7 @@ def context(company_id):
 
 def choices(model, company_id, label, *where):
     return [
-        (str(r.id), label(r))
+        SelectChoice(str(r.id), label(r))
         for r in db.session.scalars(
             select(model)
             .where(model.organization_id == company_id, *where)
@@ -122,6 +130,8 @@ def choices(model, company_id, label, *where):
 
 
 def available_documents(company_id):
+    if not allowed(company_id, "evidence.read"):
+        return []
     from app.models.evidence import Document
 
     return choices(
@@ -301,7 +311,7 @@ def inspection(company_id, inspection_id):
         .where(InspectionCheck.template_id == row.template_id)
         .order_by(InspectionCheck.sequence)
     ).all()
-    form.check_id.choices = [(str(r.id), r.label) for r in checks]
+    form.check_id.choices = [SelectChoice(str(r.id), r.label) for r in checks]
     if form.validate_on_submit():
         try:
             service.observe(
@@ -372,7 +382,7 @@ def issue_form(company_id, record_id=None):
     row = scoped(Nonconformance, company_id, record_id) if record_id else None
     form = IssueForm(obj=row)
     form.lot_id.choices = choices(Lot, company_id, lambda r: r.lot_code)
-    form.inspection_id.choices = [("", "No inspection evidence")] + choices(
+    form.inspection_id.choices = [SelectChoice("", "No inspection evidence")] + choices(
         Inspection, company_id, lambda r: r.reference
     )
     if form.validate_on_submit():
@@ -410,7 +420,7 @@ def hold_form(company_id):
     actor(company_id, "quality.hold")
     form = HoldForm()
     form.lot_id.choices = choices(Lot, company_id, lambda r: r.lot_code)
-    form.nonconformance_id.choices = [("", "No linked issue")] + choices(
+    form.nonconformance_id.choices = [SelectChoice("", "No linked issue")] + choices(
         Nonconformance, company_id, lambda r: r.reference, Nonconformance.status == "open"
     )
     if form.validate_on_submit():

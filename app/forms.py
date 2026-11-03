@@ -20,6 +20,8 @@ from wtforms.validators import (
 
 
 def trimmed(value):
+    if isinstance(value, str) and "\x00" in value:
+        raise ValueError("Text cannot contain NUL characters.")
     return value.strip() if value else value
 
 
@@ -39,7 +41,7 @@ class LoginForm(FlaskForm):
 
 
 class ActionForm(FlaskForm):
-    version = HiddenField("Version", validators=[DataRequired(), Regexp(r"^\d+$")])
+    version = HiddenField("Version", validators=[DataRequired(), Regexp(r"^[0-9]{1,10}$")])
 
 
 class ItemForm(ActionForm):

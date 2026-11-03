@@ -64,6 +64,8 @@ def configure_environment(app):
     Explicit test/application overrides win over process settings. Production cookie
     properties are always strengthened, never relaxed by an inherited development default.
     """
+    if app.config.get("APP_ENV") not in {"development", "testing", "production"}:
+        raise RuntimeError("APP_ENV must be development, testing, or production.")
     for name in PRODUCTION_SETTINGS:
         if name not in app.config and name in os.environ:
             app.config[name] = os.environ[name]

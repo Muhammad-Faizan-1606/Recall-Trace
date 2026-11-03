@@ -127,6 +127,8 @@ def identifier(value):
 
 def text_value(value, limit=80):
     value = str(value or "").strip()
+    if "\x00" in value:
+        raise DomainError("Text cannot contain NUL characters.")
     if not value or len(value) > limit:
         raise DomainError(f"Enter text between 1 and {limit} characters.")
     return value
@@ -136,6 +138,12 @@ def active(model, company_id, value):
     row = scoped(model, company_id, identifier(value), lock=True)
     if getattr(row, "archived_at", None) or getattr(row, "status", "active") == "inactive":
         raise DomainError("Choose an active related record.")
+    # A bin remains a historical record when its facility is archived. It must
+    # not provide a route back into inactive facilities, including on reversal.
+    if model is StorageLocation:
+        active(Warehouse, company_id, row.warehouse_id)
+    elif model is Warehouse:
+        active(Site, company_id, row.site_id)
     return row
 
 
@@ -203,8 +211,10 @@ def _document_values(company_id, kind, values, member):
         destination = str(values.get("destination") or "").strip()
         if not address and not destination:
             raise DomainError("Enter a destination or select a customer address.")
-        if len(destination) > 4000:
-            raise DomainError("Destination is too long.")
+        if "\x00" in destination or len(destination) > 4000:
+            raise DomainError(
+                "Destination must not contain NUL characters or exceed 4000 characters."
+            )
         fields.update(
             customer_id=customer.id,
             address_id=address.id if address else None,
@@ -217,13 +227,16 @@ def _document_values(company_id, kind, values, member):
         order = scoped(SalesOrder, company_id, identifier(values.get("sales_order_id")))
         if order.status != "posted":
             raise DomainError("Confirm the sales order before creating a shipment.")
+        partner(company_id, order.customer_id, "customer")
         warehouse = active(Warehouse, company_id, values.get("warehouse_id"))
         carrier = (
             active(Carrier, company_id, values["carrier_id"]) if values.get("carrier_id") else None
         )
         tracking = str(values.get("tracking_reference") or "").strip()
-        if len(tracking) > 120:
-            raise DomainError("Tracking reference is too long.")
+        if "\x00" in tracking or len(tracking) > 120:
+            raise DomainError(
+                "Tracking reference must not contain NUL characters or exceed 120 characters."
+            )
         fields.update(
             sales_order_id=order.id,
             warehouse_id=warehouse.id,
@@ -614,6 +627,7 @@ def post_document(company_id, kind, record_id, idempotency_key, version=None):
     member = actor(company_id, DOCUMENTS[kind][1])
     company = company_lock(company_id)
     member = actor(company_id, DOCUMENTS[kind][1])
+    idempotency_key = text_value(idempotency_key, 100)
     record = document(company_id, kind, record_id, lock=True)
     if record.status == "posted":
         if kind in ("purchase-orders", "sales-orders"):
@@ -624,6 +638,28 @@ def post_document(company_id, kind, record_id, idempotency_key, version=None):
         return record
     editable(record, version)
     # Validate references and line semantics again at posting, under the guard.
+    header = {
+        field: getattr(record, field)
+        for field in (
+            "reference",
+            "supplier_id",
+            "delivery_site_id",
+            "ordered_on",
+            "warehouse_id",
+            "site_id",
+            "customer_id",
+            "address_id",
+            "sales_order_id",
+            "carrier_id",
+            "tracking_reference",
+            "source_warehouse_id",
+            "destination_warehouse_id",
+        )
+        if hasattr(record, field)
+    }
+    if kind == "sales-orders":
+        header["destination"] = record.destination_snapshot.get("address", "")
+    _document_values(company_id, kind, header, member)
     line_kinds = ["production-inputs", "production-outputs"] if kind == "production" else [kind]
     groups = [lines_for(company_id, k, record.id) for k in line_kinds]
     if any(not group for group in groups):
@@ -713,8 +749,9 @@ def add_shipment_event(company_id, shipment_id, event_type, note=""):
         "correction",
     ):
         raise DomainError("Choose a supported event for a dispatched shipment.")
-    if len(note) > 4000:
-        raise DomainError("Event note is too long.")
+    note = str(note or "").strip()
+    if "\x00" in note or len(note) > 4000:
+        raise DomainError("Event note must not contain NUL characters or exceed 4000 characters.")
     event = ShipmentEvent(
         organization_id=company_id,
         shipment_id=shipment.id,
@@ -733,12 +770,16 @@ def reverse_stock(company_id, transaction_id, idempotency_key, reason):
     Production and shipment corrections need scope/recovery review and are not
     exposed as a blind journal negation.
     """
-    member = actor(company_id, "inventory.transfer")
+    actor(company_id, "catalog.read")
     company_lock(company_id)
-    member = actor(company_id, "inventory.transfer")
     original = scoped(StockTransaction, company_id, identifier(transaction_id), lock=True)
     if original.kind not in ("receipts", "transfers"):
         raise DomainError("Only receipt and transfer postings support this compensating reversal.")
+    # Reversing a receipt is receiving authority, not permission to move stock.
+    member = actor(
+        company_id, "inventory.receive" if original.kind == "receipts" else "inventory.transfer"
+    )
+    idempotency_key = text_value(idempotency_key, 100)
     reason = text_value(reason, 1000)
     existing = db.session.scalar(
         select(StockTransaction).where(

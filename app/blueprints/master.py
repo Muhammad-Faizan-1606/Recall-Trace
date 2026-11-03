@@ -21,7 +21,7 @@ def text(name, maximum, optional=False):
     return StringField(
         name,
         validators=[Optional() if optional else DataRequired(), Length(max=maximum)],
-        filters=[lambda value: str(value).strip() if value is not None else value],
+        filters=[lambda value: trimmed(str(value)) if value is not None else value],
     )
 
 

@@ -141,7 +141,7 @@ def provisioning_uri(secret):
 
 def _consume(factor, code, allow_recovery=True):
     code = (code or "").strip()
-    if re.fullmatch(r"\d{6}", code):
+    if re.fullmatch(r"[0-9]{6}", code):
         secret = secret_for(factor)
         current_step = int(time.time() // 30)
         for step in (current_step, current_step - 1, current_step + 1):

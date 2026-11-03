@@ -3,8 +3,9 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 from flask_wtf import FlaskForm
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from wtforms import BooleanField, HiddenField, SelectField, StringField, TextAreaField
+from wtforms.fields import SelectChoice
 from wtforms.validators import DataRequired, Length
 
 from app.extensions import db
@@ -22,6 +23,7 @@ from app.models.recall import (
     RecoveryRecord,
     TraceRun,
 )
+from app.policies import allowed
 from app.services import recall as service
 from app.services import trace as tracing
 from app.services.business import DomainError, actor, scoped
@@ -37,7 +39,8 @@ class CaseForm(FlaskForm):
         "Suspected defect and supporting reason", validators=[DataRequired(), Length(max=4000)]
     )
     severity = SelectField(
-        "Severity", choices=[(v, v.capitalize()) for v in ("low", "medium", "high", "critical")]
+        "Severity",
+        choices=[SelectChoice(v, v.capitalize()) for v in ("low", "medium", "high", "critical")],
     )
 
 
@@ -50,7 +53,10 @@ class SourceForm(FlaskForm):
 class TraceForm(FlaskForm):
     direction = SelectField(
         "Trace direction",
-        choices=[("downstream", "Downstream exposure"), ("upstream", "Upstream sources")],
+        choices=[
+            SelectChoice("downstream", "Downstream exposure"),
+            SelectChoice("upstream", "Upstream sources"),
+        ],
     )
 
 
@@ -83,9 +89,9 @@ class RecoveryForm(FlaskForm):
     disposition = SelectField(
         "Verified disposition",
         choices=[
-            ("returned", "Physically returned"),
-            ("destroyed", "Confirmed destroyed"),
-            ("other_resolved", "Other verified resolution"),
+            SelectChoice("returned", "Physically returned"),
+            SelectChoice("destroyed", "Confirmed destroyed"),
+            SelectChoice("other_resolved", "Other verified resolution"),
         ],
     )
     evidence_reference = StringField(
@@ -171,20 +177,20 @@ def detail(company_id, case_id):
     row = scoped(RecallCase, company_id, case_id)
     source = SourceForm()
     source.lot_id.choices = [
-        (str(r.id), r.lot_code)
+        SelectChoice(str(r.id), r.lot_code)
         for r in db.session.scalars(
             select(Lot).where(Lot.organization_id == company_id).order_by(Lot.lot_code).limit(1000)
         )
     ]
-    source.nonconformance_id.choices = [("", "No linked quality issue")] + [
-        (str(r.id), r.reference)
+    source.nonconformance_id.choices = [SelectChoice("", "No linked quality issue")] + [
+        SelectChoice(str(r.id), r.reference)
         for r in db.session.scalars(
             select(Nonconformance).where(Nonconformance.organization_id == company_id).limit(1000)
         )
     ]
     task = TaskForm()
     task.assignee_id.choices = [
-        (str(member.id), user.display_name)
+        SelectChoice(str(member.id), user.display_name)
         for member, user in db.session.execute(
             select(Membership, User)
             .join(User, User.id == Membership.user_id)
@@ -215,7 +221,7 @@ def detail(company_id, case_id):
     )
     recovery = RecoveryForm()
     recovery.shipment_line_id.choices = [
-        (
+        SelectChoice(
             str(line.id),
             f"{lot.lot_code} / {line.id} / dispatched {exposure.quantity_dispatched}, resolved {exposure.quantity_resolved}",
         )
@@ -224,19 +230,23 @@ def detail(company_id, case_id):
     documents = DocumentForm()
     from app.models.evidence import Document
 
-    documents.document_id.choices = [
-        (str(doc.id), doc.original_name)
-        for doc in db.session.scalars(
-            select(Document)
-            .where(
-                Document.organization_id == company_id,
-                Document.scan_status == "clean",
-                Document.state == "active",
-                Document.archived_at.is_(None),
+    documents.document_id.choices = (
+        [
+            SelectChoice(str(doc.id), doc.original_name)
+            for doc in db.session.scalars(
+                select(Document)
+                .where(
+                    Document.organization_id == company_id,
+                    Document.scan_status == "clean",
+                    Document.state == "active",
+                    Document.archived_at.is_(None),
+                )
+                .limit(1000)
             )
-            .limit(1000)
-        )
-    ]
+        ]
+        if allowed(company_id, "evidence.read")
+        else []
+    )
     return render_template(
         "recall/detail.html",
         **ctx,
@@ -263,10 +273,18 @@ def detail(company_id, case_id):
         ).all(),
         runs=runs,
         exposures=exposures,
-        recoveries=db.session.scalars(
-            select(RecoveryRecord)
-            .where(RecoveryRecord.case_id == row.id)
-            .order_by(RecoveryRecord.created_at)
+        recoveries=db.session.execute(
+            select(RecoveryRecord, RecallCase)
+            .join(RecallCase, RecallCase.id == RecoveryRecord.case_id)
+            .where(
+                RecoveryRecord.organization_id == company_id,
+                RecallCase.organization_id == company_id,
+                or_(
+                    RecoveryRecord.case_id == row.id,
+                    RecoveryRecord.shipment_line_id.in_([line.id for _, line, _ in exposures]),
+                ),
+            )
+            .order_by(RecoveryRecord.created_at, RecoveryRecord.id)
         ).all(),
         links=db.session.scalars(select(CaseDocument).where(CaseDocument.case_id == row.id)).all(),
     )
@@ -478,7 +496,7 @@ def task_editor(company_id, case_id, task_id):
         return "Not found.", 404
     form = TaskForm(obj=row)
     form.assignee_id.choices = [
-        (str(member.id), user.display_name)
+        SelectChoice(str(member.id), user.display_name)
         for member, user in db.session.execute(
             select(Membership, User)
             .join(User, User.id == Membership.user_id)

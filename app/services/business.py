@@ -61,10 +61,16 @@ def quantity(value, places=6, positive=True):
         result = Decimal(str(value))
     except (ValueError, TypeError, InvalidOperation) as exc:
         raise DomainError("Enter a valid decimal quantity.") from exc
-    if not result.is_finite() or abs(result) >= Decimal("100000000000000"):
+    # abs(Decimal) applies the active context and can overflow on a hostile
+    # exponent before the range guard runs. copy_abs is exact and context-free.
+    if not result.is_finite() or result.copy_abs() >= Decimal("100000000000000"):
         raise DomainError("Quantity must be finite and fit the supported range.")
     if positive and result <= 0:
         raise DomainError("Quantity must be greater than zero.")
-    if not 0 <= places <= 6 or result != result.quantize(Decimal(1).scaleb(-places)):
+    try:
+        valid_precision = 0 <= places <= 6 and result == result.quantize(Decimal(1).scaleb(-places))
+    except InvalidOperation:
+        valid_precision = False
+    if not valid_precision:
         raise DomainError("Quantity exceeds the SKU base unit precision.")
     return result
