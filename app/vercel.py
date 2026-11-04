@@ -49,7 +49,12 @@ def redis_url(raw):
 
 
 def _redis_options():
+    import certifi
+
     return {
+        # Vercel's Python runtime may not expose the system trust store; use the
+        # pinned certifi bundle so TLS certificate verification can succeed.
+        "ssl_ca_certs": certifi.where(),
         "socket_connect_timeout": 3,
         "socket_timeout": 3,
         "max_connections": 4,

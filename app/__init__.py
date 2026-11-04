@@ -148,13 +148,23 @@ def create_app(config=None):
     @app.get("/health/ready")
     @limiter.exempt
     def ready():
+        component = "database"
         try:
             db.session.execute(text("SELECT 1"))
+            component = "session redis"
             app.config["SESSION_REDIS"].ping()
+            component = "rate-limit redis"
             if not limiter.limiter.storage.check():
+                app.logger.warning("Readiness failed: rate-limit storage check returned false.")
                 return {"status": "unavailable"}, 503
-        except (SQLAlchemyError, RedisError, OSError):
+        except (SQLAlchemyError, RedisError, OSError) as exc:
             db.session.rollback()
+            # Operators need the failing dependency; the public response stays generic.
+            # Driver messages name hosts/users but never include passwords.
+            reason = str(getattr(exc, "orig", None) or exc).splitlines()[0][:300]
+            app.logger.warning(
+                "Readiness failed: %s (%s: %s)", component, type(exc).__name__, reason
+            )
             return {"status": "unavailable"}, 503
         return {"status": "ready"}
 
