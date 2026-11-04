@@ -3,7 +3,7 @@
 import argparse
 import json
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -19,11 +19,14 @@ if (
     or not parsed.hostname
     or parsed.username
     or parsed.password
-    or parsed.path not in {"", "/"}
+    or any(segment in {".", ".."} for segment in parsed.path.split("/"))
+    or any(character in parsed.path for character in ("%", "\\"))
     or parsed.query
     or parsed.fragment
 ):
-    parser.error("Select the reviewed preview's HTTP(S) origin without credentials or a path.")
+    parser.error(
+        "Select the reviewed preview's HTTP(S) base URL without credentials or unsafe paths."
+    )
 origin = (parsed.scheme, parsed.netloc)
 args.screenshots_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 pages = (
@@ -52,7 +55,20 @@ with sync_playwright() as playwright:
     page = context.new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
+    page.on(
+        "response",
+        lambda response: (
+            errors.append(f"HTTP {response.status}: {response.url}")
+            if response.status >= 400
+            else None
+        ),
+    )
     health = context.request.get(base + "/health/ready", max_redirects=0)
+    if health.status in {301, 302, 307, 308}:
+        destination = urljoin(base + "/health/ready", health.headers["location"])
+        target = urlsplit(destination)
+        assert (target.scheme, target.netloc) == origin
+        health = context.request.get(destination, max_redirects=0)
     assert health.status == 200
     assert health.json() == {"status": "ready", "mode": "read-only-preview"}
     for width in (1440, 390):
@@ -78,7 +94,7 @@ with sync_playwright() as playwright:
         ).click()
         expect(page.locator("h1")).to_contain_text("C10")
         expect(page.locator("svg[role='img']")).to_be_visible()
-    assert context.request.post(base + "/catalog", max_redirects=0).status == 405
+    assert context.request.post(base + "/catalog", max_redirects=0).status in {405, 501}
     assert not errors, errors
     assert context.cookies() == []
     browser.close()

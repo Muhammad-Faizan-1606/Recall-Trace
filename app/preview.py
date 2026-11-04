@@ -185,6 +185,7 @@ def create_preview_app(config=None):
         return Response("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
     @app.get("/favicon.ico")
+    @app.get("/favicon.svg")
     def preview_favicon():
         return Response(
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'

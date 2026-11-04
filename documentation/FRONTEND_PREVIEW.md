@@ -6,6 +6,22 @@ The overview, C10 investigation/SVG graph, stock/lots, catalog/partners, notices
 
 ## Run or deploy
 
+The current free publishing route is GitHub Pages. Render rejected the explicit free-service request with HTTP 402 because payment information is required; no Render service or paid upgrade was created. The GitHub connection can push this repository but cannot enable Pages settings (the provider returned HTTP 403). The owner must make this one-time change:
+
+1. Open [this repository's Pages settings](https://github.com/Muhammad-Faizan-1606/Recall-Trace/settings/pages).
+2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+3. Run or rerun **Publish read-only frontend preview** in Actions. This workflow is already configured; it needs no provider credentials.
+
+After a successful deployment, the expected address is `https://muhammad-faizan-1606.github.io/Recall-Trace/`. Do not describe that address as live until the deployment succeeds. The workflow renders the fictional views, copies public assets only, and uploads a static artifact. It publishes no application source, configuration, credentials or business database. Static hosting does not carry Flask's response headers; the HTML includes a restrictive CSP and no-index metadata, with no authentication or writable endpoints.
+
+The exporter can also be verified independently:
+
+```sh
+RECALLTRACE_PREVIEW=read-only .venv/bin/python scripts/export_preview.py --base-path /Recall-Trace --output _site
+```
+
+It rejects unsafe paths, symlinks and nonempty output directories. `_site/` is generated and ignored by Git. Pages requires no running worker, Redis or separate web account because this artifact is only the read-only fictional UI.
+
 With the project's runtime dependencies installed, start the independent factory:
 
 ```sh

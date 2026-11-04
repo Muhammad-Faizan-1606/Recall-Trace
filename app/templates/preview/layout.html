@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='preview.css') }}">
 <link rel="icon" href="{{ url_for('preview_favicon') }}" type="image/svg+xml">
 <meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 {% endblock %}
 {% block content %}
 <div class="preview-notice mb-4" role="status">
