@@ -1,5 +1,11 @@
 # RecallTrace implementation status
 
+## Read-only frontend preview — 4 November 2026
+
+The owner authorized a public frontend demonstration while the remaining production services are arranged. Added an independent, explicitly enabled `app.preview:create_preview_app()` factory with eight fictional sample screens, a C10 SVG trace and separate preview styles/Render blueprint. It reuses the Jinja base through two default-preserving template blocks. It initializes no production clients, accepts no business mutations and includes no real database, storage, auth or delivery credentials. The normal production factory/Docker command and service requirements remain unchanged.
+
+**36 isolated preview tests passed in 0.54s.** Actual Chromium passed all eight screens at 1440px and 390px, navigation/trace SVG, layout bounds, disabled mutations and no browser errors/cookies. Ruff check/format (96 Python files), application Bandit and diff checks passed. Public deployment status is recorded after the provider's actual build/health result; local success alone is not a live URL claim. See documentation/FRONTEND_PREVIEW.md.
+
 ## Live private storage — 4 November 2026
 
 The user-supplied `SUPABASE_SERVICE_KEY` binding and project hostname are active. Created `recalltrace-private` with `public=false`, a 10 MiB limit and the adapter's `application/octet-stream` MIME type. The real application storage adapter passed upload/download byte and checksum checks, incorrect-digest rejection, anonymous denial on private/public object routes, and deletion followed by an independent listing check. The harmless test object was removed; no application/business rows were created. The real scanner remains unconfigured and returned `unavailable`. The storage key was used only through its secure binding, never downloaded or persisted locally. Sanitized proof is retained privately in `instance/production/storage-report.json`.

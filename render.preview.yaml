@@ -1,0 +1,17 @@
+# Read-only frontend demonstration. This does not deploy the production backend.
+services:
+  - type: web
+    name: recalltrace-preview
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerCommand: "gunicorn --config gunicorn.conf.py 'app.preview:create_preview_app()'"
+    healthCheckPath: /health/ready
+    autoDeployTrigger: "off"
+    envVars:
+      - key: RECALLTRACE_PREVIEW
+        value: read-only
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"

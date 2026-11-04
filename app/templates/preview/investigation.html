@@ -1,0 +1,51 @@
+{% extends 'preview/layout.html' %}
+{% block preview_content %}
+<div class="preview-card p-4 mb-4">
+  <div class="section-heading mb-3"><div class="d-flex flex-wrap align-items-center gap-2"><span class="status-pill status-warning">Sample · awaiting review</span><span class="status-pill status-neutral">Source lot C10</span></div><button class="btn btn-outline-secondary btn-sm" type="button" disabled>Submit for approval</button></div>
+  <h2 class="h4">Switch contact inconsistency</h2>
+  <p class="mb-0 muted">A fictional supplier report identifies an intermittent contact issue in component lot C10. Review its posted production relationships and separate component stock from finished-lamp exposure before coordinating a response.</p>
+</div>
+<div class="row g-3 mb-4">
+  {% for value, label, detail in [('150', 'Potentially affected lamps', '100 from Run A + 50 from Run B'), ('110', 'Dispatched lamps', '60 in S1 + 50 in S2'), ('40', 'Remaining lamps', 'Lot L1 · on hold'), ('50', 'Unused switches', 'C10 · separate component SKU')] %}
+  <div class="col-6 col-xl-3"><article class="preview-card metric"><span class="metric-label">{{ label }}</span><strong>{{ value }}</strong><small>{{ detail }}</small></article></div>
+  {% endfor %}
+</div>
+<article class="preview-card p-4 mb-4">
+  <div class="section-heading"><div><p class="eyebrow">Recorded genealogy</p><h2 class="h4 mb-0">Follow the evidence path</h2></div><span class="status-pill status-success">Complete sample scope</span></div>
+  <p class="small muted">Each connection represents a posted production or shipment event. L3 and S3 originate from unrelated lot C11 and are excluded.</p>
+  <div class="preview-graph-wrap">
+    <svg class="preview-graph" xmlns="http://www.w3.org/2000/svg" width="950" height="350" viewBox="0 0 950 350" role="img" aria-labelledby="graph-title graph-desc">
+      <title id="graph-title">Recorded genealogy from C10 to lamps L1 and L2 and shipments S1 and S2</title>
+      <desc id="graph-desc">Two hundred C10 switches were received. Run A consumed one hundred switches and produced one hundred L1 lamps. Sixty were dispatched in S1 and forty remain. Run B consumed fifty switches and produced fifty L2 lamps, all dispatched in S2. Fifty unused C10 switches remain separately. Unrelated C11, L3 and S3 are excluded.</desc>
+      <defs><marker id="trace-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#8597a0"/></marker></defs>
+      <g fill="none" stroke="#8597a0" stroke-width="2" marker-end="url(#trace-arrow)">
+        <path d="M190 155H225V75H265"/><path d="M190 155H225V235H265"/>
+        <path d="M430 75H495"/><path d="M430 235H495"/>
+        <path d="M660 75H720"/><path d="M660 235H720"/>
+      </g>
+      <g class="graph-source"><rect x="15" y="111" width="175" height="90" rx="12"/><text x="33" y="139">Source component</text><text class="graph-title" x="33" y="165">C10 · 200 switches</text><text x="33" y="187">50 unused on hand</text></g>
+      <g class="graph-node"><rect x="265" y="30" width="165" height="90" rx="12"/><text x="282" y="57">Production Run A</text><text class="graph-title" x="282" y="82">100 switches</text><text x="282" y="104">Consumed from C10</text></g>
+      <g class="graph-node"><rect x="265" y="190" width="165" height="90" rx="12"/><text x="282" y="217">Production Run B</text><text class="graph-title" x="282" y="242">50 switches</text><text x="282" y="264">Consumed from C10</text></g>
+      <g class="graph-node"><rect x="495" y="30" width="165" height="90" rx="12"/><text x="512" y="57">Finished lot L1</text><text class="graph-title" x="512" y="82">100 lamps</text><text x="512" y="104">40 remain on hold</text></g>
+      <g class="graph-node"><rect x="495" y="190" width="165" height="90" rx="12"/><text x="512" y="217">Finished lot L2</text><text class="graph-title" x="512" y="242">50 lamps</text><text x="512" y="264">0 remain on hand</text></g>
+      <g class="graph-shipment"><rect x="720" y="30" width="205" height="90" rx="12"/><text x="738" y="57">Shipment S1</text><text class="graph-title" x="738" y="82">60 L1 lamps</text><text x="738" y="104">Northstar Retail · sample</text></g>
+      <g class="graph-shipment"><rect x="720" y="190" width="205" height="90" rx="12"/><text x="738" y="217">Shipment S2</text><text class="graph-title" x="738" y="242">50 L2 lamps</text><text x="738" y="264">Westbridge Stores · sample</text></g>
+      <text x="16" y="332" class="graph-exclusion">Excluded: C11 → L3 → S3 · no recorded relationship to C10</text>
+    </svg>
+  </div>
+</article>
+<article class="preview-card p-4 mb-4">
+  <div class="section-heading"><div><p class="eyebrow">Quantities by SKU and base unit</p><h2 class="h4 mb-0">Keep unlike products separate</h2></div></div>
+  <div class="table-responsive"><table class="table preview-table"><thead><tr><th>SKU</th><th>Produced</th><th>Dispatched</th><th>Current stock</th><th>Unit</th></tr></thead><tbody><tr><td><strong>LAMP-01</strong><small>Finished desk lamp</small></td><td>150</td><td>110</td><td>40</td><td>lamp</td></tr><tr><td><strong>SWITCH-01</strong><small>Source switch component</small></td><td>Not produced</td><td>Not dispatched</td><td>50</td><td>switch</td></tr></tbody></table></div>
+  <p class="small muted mb-0">Do not add the 50 unused switches to the 150 potentially affected finished lamps. Acknowledgement is also distinct from verified physical recovery.</p>
+</article>
+<div class="row g-4">
+  <div class="col-lg-7"><article class="preview-card p-4 h-100"><div class="section-heading"><div><p class="eyebrow">Independent review</p><h2 class="h4 mb-0">Response checklist</h2></div></div>
+    <div class="preview-check"><span aria-hidden="true">✓</span><div><strong>Review recorded genealogy</strong><p>The fictional C10 scope includes L1/L2 and excludes L3/S3.</p></div></div>
+    <div class="preview-check"><span aria-hidden="true">2</span><div><strong>Obtain an independent approval</strong><p>In the full application, a different recently MFA-verified reviewer approves the current complete scope.</p></div></div>
+    <div class="preview-check"><span aria-hidden="true">3</span><div><strong>Review recipient notices and recovery</strong><p>Never treat an email attempt or acknowledgement as proof of recovered product.</p></div></div>
+    <button type="button" class="btn btn-outline-secondary" disabled>Approval actions are disabled in this demo</button>
+  </article></div>
+  <div class="col-lg-5"><article class="preview-card p-4 h-100"><p class="eyebrow">Source evidence · fictional</p><h2 class="h4">Supplier quality report</h2><p class="muted">“Intermittent switch contact identified during the sample supplier review. Please inspect recorded downstream exposure from component lot C10.”</p><hr><p class="small mb-1"><strong>Document status:</strong> Sample metadata only</p><p class="small muted">No real evidence file is included in this public preview. Scanning, approval, uploads and downloads are disabled.</p><a href="{{ url_for('preview_page', page='evidence') }}">Explore evidence controls →</a></article></div>
+</div>
+{% endblock %}

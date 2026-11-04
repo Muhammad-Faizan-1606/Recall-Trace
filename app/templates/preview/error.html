@@ -1,0 +1,9 @@
+{% extends 'preview/layout.html' %}
+{% block preview_content %}
+<article class="preview-card p-5 text-center">
+<p class="eyebrow">Read-only sample workspace</p>
+<h2 class="h3">That action or page is not available here</h2>
+<p class="muted">This public demo contains fictional screens. Sign-in, account recovery and business mutations belong to the separate application.</p>
+<a href="{{ url_for('catalog.companies') }}" class="btn btn-dark">Return to the overview</a>
+</article>
+{% endblock %}

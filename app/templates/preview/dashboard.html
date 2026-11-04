@@ -1,0 +1,49 @@
+{% extends 'preview/layout.html' %}
+{% block preview_content %}
+<div class="preview-hero">
+  <div>
+    <p class="eyebrow">From a source lot to a coordinated response</p>
+    <h2>Every recorded connection.<br>A clearer path forward.</h2>
+    <p>Investigate a supplier issue, follow production and shipment evidence, and review an independently approved recall.</p>
+    <a class="btn btn-light" href="{{ url_for('preview_page', page='investigation') }}">Explore the C10 investigation <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="preview-hero-chain" aria-label="The workflow connects supplier lots, production, stock, shipments and response">
+    <span>Supplier lot <b>C10</b></span><i aria-hidden="true">↓</i>
+    <span>Production <b>Run A + Run B</b></span><i aria-hidden="true">↓</i>
+    <span>Recorded exposure <b>L1 + L2 / S1 + S2</b></span>
+  </div>
+</div>
+<div class="row g-3 mb-4">
+  {% for value, label, detail, tone in [('150', 'Potentially affected lamps', 'Finished-lamp SKU only', 'neutral'), ('110', 'Recorded dispatched lamps', 'Shipments S1 and S2', 'neutral'), ('40', 'Lamps still on hand', 'Lot L1 · release held', 'warning'), ('50', 'Unused source switches', 'Separate component SKU', 'neutral')] %}
+  <div class="col-6 col-xl-3"><article class="preview-card metric"><span class="metric-label">{{ label }}</span><strong>{{ value }}</strong><small>{{ detail }}</small></article></div>
+  {% endfor %}
+</div>
+<div class="row g-4">
+  <div class="col-xl-8">
+    <article class="preview-card p-4 h-100">
+      <div class="section-heading"><div><p class="eyebrow">Investigation workspace</p><h2 class="h4 mb-0">Attention &amp; next actions</h2></div><a href="{{ url_for('preview_page', page='investigation') }}">View investigation →</a></div>
+      <div class="preview-action-row"><span class="preview-step">01</span><div><strong>Review source lot C10</strong><p>Supplier reported inconsistent switch contact. Recorded genealogy identifies two related production runs.</p></div><span class="status-pill status-warning">Review required</span></div>
+      <div class="preview-action-row"><span class="preview-step">02</span><div><strong>Keep affected stock on hold</strong><p>The sample scope contains 40 L1 lamps and 50 unused C10 switches in separate stock units.</p></div><span class="status-pill status-danger">Held</span></div>
+      <div class="preview-action-row"><span class="preview-step">03</span><div><strong>Review recipient-specific notices</strong><p>Delivery is distinct from acknowledgement and verified physical recovery.</p></div><span class="status-pill status-neutral">Sample — not sent</span></div>
+    </article>
+  </div>
+  <div class="col-xl-4">
+    <article class="preview-card p-4 h-100">
+      <p class="eyebrow">Recorded scope</p><h2 class="h4">Connected, not assumed</h2>
+      <ul class="preview-facts">
+        <li><span>Source component lot</span><strong>C10</strong></li>
+        <li><span>Related finished lots</span><strong>L1, L2</strong></li>
+        <li><span>Related shipments</span><strong>S1, S2</strong></li>
+        <li><span>Unrelated lot / shipment</span><strong>L3 / S3 excluded</strong></li>
+      </ul>
+      <p class="small muted mb-0">Potential exposure follows recorded production relationships. It does not establish how many units are defective.</p>
+    </article>
+  </div>
+</div>
+<div class="section-heading mt-5"><div><p class="eyebrow">Explore the sample application</p><h2 class="h4 mb-0">One connected workspace</h2></div></div>
+<div class="row g-3">
+  {% for page, title, text in [('stock', 'Stock & lots', 'Quantities by SKU, lot and location. Posted history stays connected.'), ('catalog', 'Catalog & partners', 'Component and finished-product identities, suppliers and customers.'), ('evidence', 'Evidence & reports', 'Private evidence, quarantine states and scoped reporting.'), ('access', 'Company access', 'Explicit grants, scoped roles and independent reviewers.')] %}
+  <div class="col-md-6 col-xl-3"><a class="preview-module preview-card" href="{{ url_for('preview_page', page=page) }}"><h3 class="h5">{{ title }} <span aria-hidden="true">↗</span></h3><p>{{ text }}</p><span class="small">Explore sample screen →</span></a></div>
+  {% endfor %}
+</div>
+{% endblock %}

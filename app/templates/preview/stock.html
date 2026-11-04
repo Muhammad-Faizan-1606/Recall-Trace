@@ -1,0 +1,30 @@
+{% extends 'preview/layout.html' %}
+{% block preview_content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <p class="text-secondary mb-0">Follow the recorded movement of each lot, in its own base unit.</p>
+  <div class="d-flex gap-2"><button class="btn btn-outline-secondary" type="button" disabled>Transfer stock</button><button class="btn btn-primary" type="button" disabled>New receipt</button></div>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-sm-4"><article class="preview-card p-4 h-100"><p class="eyebrow mb-2">Finished lamps on hand</p><p class="metric mb-1">40 <small class="fs-6 fw-normal text-secondary">lamps</small></p><span class="text-secondary">L1 · held in this sample investigation</span></article></div>
+  <div class="col-sm-4"><article class="preview-card p-4 h-100"><p class="eyebrow mb-2">Unused components</p><p class="metric mb-1">50 <small class="fs-6 fw-normal text-secondary">switches</small></p><span class="text-secondary">C10 · kept separate from lamp totals</span></article></div>
+  <div class="col-sm-4"><article class="preview-card p-4 h-100"><p class="eyebrow mb-2">Recorded dispatches</p><p class="metric mb-1">110 <small class="fs-6 fw-normal text-secondary">lamps</small></p><span class="text-secondary">S1 and S2 · 2 shipment records</span></article></div>
+</div>
+<section class="preview-card p-4 mb-4">
+  <div class="section-heading d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div><p class="eyebrow mb-1">Inventory position</p><h2 class="h5 mb-0">Stock by lot and location</h2></div><span class="status-pill bg-primary-subtle text-primary-emphasis">Fictional ledger</span></div>
+  <div class="table-responsive"><table class="table preview-table align-middle mb-0"><thead><tr><th>Lot</th><th>Item / SKU</th><th>Location</th><th class="text-end">On hand</th><th>Sample status</th></tr></thead><tbody>
+    <tr><td><a class="fw-semibold" href="{{ url_for('preview_page', page='investigation') }}">C10</a><div class="small text-secondary">Supplier component lot</div></td><td>Safety switch<div class="small text-secondary">SWITCH-01</div></td><td>Raw materials / A-01</td><td class="text-end fw-semibold">50 switches</td><td><span class="status-pill bg-warning-subtle text-warning-emphasis">Held</span></td></tr>
+    <tr><td><a class="fw-semibold" href="{{ url_for('preview_page', page='investigation') }}">L1</a><div class="small text-secondary">Production run A</div></td><td>Desk lamp<div class="small text-secondary">LAMP-01</div></td><td>Finished goods / B-02</td><td class="text-end fw-semibold">40 lamps</td><td><span class="status-pill bg-warning-subtle text-warning-emphasis">Held</span></td></tr>
+    <tr><td><a class="fw-semibold" href="{{ url_for('preview_page', page='investigation') }}">L2</a><div class="small text-secondary">Production run B</div></td><td>Desk lamp<div class="small text-secondary">LAMP-01</div></td><td>Finished goods / B-03</td><td class="text-end fw-semibold">0 lamps</td><td><span class="status-pill bg-light text-secondary">Dispatched</span></td></tr>
+  </tbody></table></div>
+  <p class="small text-secondary mt-3 mb-0">Held stock cannot be dispatched in the full application. This preview displays sample records and performs no stock postings.</p>
+</section>
+<section class="preview-card p-4">
+  <div class="section-heading mb-3"><p class="eyebrow mb-1">Recorded history</p><h2 class="h5 mb-0">C10 stock journal</h2></div>
+  <div class="table-responsive"><table class="table preview-table align-middle mb-0"><thead><tr><th>Reference</th><th>Event</th><th>Lot</th><th>SKU</th><th class="text-end">Quantity change</th></tr></thead><tbody>
+    {% for reference, event, lot, sku, quantity in [('GR-001', 'Supplier receipt', 'C10', 'SWITCH-01', '+200 switches'), ('RUN-A', 'Production consumption', 'C10', 'SWITCH-01', '−100 switches'), ('RUN-A', 'Production output', 'L1', 'LAMP-01', '+100 lamps'), ('RUN-B', 'Production consumption', 'C10', 'SWITCH-01', '−50 switches'), ('RUN-B', 'Production output', 'L2', 'LAMP-01', '+50 lamps'), ('S1', 'Customer dispatch', 'L1', 'LAMP-01', '−60 lamps'), ('S2', 'Customer dispatch', 'L2', 'LAMP-01', '−50 lamps')] %}
+    <tr><td class="fw-semibold">{{ reference }}</td><td>{{ event }}</td><td>{{ lot }}</td><td class="text-secondary">{{ sku }}</td><td class="text-end">{{ quantity }}</td></tr>
+    {% endfor %}
+  </tbody></table></div>
+  <p class="small text-secondary mt-3 mb-0">Switches and lamps are different SKUs. Their quantities are never added into one stock total.</p>
+</section>
+{% endblock %}

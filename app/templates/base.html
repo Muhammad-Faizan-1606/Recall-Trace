@@ -5,6 +5,7 @@
   <title>{% block title %}RecallTrace{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
 <a class="visually-hidden-focusable" href="#main">Skip to content</a>
@@ -26,5 +27,5 @@
 </nav>{% endif %}
 {% block content %}{% endblock %}
 </main>
-<footer class="container border-top py-3 text-secondary">RecallTrace · {{ 'Development' if config.APP_ENV != 'production' else 'Business' }} workspace · Quantities and trace scope reflect recorded evidence</footer>
+<footer class="container border-top py-3 text-secondary">{% block workspace_footer %}RecallTrace · {{ 'Development' if config.APP_ENV != 'production' else 'Business' }} workspace · Quantities and trace scope reflect recorded evidence{% endblock %}</footer>
 </body></html>

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}{{ page_title }} · RecallTrace demo{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='preview.css') }}">
+<link rel="icon" href="{{ url_for('preview_favicon') }}" type="image/svg+xml">
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+{% block content %}
+<div class="preview-notice mb-4" role="status">
+  <span class="preview-notice-dot" aria-hidden="true"></span>
+  <strong>Read-only demo</strong>
+  <span>Demo with sample data. Changes are disabled.</span>
+</div>
+<div class="preview-workspace">
+  <aside class="preview-sidebar" aria-label="Sample workspace">
+    <div class="preview-company">
+      <span class="preview-company-mark" aria-hidden="true">A</span>
+      <div><strong>Aurora Electrics</strong><small>Fictional company</small></div>
+    </div>
+    <p class="eyebrow mt-4">Workspace</p>
+    <nav class="preview-navigation" aria-label="Preview workspace">
+      {% for key, label, number in navigation %}
+      <a class="{{ 'is-current' if current_page == key else '' }}" href="{{ url_for('preview_page', page=key) }}"{% if current_page == key %} aria-current="page"{% endif %}>
+        <span class="preview-nav-number" aria-hidden="true">{{ number }}</span>{{ label }}
+      </a>
+      {% endfor %}
+    </nav>
+    <div class="preview-side-note">
+      <span class="status-pill status-neutral">72-model Core</span>
+      <p>Trace recorded relationships.<br>Protect the evidence.<br>Coordinate the response.</p>
+    </div>
+  </aside>
+  <section class="preview-main" aria-label="{{ page_title }}">
+    <div class="preview-heading">
+      <div>
+        <p class="eyebrow">Aurora workspace <span aria-hidden="true">/</span> {{ 'Overview' if current_page == 'dashboard' else current_page|replace('_', ' ')|title }}</p>
+        <h1>{{ page_title }}</h1>
+        <p class="muted mb-0">{{ page_subtitle }}</p>
+      </div>
+      <span class="preview-avatar" aria-label="Public demo viewer">DV</span>
+    </div>
+    {% block preview_content %}{% endblock %}
+  </section>
+</div>
+{% endblock %}
+{% block workspace_footer %}RecallTrace · Read-only demo · Fictional sample data · No real recall communications{% endblock %}

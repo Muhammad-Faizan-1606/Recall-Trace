@@ -1,0 +1,22 @@
+{% extends 'preview/layout.html' %}
+{% block preview_content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"><p class="text-secondary mb-0">The master records that connect suppliers, production and customers.</p><button class="btn btn-primary" type="button" disabled>Add item</button></div>
+<section class="preview-card p-4 mb-4">
+  <div class="section-heading d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div><p class="eyebrow mb-1">Item master</p><h2 class="h5 mb-0">Items and variants</h2></div><span class="small text-secondary">2 sample SKUs · quantities use each SKU’s base unit</span></div>
+  <div class="table-responsive"><table class="table preview-table align-middle mb-0"><thead><tr><th>Item</th><th>SKU</th><th>Classification</th><th>Base unit</th><th>Lifecycle</th></tr></thead><tbody>
+    <tr><td class="fw-semibold">Safety switch<div class="small fw-normal text-secondary">Component consumed during assembly</div></td><td>SWITCH-01</td><td><span class="status-pill bg-primary-subtle text-primary-emphasis">Component</span></td><td>Each switch</td><td><span class="status-pill bg-success-subtle text-success-emphasis">Active sample</span></td></tr>
+    <tr><td class="fw-semibold">Desk lamp<div class="small fw-normal text-secondary">Finished product dispatched to customers</div></td><td>LAMP-01</td><td><span class="status-pill bg-info-subtle text-info-emphasis">Finished goods</span></td><td>Each lamp</td><td><span class="status-pill bg-success-subtle text-success-emphasis">Active sample</span></td></tr>
+  </tbody></table></div>
+</section>
+<div class="row g-4 mb-4">
+  <div class="col-lg-7"><section class="preview-card p-4 h-100"><div class="section-heading mb-3"><p class="eyebrow mb-1">Traceable identities</p><h2 class="h5 mb-0">Lot register</h2></div><div class="table-responsive"><table class="table preview-table align-middle mb-0"><thead><tr><th>Lot</th><th>Origin</th><th>C10 investigation</th></tr></thead><tbody>
+    {% for lot, origin, scope in [('C10', 'Cobalt Components · supplier lot', 'Root'), ('L1', 'Aurora Electrics · production run A', 'Included'), ('L2', 'Aurora Electrics · production run B', 'Included'), ('L3', 'Unrelated component lot C11', 'Excluded')] %}
+    <tr><td class="fw-semibold">{{ lot }}</td><td>{{ origin }}</td><td><span class="status-pill {{ 'bg-light text-secondary' if scope == 'Excluded' else 'bg-primary-subtle text-primary-emphasis' }}">{{ scope }}</span></td></tr>
+    {% endfor %}
+  </tbody></table></div><a class="d-inline-block mt-3" href="{{ url_for('preview_page', page='investigation') }}">Explore the recorded genealogy →</a></section></div>
+  <div class="col-lg-5"><section class="preview-card p-4 h-100"><div class="section-heading mb-3"><p class="eyebrow mb-1">Facilities</p><h2 class="h5 mb-0">Aurora assembly site</h2></div><div class="border-bottom pb-3 mb-3"><strong>Raw materials</strong><p class="text-secondary small mb-0 mt-1">A-01 · supplier components and incoming inspection</p></div><div class="border-bottom pb-3 mb-3"><strong>Production floor</strong><p class="text-secondary small mb-0 mt-1">Assembly · recorded component-to-output genealogy</p></div><div><strong>Finished goods</strong><p class="text-secondary small mb-0 mt-1">B-02 / B-03 · finished lot storage and dispatch</p></div></section></div>
+</div>
+<section class="preview-card p-4"><div class="section-heading d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><div><p class="eyebrow mb-1">Trading network</p><h2 class="h5 mb-0">Partners</h2></div><button class="btn btn-sm btn-outline-secondary" type="button" disabled>Add partner</button></div><div class="table-responsive"><table class="table preview-table align-middle mb-0"><thead><tr><th>Partner</th><th>Relationship</th><th>Sample contact</th><th>Linked records</th></tr></thead><tbody>
+  <tr><td class="fw-semibold">Cobalt Components</td><td>Supplier</td><td>quality@cobalt.test</td><td>C10 receipt</td></tr><tr><td class="fw-semibold">Northstar Retail</td><td>Customer</td><td>recalls@northstar.test</td><td>S1 · 60 lamps</td></tr><tr><td class="fw-semibold">Westbridge Stores</td><td>Customer</td><td>quality@westbridge.test</td><td>S2 · 50 lamps</td></tr>
+</tbody></table></div><p class="small text-secondary mt-3 mb-0">All companies, contacts and records shown here are fictional. Master-data changes are disabled in this preview.</p></section>
+{% endblock %}

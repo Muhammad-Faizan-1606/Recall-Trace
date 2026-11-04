@@ -4,6 +4,8 @@ RecallTrace is a Flask/Jinja application for company-scoped batch traceability a
 
 The Core application includes company access, partner/catalog/facility/lot management, purchasing and receipts, stock journal and transfers, production genealogy, sales and dispatch, inspections and holds, upstream/downstream tracing, independently approved recall cases, recipient notices, recovery/disposition, private evidence, item CSV imports, scoped exports, notifications and a durable delivery outbox. Protected history uses controlled workflows; it is not exposed through arbitrary table editors.
 
+An isolated **read-only frontend preview** is also available for browsing fictional data before production services are connected. It includes eight sample screens and the C10 trace graph, without a login or database connection. Buttons that would change data are disabled. See [the preview guide](documentation/FRONTEND_PREVIEW.md) and the separate `render.preview.yaml`; the production application still uses `wsgi:app` and its required service validation.
+
 See [STATUS.md](STATUS.md) for executed checks and limitations, [the Core guide](documentation/CORE_GUIDE.md) for a demonstration walkthrough, and [deployment and recovery](documentation/DEPLOYMENT.md) for external hosting requirements. A runnable university demonstration is distinct from a verified public business deployment.
 
 ## Local setup
