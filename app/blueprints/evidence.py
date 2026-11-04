@@ -25,9 +25,7 @@ BASE = "/companies/<uuid:company_id>"
 
 
 class UploadForm(FlaskForm):
-    file = FileField(
-        "PDF, PNG or JPEG (up to 10 MiB)", validators=[FileRequired()], id="evidence-file"
-    )
+    file = FileField("PDF, PNG or JPEG", validators=[FileRequired()], id="evidence-file")
 
 
 class ImportForm(FlaskForm):
@@ -67,6 +65,7 @@ def context(company_id):
         "can_upload": allowed(company_id, "evidence.upload"),
         "can_import": allowed(company_id, "catalog.manage"),
         "can_export": allowed(company_id, "reports.export"),
+        "max_file_size": evidence.max_bytes_label(),
     }
 
 

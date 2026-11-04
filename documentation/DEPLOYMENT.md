@@ -4,6 +4,8 @@ The final application scope is the 72-model Core design. This deployment guide d
 
 Use [the production launch record](PRODUCTION_LAUNCH.md) for current access and deployment gates. Render, Supabase and Resend management access is connected; the cloud database schema/grants and private storage adapter/privacy/integrity checks are verified. Web deployment, native database connectivity, Redis, an authorized sender, worker/scanner hosting and complete deployed evidence/recovery checks remain pending. Use [database access provisioning](DATABASE_ACCESS.md) to review and verify the runtime role before switching web/worker credentials.
 
+The owner also selected Vercel for the backend. [Vercel deployment instructions](VERCEL.md) cover the separate Python 3.13 entrypoint, hashed installation, bounded connections, private file exclusions, 4 MiB file ceiling and required hosting credentials. This is a request-based web deployment; the existing worker, scanner and other production gates still apply.
+
 ## University demonstration and free services
 
 Use the existing local Docker Compose PostgreSQL/Redis stack for an offline university demonstration with fictional `.test` identities. `bash scripts/setup.sh` installs the hash-locked Python environment and applies migrations. Run the application and browser checks as described in README.md. Keep generated secrets private and preserve the ignored `instance/` directory when appropriate. Do not create an extra Git worktree for a cloud task: the task already has an isolated checkout.

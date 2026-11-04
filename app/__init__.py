@@ -53,7 +53,9 @@ def create_app(config=None):
     configure_environment(app)
     app.config["SQLALCHEMY_ENGINE_OPTIONS"].setdefault("hide_parameters", True)
     if "SESSION_REDIS" not in app.config:
-        app.config["SESSION_REDIS"] = Redis.from_url(app.config["SESSION_REDIS_URL"])
+        app.config["SESSION_REDIS"] = Redis.from_url(
+            app.config["SESSION_REDIS_URL"], **app.config.get("SESSION_REDIS_OPTIONS", {})
+        )
     db.init_app(app)
     migrate.init_app(app, db)
     sessions.init_app(app)

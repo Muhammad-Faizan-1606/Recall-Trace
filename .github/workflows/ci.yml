@@ -42,8 +42,8 @@ jobs:
       - run: flask --app wsgi:app db upgrade
       - run: python -m pytest -q
       - run: flask --app wsgi:app db check
-      - run: ruff check app tests scripts migrations operations wsgi.py gunicorn.conf.py
-      - run: ruff format --check app tests scripts migrations operations wsgi.py gunicorn.conf.py
+      - run: ruff check app tests scripts migrations operations wsgi.py index.py gunicorn.conf.py
+      - run: ruff format --check app tests scripts migrations operations wsgi.py index.py gunicorn.conf.py
       - run: python -m pip check
       - run: pip-audit --disable-pip --no-deps -r requirements.txt
       - run: pip-audit --disable-pip --no-deps -r requirements-dev.txt

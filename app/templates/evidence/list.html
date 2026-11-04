@@ -3,6 +3,7 @@
 {% block content %}
 <h1>Private evidence and data tools</h1>
 <p>Evidence remains quarantined until a configured scanner reports it clean. Original bytes are private and integrity checked at download.</p>
+<p>File limit: {{ max_file_size }} per file for uploads, CSV imports and downloads.</p>
 {% if can_upload %}<section class="card card-body mb-4"><h2>Upload evidence</h2><form method="post" enctype="multipart/form-data" action="{{ url_for('evidence.upload',company_id=company_id) }}">{{ upload_form.hidden_tag() }}{{ field(upload_form.file) }}<button class="btn btn-primary">Upload privately</button></form></section>{% endif %}
 <div class="table-responsive"><table class="table"><thead><tr><th>File</th><th>Type</th><th>Bytes</th><th>Scan</th></tr></thead><tbody>{% for row in page.items %}<tr><td><a href="{{ url_for('evidence.detail',company_id=company_id,document_id=row.id) }}">{{ row.original_name }}</a></td><td>{{ row.media_type }}</td><td>{{ row.size_bytes }}</td><td>{{ row.scan_status }}</td></tr>{% else %}<tr><td colspan="4">No uploaded evidence yet.</td></tr>{% endfor %}</tbody></table></div>
 {% if page.has_prev %}<a href="{{ url_for('evidence.listing',company_id=company_id,page=page.prev_num) }}">Previous</a>{% endif %} {% if page.has_next %}<a href="{{ url_for('evidence.listing',company_id=company_id,page=page.next_num) }}">Next</a>{% endif %}

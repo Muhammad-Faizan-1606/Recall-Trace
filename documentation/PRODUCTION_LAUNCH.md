@@ -2,6 +2,8 @@
 
 This is the remaining deployment work for the 72-model Core release. Local tests and scans are recorded in SECURITY_REVIEW.md; they do not establish that the external services below work. No public production URL has been created or verified from this environment.
 
+The owner also selected Vercel for the backend and has created an account. [Vercel preparation](VERCEL.md) is committed separately from the static frontend preview: it keeps the real production gates, adds bounded serverless connections and limits files to 4 MiB. Vercel project creation/deployment remains blocked on secure account access and actual hosting prerequisites. Its `VERCEL_TOKEN` requirement and `api.vercel.com` destination were saved to the cloud environment draft; they are not yet applied or authenticated. The matching Upstash runtime URLs now pass offline syntax/TLS-option checks, but native connectivity remains unverified.
+
 ## Verified progress — 4 November 2026
 
 Render, Supabase and Resend management credentials are active and authenticated API inventories succeeded. The existing dedicated Supabase project `Recall Trace` (`cacsvupttgdgcpacddmg`, PostgreSQL 17.11, Mumbai region) now has 72 Core tables plus Alembic metadata at `c72a03`. Separate migration/runtime logins and application grants were provisioned atomically. A fresh read-only cloud check executed 70 catalog queries and returned no findings; all 72 business tables are empty. No fictional seed or existing development history was copied. Native PostgreSQL login/TLS from the deployed web service remains unverified.

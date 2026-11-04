@@ -30,6 +30,22 @@ KINDS = {"component", "finished", "packaging"}
 EVENT_TYPES = {"case", "notice", "quality", "export", "import"}
 
 
+def max_bytes():
+    """A deployment may lower the file limit without raising the hard ceiling."""
+    limit = current_app.config.get("EVIDENCE_MAX_BYTES", MAX_BYTES)
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_BYTES:
+        raise RuntimeError("EVIDENCE_MAX_BYTES must be an integer from 1 byte to 10 MiB.")
+    return limit
+
+
+def max_bytes_label():
+    limit = max_bytes()
+    for unit, divisor in (("MiB", 1024 * 1024), ("KiB", 1024)):
+        if limit % divisor == 0:
+            return f"{limit // divisor} {unit}"
+    return f"{limit} {'byte' if limit == 1 else 'bytes'}"
+
+
 def _successful(response):
     """Provider redirects must never forward private bytes or credential headers."""
     response.raise_for_status()
@@ -82,8 +98,8 @@ def _valid_key(key):
 
 
 def put_bytes(company_id, data):
-    if not 0 < len(data) <= MAX_BYTES:
-        raise DomainError("File must contain 1 byte to 10 MiB.")
+    if not 0 < len(data) <= max_bytes():
+        raise DomainError(f"File must contain 1 byte to {max_bytes_label()}.")
     key = f"{company_id.hex}/{secrets.token_hex(24)}"
     if current_app.config.get("STORAGE_BACKEND", "filesystem") == "supabase":
         url, headers = _storage_url(key)
@@ -112,6 +128,9 @@ def put_bytes(company_id, data):
 
 def read_bytes(document):
     _valid_key(document.object_key)
+    limit = max_bytes()
+    if document.size_bytes > limit:
+        raise DomainError(f"File exceeds the current {max_bytes_label()} file limit.")
     if current_app.config.get("STORAGE_BACKEND", "filesystem") == "supabase":
         url, headers = _storage_url(document.object_key)
         try:
@@ -119,7 +138,7 @@ def read_bytes(document):
                 url, headers=headers, timeout=(5, 30), stream=True, allow_redirects=False
             ) as response:
                 _successful(response)
-                data = response.raw.read(MAX_BYTES + 1)
+                data = response.raw.read(limit + 1)
         except requests.RequestException as exc:
             raise DomainError("Private storage read failed.") from exc
     else:
@@ -129,9 +148,11 @@ def read_bytes(document):
             raise DomainError("Private storage path is invalid.")
         try:
             with path.open("rb") as handle:
-                data = handle.read(MAX_BYTES + 1)
+                data = handle.read(limit + 1)
         except OSError as exc:
             raise DomainError("Private object is unavailable.") from exc
+    if len(data) > limit:
+        raise DomainError(f"File exceeds the current {max_bytes_label()} file limit.")
     if len(data) != document.size_bytes or hashlib.sha256(data).hexdigest() != document.sha256:
         raise DomainError("Private object integrity check failed.")
     return data
@@ -274,9 +295,9 @@ def upload(company_id, filename, stream):
     member_id = membership_for(company_id).id
     db.session.rollback()
     filename = _filename(filename)
-    data = stream.read(MAX_BYTES + 1)
-    if not 0 < len(data) <= MAX_BYTES:
-        raise DomainError("File must contain 1 byte to 10 MiB.")
+    data = stream.read(max_bytes() + 1)
+    if not 0 < len(data) <= max_bytes():
+        raise DomainError(f"File must contain 1 byte to {max_bytes_label()}.")
     media_type = _media(data, filename)
     status = scan_bytes(data)
     key = put_bytes(company_id, data)
@@ -406,8 +427,8 @@ def remove_document(company_id, document_id, version):
 
 
 def parse_items_csv(data):
-    if not 0 < len(data) <= MAX_BYTES:
-        raise DomainError("CSV must contain 1 byte to 10 MiB.")
+    if not 0 < len(data) <= max_bytes():
+        raise DomainError(f"CSV must contain 1 byte to {max_bytes_label()}.")
     try:
         text = data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
@@ -444,7 +465,7 @@ def prepare_import(company_id, filename, stream, idempotency_key):
     member = actor(company_id, "catalog.manage")
     if not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", idempotency_key):
         raise DomainError("Use the supplied import identifier.")
-    data = stream.read(MAX_BYTES + 1)
+    data = stream.read(max_bytes() + 1)
     rows = parse_items_csv(data)
     company_lock(company_id)
     previous = db.session.scalar(
