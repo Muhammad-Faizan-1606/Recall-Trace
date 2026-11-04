@@ -2,6 +2,8 @@
 
 ## Vercel deployment workflow — 4 November 2026
 
+**Production defect found and fixed by the first real bootstrap.** The Supabase schema had been applied from offline SQL, which escapes `%` to `%%`; the draft-line guard therefore executed the literal `%I` and rejected every document-line insert/update/delete (purchase orders, receipts, production, shipments). Migration `c72a04` rebuilds `recalltrace_child_guard` with `quote_ident` concatenation, which renders identically online and offline; `tests/test_offline_migration_sql.py` guards the offline rendering. The bootstrap run also confirmed live verified-TLS PostgreSQL access through the Supabase pooler and created the company, owner and Core permissions.
+
 Added the manual `deploy-vercel.yml` operator workflow (optional company/owner/C10 bootstrap, production deployment, readiness check), the scheduled `outbox-worker.yml`, URL/host normalization in `app/vercel.py`, and the explicit `SCANNER_MODE=unconfigured` demonstration opt-in with a visible quarantine banner. See DECISIONS.md and documentation/VERCEL.md. Vercel Git auto-deployments are disabled.
 
 Local verification on PostgreSQL **16** and Redis 7 (this session had no Docker): `pytest -q` gave **466 passed, 16 failed**. All 16 failures are in `tests/test_database_access.py` because PostgreSQL 16 lacks the `MAINTAIN` privilege; they fail identically without these changes. CI's PostgreSQL 17 is the authoritative run. 30 Vercel cases pass, including the new normalization, host, scanner-mode and Git-setting tests. Ruff check/format (102 files) and application Bandit passed. **Not yet executed:** the GitHub secrets, the Supabase root certificate, the real Vercel build, live database/Redis TLS and the bootstrap/seed against Supabase.
