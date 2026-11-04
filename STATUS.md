@@ -6,7 +6,9 @@
 
 The operator bootstrap ([run 41898005923](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41898005923)) applied `c72a04` to Supabase, created company `recalltrace-demo` with its owner and Core permissions, and seeded the fictional C10 case: 150 lamps produced (110 dispatched, 40 on hand) and 50 unused switches, matching the specification. Mail uses Resend's `onboarding@resend.dev` sender, which only delivers to the Resend account's own address; the owner chose not to change DNS on a business domain. Malware scanning is the explicit `SCANNER_MODE=unconfigured` opt-in, so uploads stay quarantined with a visible banner. Deployment problems found and fixed on the way: a newline in a pasted secret, the offline-SQL `%%I` trigger defect (`c72a04`), missing mail secrets and a runtime-role password mismatch.
 
-**Not yet verified live:** browser sign-in/MFA/trace walkthrough on the deployed URL, the scheduled outbox worker's first real delivery, evidence upload quarantine on Vercel and load/recovery behaviour. This is a university demonstration deployment, not a production-readiness or security certification.
+Live Chromium check (1440px and 390px): `/login`, `/invitations/accept` and `/` (redirects to sign-in) return 200 with the quarantine banner and no horizontal overflow; a wrong login shows the generic "Invalid email or password"; a POST without a CSRF token returns 400; the session cookie is `__Host-recalltrace` with Secure/HttpOnly/SameSite=Lax; responses carry HSTS, a restrictive CSP and `nosniff`. The owner reported a successful sign-in on the live site.
+
+**Not yet verified live:** the authenticated MFA/trace/approval walkthrough by an automated check (credentials are not shared with the agent), the scheduled outbox worker's first real delivery, evidence upload quarantine on Vercel and load/recovery behaviour. This is a university demonstration deployment, not a production-readiness or security certification.
 
 ## Vercel deployment workflow — 4 November 2026
 
