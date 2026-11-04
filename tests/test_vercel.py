@@ -321,3 +321,11 @@ def test_vercel_git_auto_deployments_are_disabled():
     config = json.loads((Path(__file__).resolve().parents[1] / "vercel.json").read_text())
     assert config["git"] == {"deploymentEnabled": False}
     assert config["functions"]["index.py"]["includeFiles"] == "certs/**"
+
+
+def test_pasted_trailing_line_breaks_are_not_part_of_settings(deployment, monkeypatch):
+    for name in ("MAIL_FROM", "SECRET_KEY", "MFA_ENCRYPTION_KEY", "ALLOWED_HOSTS"):
+        monkeypatch.setenv(name, deployment[name] + "\n")
+    app = create_vercel_app()
+    assert app.config["MAIL_FROM"] == deployment["MAIL_FROM"]
+    assert app.config["SECRET_KEY"] == deployment["SECRET_KEY"]

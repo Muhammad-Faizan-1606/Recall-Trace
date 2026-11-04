@@ -65,14 +65,19 @@ jobs:
           COMPANY_NAME: ${{ inputs.company_name }}
           COMPANY_SLUG: ${{ inputs.company_slug }}
         run: |
+          # Pasted secrets often end with a line break; it is never part of the value.
+          email=$(printf '%s' "$OWNER_EMAIL" | tr -d '\r\n' | xargs)
+          password=$(printf '%s' "$OWNER_PASSWORD" | tr -d '\r\n')
           flask --app wsgi:app create-company --name "$COMPANY_NAME" --slug "$COMPANY_SLUG"
-          flask --app wsgi:app create-owner --company "$COMPANY_SLUG" --email "$OWNER_EMAIL" --password "$OWNER_PASSWORD"
+          flask --app wsgi:app create-owner --company "$COMPANY_SLUG" --email "$email" --password "$password"
           flask --app wsgi:app init-business --company "$COMPANY_SLUG"
       - name: Fictional C10 investigation
         env:
           OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
           COMPANY_SLUG: ${{ inputs.company_slug }}
-        run: flask --app wsgi:app seed-investigation-demo --company "$COMPANY_SLUG" --owner-email "$OWNER_EMAIL"
+        run: |
+          email=$(printf '%s' "$OWNER_EMAIL" | tr -d '\r\n' | xargs)
+          flask --app wsgi:app seed-investigation-demo --company "$COMPANY_SLUG" --owner-email "$email"
 
   deploy:
     needs: bootstrap

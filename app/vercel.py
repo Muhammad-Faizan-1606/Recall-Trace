@@ -63,8 +63,39 @@ def _hosts():
     return os.environ.get("ALLOWED_HOSTS") or os.environ.get("VERCEL_PROJECT_PRODUCTION_URL", "")
 
 
+# Hosting dashboards and secret stores keep a pasted trailing line break as part of
+# the value; strip surrounding whitespace before validation sees the settings.
+_TRIMMED_SETTINGS = (
+    "APP_ENV",
+    "SECRET_KEY",
+    "MFA_ENCRYPTION_KEY",
+    "MFA_KEY_VERSION",
+    "DATABASE_URL",
+    "SESSION_REDIS_URL",
+    "RATELIMIT_STORAGE_URI",
+    "REDIS_URL",
+    "ALLOWED_HOSTS",
+    "TRUSTED_PROXY_HOPS",
+    "STORAGE_BACKEND",
+    "SUPABASE_URL",
+    "SUPABASE_STORAGE_BUCKET",
+    "SUPABASE_SERVICE_KEY",
+    "SCANNER_MODE",
+    "MAIL_MODE",
+    "MAIL_API_KEY",
+    "MAIL_FROM",
+)
+
+
+def _trim_settings():
+    for name in _TRIMMED_SETTINGS:
+        if name in os.environ:
+            os.environ[name] = os.environ[name].strip()
+
+
 def create_vercel_app():
     """Use external state and bounded connections without starting background work."""
+    _trim_settings()
     if os.environ.get("APP_ENV") != "production":
         raise RuntimeError("Set APP_ENV=production before starting the Vercel backend.")
     if os.environ.get("STORAGE_BACKEND") != "supabase":
