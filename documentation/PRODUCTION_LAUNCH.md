@@ -10,22 +10,26 @@ Provider database TLS enforcement is enabled and read back as applied successful
 
 The reviewed Supabase automatic-RLS event trigger is preserved. This backend uses Flask authorization and restricted database grants; RLS was disabled only on its 73 new application objects so the backend can operate. The access tool now requires an explicit opt-in and exact provider metadata/source hashes to accept that provider function; other public definer functions/views remain blocked. See DATABASE_ACCESS.md for the boundary.
 
-The existing unrelated suspended Render application was left unchanged; there is no RecallTrace web service yet. Resend reports no sending domains. [Hosted CI passed on the published production-preparation commit](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41688141146); subsequent source changes require their own CI result. The provider-specific access tool passed 41 local tests in 5.59s after environment restoration.
+The existing unrelated suspended Render application was left unchanged; there is no RecallTrace web service yet. Resend reports no sending domains. [Hosted CI passed for the provider-policy commit](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41807505023), including the complete suite, both Python dependency audits and both container vulnerability scans. The provider-specific access tool also passed 41 local tests in 5.59s after environment restoration.
 
-## Remaining secure settings
+The real storage credential is now active. Created the private `recalltrace-private` bucket with a 10 MiB limit and `application/octet-stream` uploads, matching the server adapter. The actual application adapter uploaded and downloaded a harmless synthetic PDF with matching bytes/checksum; an incorrect digest was rejected. Both anonymous private-object and public-object requests were denied (HTTP 400), and the exact disposable object was deleted and its absence independently verified. No Document/business row was created. The unconfigured scanner correctly returned `unavailable`; no file was marked clean or released. A sanitized report is retained privately in `instance/production/storage-report.json`.
 
-The following management credentials are connected; keep them in secure settings:
+These checks establish storage connectivity, integrity and provider privacy. Deployed tenant authorization, persistence through a web-service replacement, scanning and full evidence recovery remain unverified.
+
+## Connected secure settings
+
+The following credentials are connected; keep them in secure settings:
 
 | Secure setting | Used for | Obtain privately |
 | --- | --- | --- |
 | `RENDER_API_KEY` | Inspect/configure the owner's Render services | Render account API-key settings |
 | `SUPABASE_ACCESS_TOKEN` | Inspect/configure Supabase projects | Supabase account access-token settings |
 | `MAIL_API_KEY` | Inspect the authorized Resend account/sender | Resend API-key settings; use permissions appropriate to the operation |
-| `SUPABASE_SERVICE_KEY` | Server-side private-storage operations; **still missing** | The dedicated Supabase project's server service-role key, entered securely |
+| `SUPABASE_SERVICE_KEY` | Server-side private-storage operations; verified against the real bucket | The dedicated Supabase project's server service-role key, entered securely |
 
 Enter these values in environment settings, never chat, source, issues or logs. These setup/API credentials are separate from the application's PostgreSQL password, Redis password and storage service key. Proxy-backed credentials must be used through their configured HTTPS API destinations; their local placeholders are not credentials to copy into provider runtime settings.
 
-The four API destinations `api.render.com`, `api.supabase.com`, `api.resend.com` and `api.github.com` are active. The project storage hostname `cacsvupttgdgcpacddmg.supabase.co` and the missing `SUPABASE_SERVICE_KEY` requirement are saved in the draft but are not active. Enter the key securely and review/save that addition in environment settings, then publish the prepared environment when appropriate. A draft save does not itself apply network changes or create a deployment. No existing service-role key was downloaded or stored locally.
+The four API destinations `api.render.com`, `api.supabase.com`, `api.resend.com` and `api.github.com`, plus the project storage hostname `cacsvupttgdgcpacddmg.supabase.co`, are active. `SUPABASE_SERVICE_KEY` was supplied through a secure binding; no existing service-role key was downloaded or stored locally. Proxy placeholders remain usable only at their configured API destinations and must not be copied into Render runtime settings. A draft save does not itself apply network changes or create a deployment.
 
 ## Zero-budget deployment constraints
 
@@ -41,7 +45,7 @@ An authenticated TCP/TLS Redis service is still needed for sessions and rate lim
 
 ## Release gates
 
-These gates require verification on the actual deployment. Database schema/ACL checks and the linked hosted CI run above are completed portions; native application connectivity and the remaining end-to-end gates are pending. Record the real result, date and reviewed source/image reference as each gate is completed; do not mark a gate passed because an environment variable is present.
+These gates require verification on the actual deployment. Database schema/ACL checks, provider storage connectivity/privacy/integrity, and the linked hosted CI run above are completed portions; native application connectivity and the remaining end-to-end gates are pending. Record the real result, date and reviewed source/image reference as each gate is completed; do not mark a gate passed because an environment variable is present.
 
 | Gate | Required evidence |
 | --- | --- |
