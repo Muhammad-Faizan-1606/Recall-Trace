@@ -87,6 +87,27 @@ jobs:
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
+      - name: Required secrets are present (names only, never values)
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          MFA_ENCRYPTION_KEY: ${{ secrets.MFA_ENCRYPTION_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          MAIL_API_KEY: ${{ secrets.MAIL_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: |
+          missing=0
+          for name in VERCEL_TOKEN SECRET_KEY MFA_ENCRYPTION_KEY DATABASE_URL REDIS_URL \
+                      SUPABASE_SERVICE_KEY MAIL_API_KEY MAIL_FROM; do
+            if [ -n "$(printf '%s' "${!name}" | tr -d '[:space:]')" ]; then echo "present: $name"
+            else echo "MISSING or empty: $name" | tee -a "$GITHUB_STEP_SUMMARY"; missing=1; fi
+          done
+          key=$(printf '%s' "$MAIL_API_KEY" | tr -d '[:space:]')
+          case "$key" in re_*) echo "MAIL_API_KEY looks like a Resend key";;
+            *) echo "MAIL_API_KEY does not start with re_ (Resend keys do)" | tee -a "$GITHUB_STEP_SUMMARY";;
+          esac
+          test "$missing" = 0
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
