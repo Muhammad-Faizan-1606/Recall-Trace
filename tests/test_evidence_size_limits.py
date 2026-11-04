@@ -34,6 +34,10 @@ def size_app(tmp_path):
         LOGIN_DISABLED=True,
         WTF_CSRF_ENABLED=False,
     )
+    # Workspace templates use the application's display filters (quantities, status tags).
+    from app.presentation import register as register_presentation
+
+    register_presentation(app)
     with app.app_context():
         yield app
 

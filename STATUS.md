@@ -1,5 +1,11 @@
 # RecallTrace implementation status
 
+## Interface redesign and quantity formatting — 4 November 2026
+
+New app shell and design system (see DECISIONS.md): grouped sidebar navigation, locally bundled IBM Plex Sans, quality-tag status colours, compact tables, a sign-in page that explains the product, and quantities without storage padding. `app/presentation.py` provides the `qty` and `tag` filters (tags built with auto-escaping `Markup.format`).
+
+Local verification: full suite **479 passed, 16 failed** (the same PostgreSQL-17-only privilege tests); new `tests/test_presentation.py`; Ruff and application Bandit clean. Chromium screenshots of sign-in, companies, investigations, case, trace, operations, quality, items, master data and company access at 1440px and 390px showed no horizontal overflow and no browser errors.
+
 ## Readable labels and demonstration data — 4 November 2026
 
 Screens now explain codes to first-time viewers: lots read "L1 — LED desk lamp" in stock, master data, investigations and the trace graph/table; investigation exposure shows "Shipment C10-S1 to Northside Home Stores (fictional retailer), lot L1 — LED desk lamp" instead of line UUIDs; trace evidence paths name production runs (C10-RUN-A) instead of UUIDs; SKU totals show product names; detail pages use plain labels ("Product (SKU)", "Supplier", "Warehouse") instead of "variant id"; the company heading no longer says "/ Catalog" on every page.

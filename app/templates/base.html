@@ -7,26 +7,47 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   {% block extra_head %}{% endblock %}
 </head>
-<body>
-<a class="visually-hidden-focusable" href="#main">Skip to content</a>
-<header class="border-bottom mb-4"><nav class="container py-3 d-flex justify-content-between align-items-center" aria-label="Main">
-<a class="fs-4 fw-bold text-decoration-none" href="{{ url_for('catalog.companies') }}">RecallTrace</a>
-{% if current_user.is_authenticated %}<form method="post" action="{{ url_for('auth.logout') }}">{{ logout_form.hidden_tag() }}<a class="me-3" href="{{ url_for('sessions.listing') }}">Your sessions</a><span class="me-3">{{ current_user.display_name }}</span><button class="btn btn-outline-secondary">Sign out</button></form>{% endif %}
-</nav></header>
-<main id="main" class="container pb-5">
-{% if config.get('SCANNER_MODE') == 'unconfigured' %}<div class="alert alert-warning" role="note">University demonstration deployment: malware scanning is not configured, so every uploaded evidence file stays quarantined and cannot be downloaded or accepted.</div>{% endif %}
+{% macro nav_link(href, text) %}{% set current = request.path == href or request.path.startswith(href ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ text }}</a>{% endmacro %}
+<body class="{{ 'has-sidebar' if company is defined else 'no-sidebar' }}">
+<a class="visually-hidden-focusable skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="{{ url_for('catalog.companies') }}"><svg class="brand-mark" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7.4l5.1 5.1v7.4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5z"/><circle cx="7" cy="7" r="1.6"/></svg>RecallTrace</a>
+    {% if company is defined %}<a class="topbar-company" href="{{ url_for('catalog.companies') }}" title="Switch company">{{ company.name }}</a>{% endif %}
+    {% if current_user.is_authenticated %}<form class="topbar-user" method="post" action="{{ url_for('auth.logout') }}">{{ logout_form.hidden_tag() }}<a href="{{ url_for('sessions.listing') }}">Your sessions</a><span class="topbar-name">{{ current_user.display_name }}</span><button class="btn btn-sm btn-outline-secondary">Sign out</button></form>{% endif %}
+  </div>
+</header>
+<div class="layout">
+{% if company is defined %}
+<nav class="sidebar" aria-label="Workspace">
+  <div class="side-group">
+    <p class="side-heading">Recall</p>
+    {{ nav_link(url_for('recall.dashboard', company_id=company_id), 'Investigations') }}
+    {{ nav_link(url_for('notices.listing', company_id=company_id), 'Notices') }}
+  </div>
+  <div class="side-group">
+    <p class="side-heading">Stock and quality</p>
+    {{ nav_link(url_for('operations.dashboard', company_id=company_id), 'Operations') }}
+    {{ nav_link(url_for('quality.dashboard', company_id=company_id), 'Quality') }}
+  </div>
+  <div class="side-group">
+    <p class="side-heading">Records</p>
+    {% for section in ['items', 'variants', 'units'] %}{{ nav_link(url_for('catalog.listing', company_id=company_id, kind=section), section|capitalize) }}{% endfor %}
+    {{ nav_link(url_for('master.dashboard', company_id=company_id), 'Master data') }}
+    {{ nav_link(url_for('evidence.listing', company_id=company_id), 'Evidence & reports') }}
+  </div>
+  <div class="side-group">
+    <p class="side-heading">Administration</p>
+    {% if can_access_company(company_id) %}{{ nav_link(url_for('access.dashboard', company_id=company_id), 'Company access') }}{% endif %}
+    {{ nav_link(url_for('security.index'), 'Account security') }}
+  </div>
+</nav>
+{% endif %}
+<main id="main" class="content">
+{% if config.get('SCANNER_MODE') == 'unconfigured' %}<p class="notice-strip" role="note">University demonstration deployment: malware scanning is not configured, so every uploaded evidence file stays quarantined and cannot be downloaded or accepted.</p>{% endif %}
 {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert alert-{{ category }}" role="status">{{ message }}</div>{% endfor %}{% endwith %}
-{% if company is defined %}<p class="text-secondary">{{ company.name }}</p><nav aria-label="Catalog" class="mb-4">{% for section in ['items', 'variants', 'units'] %}<a class="btn btn-outline-primary me-2" href="{{ url_for('catalog.listing', company_id=company_id, kind=section) }}">{{ section|capitalize }}</a>{% endfor %}{% if can_access_company(company_id) %}<a class="btn btn-outline-secondary" href="{{ url_for('access.dashboard', company_id=company_id) }}">Company access</a>{% endif %}</nav>{% endif %}
-{% if company is defined %}<nav aria-label="Workspace" class="d-flex flex-wrap gap-2 mb-4">
-<a class="btn btn-outline-dark" href="{{ url_for('master.dashboard', company_id=company_id) }}">Master data</a>
-<a class="btn btn-outline-dark" href="{{ url_for('operations.dashboard', company_id=company_id) }}">Operations</a>
-<a class="btn btn-outline-dark" href="{{ url_for('quality.dashboard', company_id=company_id) }}">Quality</a>
-<a class="btn btn-outline-dark" href="{{ url_for('recall.dashboard', company_id=company_id) }}">Investigations</a>
-<a class="btn btn-outline-dark" href="{{ url_for('notices.listing', company_id=company_id) }}">Notices</a>
-<a class="btn btn-outline-dark" href="{{ url_for('evidence.listing', company_id=company_id) }}">Evidence &amp; reports</a>
-<a class="btn btn-outline-dark" href="{{ url_for('security.index') }}">Account security</a>
-</nav>{% endif %}
 {% block content %}{% endblock %}
+<footer class="page-footer">{% block workspace_footer %}{{ 'Development' if config.APP_ENV != 'production' else 'Business' }} workspace. Quantities and trace scope show recorded evidence, not confirmed defects.{% endblock %}</footer>
 </main>
-<footer class="container border-top py-3 text-secondary">{% block workspace_footer %}RecallTrace · {{ 'Development' if config.APP_ENV != 'production' else 'Business' }} workspace · Quantities and trace scope reflect recorded evidence{% endblock %}</footer>
+</div>
 </body></html>

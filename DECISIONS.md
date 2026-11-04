@@ -131,3 +131,15 @@ Deadline-driven decision by the owner: deploy the real Flask backend to Vercel (
 Deployments run from the manual `deploy-vercel.yml` GitHub Actions workflow, with values held as GitHub repository secrets and passed as per-deployment Vercel variables. Vercel Git auto-deployments are disabled so a build without those settings cannot replace production. The adapter derives the allowed host from Vercel's `VERCEL_PROJECT_PRODUCTION_URL`, adds `verify-full` plus the bundled public Supabase root certificate to a pasted pooler URL, and adds certificate/hostname verification to a pasted Upstash URL; explicitly weaker settings are preserved so validation rejects them.
 
 The workflow's optional bootstrap job is the authorized operator runtime: it applies migrations, creates the company/owner/permissions and seeds the fictional C10 investigation (development mode on the runner only, so the fixture's development guard is unchanged). `outbox-worker.yml` runs a bounded `outbox-run` every five minutes as the supervised external worker; GitHub schedules are best-effort, so a delayed run can let a 15-minute account request expire but cannot send it twice. This is a university demonstration, not a business uptime or security certification.
+
+## 4 November 2026 — Interface design system
+
+Owner request: a more professional, user-friendly interface that does not look generated, with practicality first. Direction taken from the subject (factory quality control and warehouses) rather than generic SaaS defaults, after reviewing published guidance on the common tells of generated interfaces (cream/terracotta palettes, identical shadowed cards, all-caps eyebrows, "A · B · C" meta strings, decorative gradients):
+
+- Palette: cool paper grey background, white surfaces, slate ink, one signal blue for actions and links. Status colours follow physical quality tags: green released/complete, amber held/waiting, red failed/severe, grey neutral.
+- Type: IBM Plex Sans (400/500/600) bundled locally under its SIL Open Font License (`app/static/vendor/fonts`), because the strict CSP blocks external fonts. Tabular numbers in tables.
+- Layout: app shell with a grouped left sidebar (Recall; Stock and quality; Records; Administration) and current-page highlighting; a horizontally scrolling strip on phones. Compact tables, neutral secondary buttons, no decorative shadows.
+- One distinctive element: status tags shaped like hanging inspection tags. The sign-in page explains the product in one sentence beside a small C10 → L1/L2 → shipped diagram.
+- Quantities display without storage padding (50.000000 → 50) through a `qty` filter; stored Decimal values are unchanged.
+
+Templates keep every link name and flow, so the change is presentational. The separate read-only preview keeps its own stylesheet.

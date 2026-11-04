@@ -179,6 +179,9 @@ def create_app(config=None):
     app.register_blueprint(sessions_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(catalog_bp)
+    from app.presentation import register as register_presentation
+
+    register_presentation(app)
     from app.blueprints.master import bp as master_bp
 
     app.register_blueprint(master_bp)

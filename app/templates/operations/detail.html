@@ -1,6 +1,6 @@
 {% extends 'base.html' %}{% from 'macros.html' import field %}{% block content %}
 <a href="{{ url_for('operations.listing',company_id=company_id,kind=kind) }}">{{ kind.replace('-',' ').title() }}</a>
-<h1>{{ record.reference }}</h1><p>Status: <strong>{{ record.status }}</strong></p>
+<h1>{{ record.reference }}</h1><p>Status: <strong>{{ record.status|tag }}</strong></p>
 {% if record.destination_snapshot is defined %}<p>Destination: {{ record.destination_snapshot.get('address','') }}</p>{% endif %}
 {% if record.stock_transaction_id is defined and record.stock_transaction_id %}<p><a href="{{ url_for('operations.posting',company_id=company_id,record_id=record.stock_transaction_id) }}">View immutable stock posting</a></p>{% endif %}
 {% if can_manage and record.status == 'draft' %}<div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-outline-primary" href="{{ url_for('operations.edit',company_id=company_id,kind=kind,record_id=record.id) }}">Edit draft</a><form method="post" action="{{ url_for('operations.post',company_id=company_id,kind=kind,record_id=record.id) }}">{{ post_form.hidden_tag() }}<button class="btn btn-primary">{{ 'Confirm order' if kind in ['purchase-orders','sales-orders'] else 'Post document' }}</button></form><form method="post" action="{{ url_for('operations.delete',company_id=company_id,kind=kind,record_id=record.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-danger">Delete draft</button></form></div>{% endif %}

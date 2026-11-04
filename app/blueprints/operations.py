@@ -1,6 +1,7 @@
 """Explicit operational document routes with bounded, server-validated forms."""
 
 import secrets
+from decimal import Decimal
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
@@ -33,6 +34,7 @@ from app.models.operations import (
     StockTransactionLine,
 )
 from app.policies import allowed, require
+from app.presentation import quantity_text
 from app.services import operations as service
 from app.services.business import DomainError, scoped
 
@@ -232,6 +234,8 @@ def display_value(field, value):
     if field in CHOICES and value:
         row = db.session.get(CHOICES[field], value)
         return label(row) if row else "Unavailable related record"
+    if isinstance(value, Decimal):
+        return quantity_text(value)
     return value
 
 
