@@ -2,7 +2,7 @@
 
 The final application scope is the 72-model Core design. This deployment guide describes an installation path, not a claim that every business workflow or a public deployment has passed validation. See STATUS.md for checks actually executed.
 
-Use [the production launch record](PRODUCTION_LAUNCH.md) for current account-access requirements and deployment gates. The owner has Render, Supabase and Resend accounts; provider credentials and live resources are not connected to this environment yet. Use [database access provisioning](DATABASE_ACCESS.md) to prepare and verify the restricted application role before switching web/worker credentials.
+Use [the production launch record](PRODUCTION_LAUNCH.md) for current access and deployment gates. Render, Supabase and Resend management access is connected; the dedicated cloud database has been migrated and its restricted application grants verified. Web deployment, native database connectivity, storage access, Redis, an authorized sender and worker/scanner hosting remain pending. Use [database access provisioning](DATABASE_ACCESS.md) to review and verify the runtime role before switching web/worker credentials.
 
 ## University demonstration and free services
 

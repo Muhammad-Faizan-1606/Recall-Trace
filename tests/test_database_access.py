@@ -353,3 +353,160 @@ def test_admin_url_failure_is_redacted(monkeypatch, capsys):
     monkeypatch.setenv("DATABASE_ACCESS_ADMIN_URL", "invalid://" + secret)
     assert access.main(["check", "--runtime-role", "runtime", "--migration-role", "owner"]) == 1
     assert secret not in capsys.readouterr().err
+
+
+# Reviewed provider code is public SQL, not a credential or executed fixture.
+SUPABASE_AUTO_RLS_SOURCE = """
+DECLARE
+  cmd record;
+  tbl name;
+BEGIN
+  FOR cmd IN
+    SELECT *
+    FROM pg_event_trigger_ddl_commands()
+    WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+      AND object_type IN ('table','partitioned table')
+  LOOP
+     IF cmd.schema_name IS NOT NULL AND cmd.schema_name IN ('public') AND cmd.schema_name NOT IN ('pg_catalog','information_schema') AND cmd.schema_name NOT LIKE 'pg_toast%' AND cmd.schema_name NOT LIKE 'pg_temp%' THEN
+      BEGIN
+        SELECT c.relname INTO tbl FROM pg_catalog.pg_class c WHERE c.oid = cmd.objid;
+        EXECUTE format('alter table if exists %I.%I enable row level security', cmd.schema_name, tbl);
+        RAISE LOG 'rls_auto_enable: enabled RLS on %', cmd.object_identity;
+      EXCEPTION
+        WHEN OTHERS THEN
+          RAISE LOG 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;
+      END;
+     ELSE
+        RAISE LOG 'rls_auto_enable: skip % (either system schema or not in enforced list: %.)', cmd.object_identity, cmd.schema_name;
+     END IF;
+  END LOOP;
+END;
+"""
+
+
+def provider_snapshot():
+    function = {
+        "oid": 12001,
+        "nspname": "public",
+        "proname": "rls_auto_enable",
+        "owner": "postgres",
+        "prosecdef": True,
+        "result_type": "event_trigger",
+        "language": "plpgsql",
+        "proconfig": ["search_path=pg_catalog"],
+        "prosrc": SUPABASE_AUTO_RLS_SOURCE,
+        "pronargs": 0,
+        "prokind": "f",
+        "proretset": False,
+    }
+    trigger = {
+        "evtname": "ensure_rls",
+        "owner": "postgres",
+        "evtevent": "ddl_command_end",
+        "evtenabled": "O",
+        "evttags": ["CREATE TABLE", "CREATE TABLE AS", "SELECT INTO"],
+        "evtfoid": 12001,
+    }
+    return function, [trigger]
+
+
+def test_exact_reviewed_supabase_provider_snapshot_is_recognized():
+    function, triggers = provider_snapshot()
+    assert access._canonical_supabase_auto_rls(function, triggers)
+
+
+def test_provider_catalog_lookup_accepts_only_the_canonical_function_and_attachment():
+    function, triggers = provider_snapshot()
+
+    class Rows:
+        def __init__(self, values):
+            self.values = values
+
+        def fetchone(self):
+            return self.values[0] if self.values else None
+
+        def fetchall(self):
+            return self.values
+
+    class ProviderCatalog:
+        def execute(self, statement, parameters):
+            assert parameters == (function["oid"],)
+            if "pg_catalog.pg_event_trigger" in statement:
+                fields = ("evtname", "owner", "evtevent", "evtenabled", "evttags", "evtfoid")
+                return Rows([tuple(trigger[field] for field in fields) for trigger in triggers])
+            assert "pg_catalog.pg_proc" in statement
+            fields = (
+                "oid",
+                "nspname",
+                "proname",
+                "owner",
+                "prosecdef",
+                "result_type",
+                "language",
+                "proconfig",
+                "prosrc",
+                "pronargs",
+                "prokind",
+                "proretset",
+            )
+            return Rows([tuple(function[field] for field in fields)])
+
+    assert access._verified_supabase_auto_rls(ProviderCatalog(), function["oid"])
+    triggers[0]["evtfoid"] += 1
+    assert not access._verified_supabase_auto_rls(ProviderCatalog(), function["oid"])
+
+
+@pytest.mark.parametrize(
+    "target,field,value",
+    [
+        ("function", "nspname", "untrusted"),
+        ("function", "proname", "same_body_different_entrypoint"),
+        ("function", "owner", "untrusted"),
+        ("function", "prosecdef", False),
+        ("function", "result_type", "integer"),
+        ("function", "language", "sql"),
+        ("function", "proconfig", ["search_path=public, pg_catalog"]),
+        ("function", "pronargs", 1),
+        ("function", "prokind", "p"),
+        ("function", "proretset", True),
+        ("function", "prosrc", "BEGIN RETURN; END;"),
+        ("function", "prosrc", SUPABASE_AUTO_RLS_SOURCE.replace("BEGIN", "BEGIN ", 1)),
+        ("trigger", "evtname", "unreviewed_event"),
+        ("trigger", "owner", "untrusted"),
+        ("trigger", "evtevent", "ddl_command_start"),
+        ("trigger", "evtenabled", "D"),
+        ("trigger", "evttags", None),
+        ("trigger", "evtfoid", 12002),
+    ],
+)
+def test_provider_lookalike_or_metadata_drift_is_rejected(target, field, value):
+    function, triggers = provider_snapshot()
+    (function if target == "function" else triggers[0])[field] = value
+    assert not access._canonical_supabase_auto_rls(function, triggers)
+
+
+def test_provider_requires_exactly_one_matching_event_trigger():
+    function, triggers = provider_snapshot()
+    assert not access._canonical_supabase_auto_rls(function, [])
+    assert not access._canonical_supabase_auto_rls(function, triggers + triggers)
+
+
+def test_opt_in_rejects_real_provider_function_name_with_unreviewed_body(policy):
+    connection = policy["connection"]
+    connection.execute(
+        "CREATE FUNCTION public.rls_auto_enable() RETURNS event_trigger "
+        "LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog "
+        "AS 'BEGIN RETURN; END;'"
+    )
+    try:
+        for opt_in in (False, True):
+            with pytest.raises(access.AccessError, match="SECURITY DEFINER"):
+                access.apply_access(
+                    connection,
+                    policy["runtime"],
+                    policy["migration"],
+                    dedicated_database=True,
+                    allow_supabase_auto_rls=opt_in,
+                )
+    finally:
+        connection.execute("DROP FUNCTION public.rls_auto_enable()")

@@ -6,6 +6,7 @@ only from DATABASE_ACCESS_ADMIN_URL and errors never echo connection details.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -20,6 +21,10 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 API_ROLES = ("anon", "authenticated", "service_role")
+SUPABASE_AUTO_RLS_NORMALIZED_SHA256 = (
+    "eec1416e97015448e828711ff68681d41d2e513819ca91c5919de17b7f7170af"
+)
+SUPABASE_AUTO_RLS_RAW_SHA256 = "325ae266d9b166715ef5230ceaf7ff9d523e483cf5610dfb9779ab3f183f4af9"
 FUNCTIONS = (
     "recalltrace_history_guard",
     "recalltrace_document_guard",
@@ -96,7 +101,81 @@ def _identity(connection, runtime, migration):
     return database, row[0], owner[0]
 
 
-def _inventory(connection, migration_oid):
+def _canonical_supabase_auto_rls(function, triggers):
+    """Recognize one reviewed non-RPC provider event function, never by name alone."""
+    if len(triggers) != 1:
+        return False
+    source = function.get("prosrc")
+    if not isinstance(source, str):
+        return False
+    expected = {
+        "nspname": "public",
+        "proname": "rls_auto_enable",
+        "owner": "postgres",
+        "prosecdef": True,
+        "result_type": "event_trigger",
+        "language": "plpgsql",
+        "proconfig": ["search_path=pg_catalog"],
+        "pronargs": 0,
+        "prokind": "f",
+        "proretset": False,
+    }
+    expected_trigger = {
+        "evtname": "ensure_rls",
+        "owner": "postgres",
+        "evtevent": "ddl_command_end",
+        "evtenabled": "O",
+        "evttags": ["CREATE TABLE", "CREATE TABLE AS", "SELECT INTO"],
+        "evtfoid": function.get("oid"),
+    }
+    return (
+        all(function.get(name) == value for name, value in expected.items())
+        and function.get("oid") is not None
+        and all(triggers[0].get(name) == value for name, value in expected_trigger.items())
+        and hashlib.sha256(source.encode()).hexdigest() == SUPABASE_AUTO_RLS_RAW_SHA256
+        and hashlib.sha256(" ".join(source.split()).encode()).hexdigest()
+        == SUPABASE_AUTO_RLS_NORMALIZED_SHA256
+    )
+
+
+def _verified_supabase_auto_rls(connection, oid):
+    fields = (
+        "oid",
+        "nspname",
+        "proname",
+        "owner",
+        "prosecdef",
+        "result_type",
+        "language",
+        "proconfig",
+        "prosrc",
+        "pronargs",
+        "prokind",
+        "proretset",
+    )
+    row = connection.execute(
+        "SELECT p.oid, n.nspname, p.proname, pg_catalog.pg_get_userbyid(p.proowner), "
+        "p.prosecdef, pg_catalog.format_type(p.prorettype, NULL), l.lanname, "
+        "p.proconfig, p.prosrc, p.pronargs, p.prokind, p.proretset "
+        "FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace "
+        "JOIN pg_catalog.pg_language l ON l.oid = p.prolang WHERE p.oid = %s",
+        (oid,),
+    ).fetchone()
+    if row is None:
+        return False
+    trigger_fields = ("evtname", "owner", "evtevent", "evtenabled", "evttags", "evtfoid")
+    triggers = connection.execute(
+        "SELECT evtname, pg_catalog.pg_get_userbyid(evtowner), evtevent, evtenabled, evttags, evtfoid "
+        "FROM pg_catalog.pg_event_trigger WHERE evtfoid = %s",
+        (oid,),
+    ).fetchall()
+    return _canonical_supabase_auto_rls(
+        dict(zip(fields, row, strict=True)),
+        [dict(zip(trigger_fields, trigger, strict=True)) for trigger in triggers],
+    )
+
+
+def _inventory(connection, migration_oid, *, allow_supabase_auto_rls=False):
     names = table_names()
     rows = connection.execute(
         "SELECT c.relname, c.oid, c.relowner, c.relkind, c.relrowsecurity "
@@ -124,17 +203,19 @@ def _inventory(connection, migration_oid):
         raise AccessError(
             "The three migration-owned, SECURITY INVOKER trigger guards are required."
         )
-    if (
-        connection.execute(
-            "SELECT 1 FROM pg_catalog.pg_class c "
-            "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
-            "WHERE n.nspname = 'public' AND c.relkind IN ('v', 'm') LIMIT 1"
-        ).fetchone()
-        or connection.execute(
-            "SELECT 1 FROM pg_catalog.pg_proc p "
-            "JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace "
-            "WHERE n.nspname = 'public' AND p.prosecdef LIMIT 1"
-        ).fetchone()
+    unexpected_view = connection.execute(
+        "SELECT 1 FROM pg_catalog.pg_class c "
+        "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE n.nspname = 'public' AND c.relkind IN ('v', 'm') LIMIT 1"
+    ).fetchone()
+    definers = connection.execute(
+        "SELECT p.oid FROM pg_catalog.pg_proc p "
+        "JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace "
+        "WHERE n.nspname = 'public' AND p.prosecdef"
+    ).fetchall()
+    if unexpected_view or any(
+        not allow_supabase_auto_rls or not _verified_supabase_auto_rls(connection, row[0])
+        for row in definers
     ):
         raise AccessError(
             "Review unexpected public views or SECURITY DEFINER routines before provisioning; "
@@ -184,10 +265,12 @@ def _permissions(table):
     return ("SELECT", "INSERT", "UPDATE", "DELETE")
 
 
-def check_access(connection, runtime, migration):
+def check_access(connection, runtime, migration, *, allow_supabase_auto_rls=False):
     """Read-only catalog verification; never performs writes or SET ROLE."""
     database, runtime_oid, migration_oid = _identity(connection, runtime, migration)
-    tables, functions = _inventory(connection, migration_oid)
+    tables, functions = _inventory(
+        connection, migration_oid, allow_supabase_auto_rls=allow_supabase_auto_rls
+    )
     findings = []
     for capability in ("CREATE", "TEMP"):
         if connection.execute(
@@ -374,7 +457,9 @@ def check_access(connection, runtime, migration):
     }
 
 
-def apply_access(connection, runtime, migration, *, dedicated_database=False):
+def apply_access(
+    connection, runtime, migration, *, dedicated_database=False, allow_supabase_auto_rls=False
+):
     """Atomically revoke unsafe ACLs and grant this version's exact object policy."""
     if not dedicated_database:
         raise AccessError(
@@ -384,7 +469,9 @@ def apply_access(connection, runtime, migration, *, dedicated_database=False):
         connection.execute("SET LOCAL lock_timeout = '5s'")
         connection.execute("SET LOCAL statement_timeout = '30s'")
         database, _, migration_oid = _identity(connection, runtime, migration)
-        tables, functions = _inventory(connection, migration_oid)
+        tables, functions = _inventory(
+            connection, migration_oid, allow_supabase_auto_rls=allow_supabase_auto_rls
+        )
         principals = _principals(connection)
         for principal in principals + [runtime]:
             recipient = _role_sql(principal)
@@ -469,7 +556,9 @@ def apply_access(connection, runtime, migration, *, dedicated_database=False):
                     sql.Identifier("public", function), sql.Identifier(runtime)
                 )
             )
-        report = check_access(connection, runtime, migration)
+        report = check_access(
+            connection, runtime, migration, allow_supabase_auto_rls=allow_supabase_auto_rls
+        )
         if report["findings"]:
             raise AccessError(
                 "Access verification failed; all provisioning changes were rolled back."
@@ -484,6 +573,11 @@ def main(argv=None):
         command = commands.add_parser(name)
         command.add_argument("--runtime-role", required=True)
         command.add_argument("--migration-role", required=True)
+        command.add_argument(
+            "--allow-supabase-auto-rls",
+            action="store_true",
+            help="Allow only the exact reviewed Supabase ensure_rls event-trigger function.",
+        )
         if name == "apply":
             command.add_argument("--dedicated-database", action="store_true")
     args = parser.parse_args(argv)
@@ -513,11 +607,17 @@ def main(argv=None):
                     args.runtime_role,
                     args.migration_role,
                     dedicated_database=args.dedicated_database,
+                    allow_supabase_auto_rls=args.allow_supabase_auto_rls,
                 )
             else:
                 with connection.transaction():
                     connection.execute("SET TRANSACTION READ ONLY")
-                    report = check_access(connection, args.runtime_role, args.migration_role)
+                    report = check_access(
+                        connection,
+                        args.runtime_role,
+                        args.migration_role,
+                        allow_supabase_auto_rls=args.allow_supabase_auto_rls,
+                    )
         print(json.dumps(report))
         return 0 if not report["findings"] else 1
     except AccessError as exc:

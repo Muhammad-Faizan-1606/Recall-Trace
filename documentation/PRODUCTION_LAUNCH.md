@@ -2,19 +2,30 @@
 
 This is the remaining deployment work for the 72-model Core release. Local tests and scans are recorded in SECURITY_REVIEW.md; they do not establish that the external services below work. No public production URL has been created or verified from this environment.
 
-## Access needed to continue
+## Verified progress — 4 November 2026
 
-The owner confirmed existing Render, Supabase and Resend accounts. Their projects, quotas and configuration have not been inspected because no provider access is connected. Secure credential requirements are saved in the cloud environment draft:
+Render, Supabase and Resend management credentials are active and authenticated API inventories succeeded. The existing dedicated Supabase project `Recall Trace` (`cacsvupttgdgcpacddmg`, PostgreSQL 17.11, Mumbai region) now has 72 Core tables plus Alembic metadata at `c72a03`. Separate migration/runtime logins and application grants were provisioned atomically. A fresh read-only cloud check executed 70 catalog queries and returned no findings; all 72 business tables are empty. No fictional seed or existing development history was copied. Native PostgreSQL login/TLS from the deployed web service remains unverified.
+
+Provider database TLS enforcement is enabled and read back as applied successfully. The application `public` schema is no longer exposed by the Data API or present in its extra search path; existing `graphql_public` and `extensions` settings remain. Direct application-table API grants are revoked. Native runtime connections and anonymous external API checks still need to be exercised after the remaining service access is available.
+
+The reviewed Supabase automatic-RLS event trigger is preserved. This backend uses Flask authorization and restricted database grants; RLS was disabled only on its 73 new application objects so the backend can operate. The access tool now requires an explicit opt-in and exact provider metadata/source hashes to accept that provider function; other public definer functions/views remain blocked. See DATABASE_ACCESS.md for the boundary.
+
+The existing unrelated suspended Render application was left unchanged; there is no RecallTrace web service yet. Resend reports no sending domains. [Hosted CI passed on the published production-preparation commit](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41688141146); subsequent source changes require their own CI result. The provider-specific access tool passed 41 local tests in 5.59s after environment restoration.
+
+## Remaining secure settings
+
+The following management credentials are connected; keep them in secure settings:
 
 | Secure setting | Used for | Obtain privately |
 | --- | --- | --- |
 | `RENDER_API_KEY` | Inspect/configure the owner's Render services | Render account API-key settings |
 | `SUPABASE_ACCESS_TOKEN` | Inspect/configure Supabase projects | Supabase account access-token settings |
 | `MAIL_API_KEY` | Inspect the authorized Resend account/sender | Resend API-key settings; use permissions appropriate to the operation |
+| `SUPABASE_SERVICE_KEY` | Server-side private-storage operations; **still missing** | The dedicated Supabase project's server service-role key, entered securely |
 
 Enter these values in environment settings, never chat, source, issues or logs. These setup/API credentials are separate from the application's PostgreSQL password, Redis password and storage service key. Proxy-backed credentials must be used through their configured HTTPS API destinations; their local placeholders are not credentials to copy into provider runtime settings.
 
-The draft includes API destinations `api.render.com`, `api.supabase.com`, `api.resend.com` and `api.github.com`. A draft save is not an applied network change, account connection, resource creation or deployment. Review/save environment settings and publish the prepared environment when appropriate. GitHub source push works; the Actions API request was forbidden in the current runtime, so no successful hosted CI run is claimed.
+The four API destinations `api.render.com`, `api.supabase.com`, `api.resend.com` and `api.github.com` are active. The project storage hostname `cacsvupttgdgcpacddmg.supabase.co` and the missing `SUPABASE_SERVICE_KEY` requirement are saved in the draft but are not active. Enter the key securely and review/save that addition in environment settings, then publish the prepared environment when appropriate. A draft save does not itself apply network changes or create a deployment. No existing service-role key was downloaded or stored locally.
 
 ## Zero-budget deployment constraints
 
@@ -22,11 +33,15 @@ Retain the zero-budget requirement. Inspect available regions, quotas, expiry an
 
 The web blueprint only declares a Render web service. Automatic account recovery and verification require a continuously supervised outbox worker with the same database, keys and mail settings. A scanner is also required to release uploaded evidence from quarantine. Select hosting for both and verify that it remains running independently of web requests. Manual drains and an operator laptop can support a university demonstration; they do not establish continuous business availability.
 
+The owner has neither a university VM nor a computer that can remain running. A suitable free provider for worker/scanner compute is therefore still required. Render Key Value/Redis inventory endpoints returned a provider Cloudflare 403 while service inventory worked; this does not establish an invalid credential or usable free TLS Redis capacity. No paid worker, scanner or plan upgrade was created.
+
+Resend still needs an authorized sender on a domain whose DNS the owner controls. Gmail can receive messages; a Gmail inbox alone cannot authorize sending from `gmail.com` through Resend. A paid business mailbox is not required merely to verify a domain. No real test email or recall communication was sent.
+
 An authenticated TCP/TLS Redis service is still needed for sessions and rate limits. A REST-only cache endpoint does not satisfy this application. Verify its connection, available database numbers and limits before filling the two Redis settings; the application supports separate key prefixes on a shared Redis database.
 
 ## Release gates
 
-Every row below remains unverified on external infrastructure. Record the real result, date and reviewed source/image reference as each gate is completed; do not mark a gate passed because an environment variable is present.
+These gates require verification on the actual deployment. Database schema/ACL checks and the linked hosted CI run above are completed portions; native application connectivity and the remaining end-to-end gates are pending. Record the real result, date and reviewed source/image reference as each gate is completed; do not mark a gate passed because an environment variable is present.
 
 | Gate | Required evidence |
 | --- | --- |
