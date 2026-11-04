@@ -8,6 +8,10 @@ on:
         description: Create the company, owner and fictional C10 demo (idempotent)
         type: boolean
         default: false
+      demo_extras:
+        description: Only add the fictional demonstration extras to an existing company
+        type: boolean
+        default: false
       company_name:
         description: Company display name used by bootstrap
         default: RecallTrace Demo Lighting
@@ -27,7 +31,7 @@ env:
 
 jobs:
   bootstrap:
-    if: ${{ inputs.bootstrap }}
+    if: ${{ inputs.bootstrap || inputs.demo_extras }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -59,6 +63,7 @@ jobs:
       - name: Apply migrations (no-op when already at head)
         run: flask --app wsgi:app db upgrade
       - name: Company, owner and permissions
+        if: ${{ inputs.bootstrap }}
         env:
           OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
           OWNER_PASSWORD: ${{ secrets.OWNER_PASSWORD }}
@@ -72,12 +77,18 @@ jobs:
           flask --app wsgi:app create-owner --company "$COMPANY_SLUG" --email "$email" --password "$password"
           flask --app wsgi:app init-business --company "$COMPANY_SLUG"
       - name: Fictional C10 investigation
+        if: ${{ inputs.bootstrap }}
         env:
           OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
           COMPANY_SLUG: ${{ inputs.company_slug }}
         run: |
           email=$(printf '%s' "$OWNER_EMAIL" | tr -d '\r\n' | xargs)
           flask --app wsgi:app seed-investigation-demo --company "$COMPANY_SLUG" --owner-email "$email"
+
+      - name: Fictional demonstration extras (owner found automatically)
+        env:
+          COMPANY_SLUG: ${{ inputs.company_slug }}
+        run: flask --app wsgi:app seed-demo-extras --company "$COMPANY_SLUG"
 
   deploy:
     needs: bootstrap

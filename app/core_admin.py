@@ -95,6 +95,7 @@ def register(app):
     app.cli.add_command(create_company)
     app.cli.add_command(init_business)
     app.cli.add_command(seed_investigation_demo)
+    app.cli.add_command(seed_demo_extras)
 
 
 @click.command("create-company")
@@ -179,3 +180,54 @@ def seed_investigation_demo(company, owner_email):
         click.echo(
             "Use Investigations to review scope; approval needs a different MFA-enrolled reviewer."
         )
+
+
+@click.command("seed-demo-extras")
+@click.option("--company", required=True)
+@click.option(
+    "--owner-email",
+    default=None,
+    help="Active owner who records the work; defaults to the company's existing owner.",
+)
+@with_appcontext
+def seed_demo_extras(company, owner_email):
+    """Add clearly named fictional records around the C10 case (idempotent)."""
+    if current_app.config["APP_ENV"] != "development":
+        raise click.ClickException("Fictional demonstration records require development mode.")
+    organization = db.session.scalar(select(Organization).where(Organization.slug == company))
+    if organization is None:
+        raise click.ClickException("Choose an existing active company.")
+    owners = (
+        select(Membership, User)
+        .join(User, User.id == Membership.user_id)
+        .join(MembershipRole, MembershipRole.membership_id == Membership.id)
+        .join(Role, Role.id == MembershipRole.role_id)
+        .where(
+            Membership.organization_id == organization.id,
+            Membership.status == "active",
+            Membership.archived_at.is_(None),
+            Membership.partner_id.is_(None),
+            Role.code == "owner",
+            Role.protected.is_(True),
+            Role.archived_at.is_(None),
+            User.active.is_(True),
+        )
+        .order_by(Membership.created_at)
+    )
+    if owner_email:
+        owners = owners.where(db.func.lower(User.email) == owner_email.lower())
+    found = db.session.execute(owners.limit(1)).first()
+    if found is None:
+        raise click.ClickException("Choose an existing active company owner.")
+    membership, user = found
+    from app.services.business import DomainError
+    from app.services.demo_extras import seed_extras
+
+    with current_app.test_request_context():
+        login_user(user)
+        try:
+            report = seed_extras(organization.id, membership.id)
+        except (DomainError, ValueError) as exc:
+            raise click.ClickException(str(exc)) from exc
+    for line in report or ["Nothing to add; demonstration records already present."]:
+        click.echo(line)

@@ -12,7 +12,17 @@ from app.forms import ActionForm, trimmed
 from app.models import Organization
 from app.policies import allowed, require
 from app.services.business import DomainError
-from app.services.master import FIELDS, MODELS, OPTIONAL, PARENTS, label, lookup, remove, save
+from app.services.master import (
+    FIELDS,
+    MODELS,
+    OPTIONAL,
+    PARENTS,
+    field_label,
+    label,
+    lookup,
+    remove,
+    save,
+)
 
 bp = Blueprint("master", __name__)
 
@@ -199,7 +209,7 @@ def detail(company_id, resource, record_id):
                 select(model).where(model.organization_id == company_id, model.id == value)
             )
             value = label(related) if related else "Unavailable"
-        fields.append((field.replace("_", " ").capitalize(), value))
+        fields.append((field_label(field), value))
     return render_template(
         "master/detail.html",
         record=row,

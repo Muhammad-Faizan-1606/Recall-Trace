@@ -24,6 +24,7 @@ bash scripts/setup.sh
 .venv/bin/flask --app wsgi:app create-owner --company aurora --email owner@aurora.test
 .venv/bin/flask --app wsgi:app init-business --company aurora
 .venv/bin/flask --app wsgi:app seed-investigation-demo --company aurora --owner-email owner@aurora.test
+.venv/bin/flask --app wsgi:app seed-demo-extras --company aurora --owner-email owner@aurora.test
 ACCOUNT_MAIL_DIR=account-mail MAIL_MODE=local .venv/bin/gunicorn --config gunicorn.conf.py --bind 127.0.0.1:8000 wsgi:app
 ```
 

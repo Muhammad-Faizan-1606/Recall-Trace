@@ -11,6 +11,7 @@ from app.forms import ActionForm, ItemForm, UnitForm, VariantForm
 from app.models import Item, Membership, Organization, UnitsOfMeasure
 from app.policies import allowed, require
 from app.services.catalog import MODELS, CatalogConflict, lookup, remove, save
+from app.services.master import lot_name
 
 bp = Blueprint("catalog", __name__)
 FORMS = {"items": ItemForm, "units": UnitForm, "variants": VariantForm}
@@ -157,6 +158,7 @@ def shared_forms():
     return {
         "logout_form": FlaskForm(),
         "can_access_company": lambda company_id: allowed(company_id, "access.manage"),
+        "lot_name": lot_name,
     }
 
 

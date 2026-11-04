@@ -9,9 +9,9 @@ from wtforms.fields import SelectChoice
 from wtforms.validators import DataRequired, Length
 
 from app.extensions import db
-from app.models import Membership, Organization, User
-from app.models.master import Lot
-from app.models.operations import ShipmentLine
+from app.models import Item, ItemVariant, Membership, Organization, User
+from app.models.master import Lot, Partner
+from app.models.operations import ProductionRun, SalesOrder, Shipment, ShipmentLine
 from app.models.quality import Nonconformance
 from app.models.recall import (
     CaseAffectedShipment,
@@ -27,6 +27,7 @@ from app.policies import allowed
 from app.services import recall as service
 from app.services import trace as tracing
 from app.services.business import DomainError, actor, scoped
+from app.services.master import lot_name
 
 bp = Blueprint("recall", __name__, url_prefix="/companies/<uuid:company_id>/cases")
 
@@ -219,11 +220,13 @@ def detail(company_id, case_id):
         if downstream
         else []
     )
+    labels = shipment_labels(company_id, exposures)
     recovery = RecoveryForm()
     recovery.shipment_line_id.choices = [
         SelectChoice(
             str(line.id),
-            f"{lot.lot_code} / {line.id} / dispatched {exposure.quantity_dispatched}, resolved {exposure.quantity_resolved}",
+            f"{labels.get(line.id, line.id)}: dispatched {exposure.quantity_dispatched}, "
+            f"resolved {exposure.quantity_resolved}",
         )
         for exposure, line, lot in exposures
     ]
@@ -273,6 +276,7 @@ def detail(company_id, case_id):
         ).all(),
         runs=runs,
         exposures=exposures,
+        shipment_labels=labels,
         recoveries=db.session.execute(
             select(RecoveryRecord, RecallCase)
             .join(RecallCase, RecallCase.id == RecoveryRecord.case_id)
@@ -441,6 +445,31 @@ def document(company_id, case_id):
     )
 
 
+def shipment_labels(company_id, exposures):
+    """'Shipment C10-S1 to Fictional Lamp Customer, lot L1 — LED desk lamp' per line."""
+    line_ids = [line.id for _, line, _ in exposures]
+    if not line_ids:
+        return {}
+    rows = db.session.execute(
+        select(ShipmentLine.id, Shipment.reference, Partner.name)
+        .join(Shipment, Shipment.id == ShipmentLine.shipment_id)
+        .join(SalesOrder, SalesOrder.id == Shipment.sales_order_id)
+        .join(Partner, Partner.id == SalesOrder.customer_id)
+        .where(
+            ShipmentLine.organization_id == company_id,
+            Shipment.organization_id == company_id,
+            SalesOrder.organization_id == company_id,
+            Partner.organization_id == company_id,
+            ShipmentLine.id.in_(line_ids),
+        )
+    ).all()
+    lots = {line.id: lot for _, line, lot in exposures}
+    return {
+        line_id: f"Shipment {reference} to {customer}, lot {lot_name(lots[line_id])}"
+        for line_id, reference, customer in rows
+    }
+
+
 @bp.get("/traces/<uuid:trace_id>")
 @login_required
 def trace(company_id, trace_id):
@@ -459,8 +488,43 @@ def trace(company_id, trace_id):
                 link = (positions[parent["lot"]], positions[child["lot"]])
                 if link not in edges:
                     edges.append(link)
+    run_ids = {
+        step["production_run"]
+        for result, _lot, _variant in rows
+        for step in result.evidence_path
+        if "production_run" in step
+    }
+    run_names = (
+        {
+            str(run_id): reference
+            for run_id, reference in db.session.execute(
+                select(ProductionRun.id, ProductionRun.reference).where(
+                    ProductionRun.organization_id == company_id,
+                    ProductionRun.id.in_(list(run_ids)),
+                )
+            )
+        }
+        if run_ids
+        else {}
+    )
+    lot_names = {str(lot.id): lot_name(lot) for _result, lot, _variant in rows}
+    totals = tracing.summary(company_id, trace_id)
+    product_names = dict(
+        db.session.execute(
+            select(ItemVariant.sku, Item.name)
+            .join(Item, Item.id == ItemVariant.item_id)
+            .where(
+                ItemVariant.organization_id == company_id,
+                Item.organization_id == company_id,
+                ItemVariant.sku.in_([bucket["sku"] for bucket in totals]),
+            )
+        ).all()
+    )
     return render_template(
         "recall/trace.html",
+        run_names=run_names,
+        lot_names=lot_names,
+        product_names=product_names,
         **context(company_id),
         run=run,
         rows=rows[(page_number - 1) * 50 : page_number * 50],
@@ -470,7 +534,7 @@ def trace(company_id, trace_id):
         positions=positions,
         edges=edges,
         height=max(100, len(nodes) * 60 + 20),
-        totals=tracing.summary(company_id, trace_id),
+        totals=totals,
     )
 
 

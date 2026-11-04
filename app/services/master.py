@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 from urllib.parse import urlsplit
 
 from email_validator import EmailNotValidError, validate_email
+from flask import g
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
@@ -87,7 +88,54 @@ OPTIONAL = {
 }
 
 
+# Human-readable names for stored field names, shown on detail pages.
+FIELD_LABELS = {
+    "partner_id": "Partner",
+    "supplier_id": "Supplier",
+    "variant_id": "Product (SKU)",
+    "item_id": "Item",
+    "category_id": "Category",
+    "parent_id": "Parent category",
+    "site_id": "Site",
+    "warehouse_id": "Warehouse",
+    "lot_code": "Lot code",
+    "supplier_lot_code": "Supplier's own lot code",
+    "manufactured_at": "Manufactured at",
+    "expires_on": "Expires on",
+    "role_code": "Role",
+    "address_text": "Address",
+    "country_code": "Country",
+    "supplier_sku": "Supplier's part number",
+    "lead_time_days": "Lead time (days)",
+    "tracking_url_template": "Tracking link template",
+    "kind": "Location type",
+}
+
+
+def field_label(field):
+    return FIELD_LABELS.get(field, field.replace("_", " ").capitalize())
+
+
+def lot_name(lot):
+    """'L1 — LED desk lamp': a lot code alone means nothing to a first-time reader."""
+    cache = g.setdefault("_lot_names", {})
+    if lot.id not in cache:
+        item_name = db.session.scalar(
+            select(Item.name)
+            .join(ItemVariant, ItemVariant.item_id == Item.id)
+            .where(
+                ItemVariant.id == lot.variant_id,
+                ItemVariant.organization_id == lot.organization_id,
+                Item.organization_id == lot.organization_id,
+            )
+        )
+        cache[lot.id] = f"{lot.lot_code} — {item_name}" if item_name else lot.lot_code
+    return cache[lot.id]
+
+
 def label(row):
+    if isinstance(row, Lot):
+        return lot_name(row)
     for name in ("lot_code", "sku", "code", "supplier_sku", "name", "label", "role_code"):
         value = getattr(row, name, None)
         if value:

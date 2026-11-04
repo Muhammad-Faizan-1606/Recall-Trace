@@ -1,5 +1,13 @@
 # RecallTrace implementation status
 
+## Readable labels and demonstration data — 4 November 2026
+
+Screens now explain codes to first-time viewers: lots read "L1 — LED desk lamp" in stock, master data, investigations and the trace graph/table; investigation exposure shows "Shipment C10-S1 to Northside Home Stores (fictional retailer), lot L1 — LED desk lamp" instead of line UUIDs; trace evidence paths name production runs (C10-RUN-A) instead of UUIDs; SKU totals show product names; detail pages use plain labels ("Product (SKU)", "Supplier", "Warehouse") instead of "variant id"; the company heading no longer says "/ Catalog" on every page.
+
+New idempotent, development-mode-only `seed-demo-extras` command (run by the deploy workflow's bootstrap) renames the generic fixture names (only while still unchanged) and adds fictional, `.test`-addressed records through the normal services: item categories and classifications, supplier/customer contacts and addresses, a supplier part number, a carrier, a published incoming-inspection checklist, a completed inspection of C10 with two failed checks, a high-severity quality issue linked to it, and an investigation task and discussion note. No holds, approvals or notices are created, so those remain live demo steps.
+
+Local verification (PostgreSQL 16, Redis 7): full suite **470 passed, 16 failed**; the 16 are the same PostgreSQL-17-only `MAINTAIN` privilege tests in `tests/test_database_access.py`. New `tests/test_demo_extras.py` checks idempotency and the rendered labels. A local Chromium pass over operations, quality, lots, supplier item, investigation and trace pages showed the new labels with no page errors.
+
 ## Live Vercel backend — 4 November 2026
 
 **https://recall-trace-three.vercel.app** is the real Flask backend (not the read-only preview). Deploy run [41909004874](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41909004874) from `main` returned `/health/live` → `{"status":"alive"}` and `/health/ready` → HTTP 200 `{"status":"ready"}`, which executes PostgreSQL `SELECT 1` through the Supabase transaction pooler (restricted `recalltrace_runtime` role, `sslmode=verify-full` with the bundled Supabase root CA) and pings Upstash Redis over verified TLS for sessions and rate limits.
