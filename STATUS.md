@@ -1,5 +1,9 @@
 # RecallTrace implementation status
 
+## Upstash preparation — 4 November 2026
+
+The owner has an Upstash account but no database yet. Saved direct runtime-variable requirements for `SESSION_REDIS_URL` and `RATELIMIT_STORAGE_URI`; no values or resources were created. Both must use the same native verified TLS connection to logical database `/0`, with the existing distinct session/rate prefixes. The installed native client's URL parsing, TLS/hostname-verification settings, default limiter namespace and expiring session storage were checked offline; no live Upstash connection is claimed. Existing local development/test Redis configuration was preserved. See documentation/UPSTASH.md for the explicit Free plan, secure setup and verification steps. Native TCP access remains an environment requirement once the actual endpoint is known.
+
 ## Public frontend published — 4 November 2026
 
 The owner enabled Pages with GitHub Actions as its source. The previously blocked publishing workflow was rerun and **succeeded**, including build/export/artifact upload and deployment. The public read-only sample UI is **https://muhammad-faizan-1606.github.io/Recall-Trace/**, with enforced HTTPS and no login. [Publishing proof](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41818371923) matches tested source `fae81b8`; its separate full integration/security workflow passed too. A sanitized live deployment report is retained privately in `instance/preview/pages-live-report.json`.
