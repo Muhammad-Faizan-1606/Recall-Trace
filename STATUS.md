@@ -1,5 +1,13 @@
 # RecallTrace implementation status
 
+## Live Vercel backend — 4 November 2026
+
+**https://recall-trace-three.vercel.app** is the real Flask backend (not the read-only preview). Deploy run [41909004874](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41909004874) from `main` returned `/health/live` → `{"status":"alive"}` and `/health/ready` → HTTP 200 `{"status":"ready"}`, which executes PostgreSQL `SELECT 1` through the Supabase transaction pooler (restricted `recalltrace_runtime` role, `sslmode=verify-full` with the bundled Supabase root CA) and pings Upstash Redis over verified TLS for sessions and rate limits.
+
+The operator bootstrap ([run 41898005923](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41898005923)) applied `c72a04` to Supabase, created company `recalltrace-demo` with its owner and Core permissions, and seeded the fictional C10 case: 150 lamps produced (110 dispatched, 40 on hand) and 50 unused switches, matching the specification. Mail uses Resend's `onboarding@resend.dev` sender, which only delivers to the Resend account's own address; the owner chose not to change DNS on a business domain. Malware scanning is the explicit `SCANNER_MODE=unconfigured` opt-in, so uploads stay quarantined with a visible banner. Deployment problems found and fixed on the way: a newline in a pasted secret, the offline-SQL `%%I` trigger defect (`c72a04`), missing mail secrets and a runtime-role password mismatch.
+
+**Not yet verified live:** browser sign-in/MFA/trace walkthrough on the deployed URL, the scheduled outbox worker's first real delivery, evidence upload quarantine on Vercel and load/recovery behaviour. This is a university demonstration deployment, not a production-readiness or security certification.
+
 ## Vercel deployment workflow — 4 November 2026
 
 **Production defect found and fixed by the first real bootstrap.** The Supabase schema had been applied from offline SQL, which escapes `%` to `%%`; the draft-line guard therefore executed the literal `%I` and rejected every document-line insert/update/delete (purchase orders, receipts, production, shipments). Migration `c72a04` rebuilds `recalltrace_child_guard` with `quote_ident` concatenation, which renders identically online and offline; `tests/test_offline_migration_sql.py` guards the offline rendering. The bootstrap run also confirmed live verified-TLS PostgreSQL access through the Supabase pooler and created the company, owner and Core permissions.
