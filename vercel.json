@@ -2,12 +2,17 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "flask",
   "installCommand": "python -m pip install --only-binary :all: --require-hashes -r requirements.txt",
-  "regions": ["bom1"],
+  "regions": [
+    "bom1"
+  ],
   "functions": {
     "index.py": {
       "maxDuration": 60,
       "includeFiles": "certs/**",
       "excludeFiles": "{tests,documentation,references,instance,operations,scripts,.venv,.git,_site}/**"
     }
+  },
+  "git": {
+    "deploymentEnabled": false
   }
 }

@@ -1,0 +1,51 @@
+name: Outbox worker
+# Vercel functions cannot run the long-lived outbox worker. This scheduled job is the
+# supervised external worker for the university deployment: each run drains a bounded
+# batch of committed account/notice intents with the same database and MFA key.
+# GitHub schedules are best-effort (typically every 5-15 minutes); account requests
+# expire after 15 minutes, so a delayed run can leave one expired, never sent twice.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: outbox-worker
+  cancel-in-progress: false
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_ENV: production
+      MFA_KEY_VERSION: v1
+      STORAGE_BACKEND: supabase
+      SCANNER_MODE: unconfigured
+      MAIL_MODE: resend
+      SUPABASE_URL: https://cacsvupttgdgcpacddmg.supabase.co
+      SUPABASE_STORAGE_BUCKET: recalltrace-private
+      # Startup validation only; the worker serves no HTTP requests.
+      ALLOWED_HOSTS: ${{ vars.PRODUCTION_HOST || 'recall-trace.vercel.app' }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      MFA_ENCRYPTION_KEY: ${{ secrets.MFA_ENCRYPTION_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SESSION_REDIS_URL: ${{ secrets.REDIS_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      MAIL_API_KEY: ${{ secrets.MAIL_API_KEY }}
+      MAIL_FROM: ${{ secrets.MAIL_FROM }}
+    steps:
+      - name: Skip until deployment secrets exist
+        id: ready
+        run: test -n "$DATABASE_URL" && echo "run=true" >> "$GITHUB_OUTPUT" || echo "Secrets not configured; nothing to do."
+      - if: steps.ready.outputs.run
+        uses: actions/checkout@v4
+      - if: steps.ready.outputs.run
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - if: steps.ready.outputs.run
+        run: python -m pip install --require-hashes -r requirements.txt
+      - if: steps.ready.outputs.run
+        run: flask --app index:app outbox-run --limit 50

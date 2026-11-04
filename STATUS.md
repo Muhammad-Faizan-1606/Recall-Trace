@@ -1,5 +1,11 @@
 # RecallTrace implementation status
 
+## Vercel deployment workflow — 4 November 2026
+
+Added the manual `deploy-vercel.yml` operator workflow (optional company/owner/C10 bootstrap, production deployment, readiness check), the scheduled `outbox-worker.yml`, URL/host normalization in `app/vercel.py`, and the explicit `SCANNER_MODE=unconfigured` demonstration opt-in with a visible quarantine banner. See DECISIONS.md and documentation/VERCEL.md. Vercel Git auto-deployments are disabled.
+
+Local verification on PostgreSQL **16** and Redis 7 (this session had no Docker): `pytest -q` gave **466 passed, 16 failed**. All 16 failures are in `tests/test_database_access.py` because PostgreSQL 16 lacks the `MAINTAIN` privilege; they fail identically without these changes. CI's PostgreSQL 17 is the authoritative run. 30 Vercel cases pass, including the new normalization, host, scanner-mode and Git-setting tests. Ruff check/format (102 files) and application Bandit passed. **Not yet executed:** the GitHub secrets, the Supabase root certificate, the real Vercel build, live database/Redis TLS and the bootstrap/seed against Supabase.
+
 ## Vercel backend preparation — 4 November 2026
 
 The owner has a Vercel account and requested backend deployment; no Vercel project is created or authenticated here yet. Added a separate `index:app` entrypoint, explicit Python 3.13/Flask settings, hash-verified binary-wheel installation, Mumbai function region and a requested 60-second duration. The adapter requires production mode and Supabase storage, closes idle PostgreSQL connections with `NullPool`, bounds PostgreSQL/Redis connection waits, and retains the existing scanner/sender/TLS/host/cookie checks. The Vercel file ceiling is 4 MiB with explicit rejection of existing larger objects; other deployments retain 10 MiB. Local credentials/private reports are excluded from uploads; operational templates remain included. See documentation/VERCEL.md.

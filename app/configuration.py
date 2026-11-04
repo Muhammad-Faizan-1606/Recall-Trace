@@ -23,6 +23,7 @@ PRODUCTION_SETTINGS = (
     "SUPABASE_STORAGE_BUCKET",
     "SUPABASE_SERVICE_KEY",
     "SCANNER_ENDPOINT",
+    "SCANNER_MODE",
     "CLAMAV_HOST",
     "CLAMAV_PORT",
     "MAIL_MODE",
@@ -84,6 +85,7 @@ def configure_environment(app):
     app.config.setdefault("MFA_KEY_VERSION", "v1")
     app.config.setdefault("STORAGE_BACKEND", "filesystem")
     app.config.setdefault("MAIL_MODE", "unconfigured")
+    app.config.setdefault("SCANNER_MODE", "required")
     app.config.setdefault("MAX_CONTENT_LENGTH", 11 * 1024 * 1024)
     if app.config.get("APP_ENV") != "production":
         return
@@ -211,7 +213,16 @@ def validate_config(app):
             _failure("EVIDENCE_ROOT readable only by the application user")
     else:
         _failure("an implemented private evidence storage backend")
-    if not _endpoint(cfg.get("SCANNER_ENDPOINT")) and not cfg.get("CLAMAV_HOST"):
+    scanner_mode = cfg.get("SCANNER_MODE", "required")
+    if scanner_mode not in {"required", "unconfigured"}:
+        _failure("SCANNER_MODE set to required or unconfigured")
+    scanner = _endpoint(cfg.get("SCANNER_ENDPOINT")) or cfg.get("CLAMAV_HOST")
+    if scanner_mode == "unconfigured" and scanner:
+        _failure("SCANNER_MODE=required when a scanner is configured")
+    if scanner_mode == "required" and not scanner:
+        # SCANNER_MODE=unconfigured is the explicit demonstration opt-in: uploads are
+        # still stored privately, but scan_bytes reports "unavailable" so every file
+        # stays quarantined and can never be downloaded or used as accepted evidence.
         _failure(
             "a configured evidence malware scanner (unavailable scanners keep files quarantined)"
         )

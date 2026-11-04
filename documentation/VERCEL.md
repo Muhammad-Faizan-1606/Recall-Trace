@@ -1,5 +1,26 @@
 # Vercel backend deployment
 
+## Current demonstration path (4 November 2026)
+
+1. Add GitHub repository secrets: `VERCEL_TOKEN`, `SECRET_KEY`, `MFA_ENCRYPTION_KEY`,
+   `REDIS_URL` (Upstash TLS URL as copied), `DATABASE_URL` (Supabase transaction
+   pooler, restricted runtime role `ROLE.PROJECTREF`), `MIGRATION_DATABASE_URL`
+   (session pooler, migration role), `SUPABASE_SERVICE_KEY`, `MAIL_API_KEY`,
+   `MAIL_FROM`, `OWNER_EMAIL`, `OWNER_PASSWORD`.
+2. Commit Supabase's public root certificate as `certs/supabase-ca.crt`.
+3. Run **Actions → Deploy backend to Vercel** with `bootstrap` ticked once; later
+   deployments leave it unticked. The job summary prints the production URL and the
+   `/health/ready` result.
+4. `outbox-worker.yml` drains account/notice intents every five minutes once the
+   secrets exist.
+
+Pasted URLs are normalized by `app/vercel.py` (psycopg driver, `verify-full`, bundled
+certificate, Redis `/0` with certificate/hostname checks). `SCANNER_MODE=unconfigured`
+is the explicit demonstration opt-in described in DECISIONS.md: uploads stay
+quarantined and a banner says so. The sections below are the original preparation
+notes; where they say a scanner or worker is required, this path supplies the
+documented opt-in and the scheduled worker instead.
+
 This deploys the real Flask backend from `index:app`, not the GitHub Pages sample
 preview. The normal container entrypoint remains `wsgi:app`. Vercel account
 creation does not create this project or copy this workspace's environment

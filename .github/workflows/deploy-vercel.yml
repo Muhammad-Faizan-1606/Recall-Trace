@@ -1,0 +1,121 @@
+name: Deploy backend to Vercel
+# Manually started operator workflow. Secrets live only in GitHub repository secrets
+# and are passed to the Vercel deployment; nothing is committed or printed.
+on:
+  workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: Create the company, owner and fictional C10 demo (idempotent)
+        type: boolean
+        default: false
+      company_name:
+        description: Company display name used by bootstrap
+        default: RecallTrace Demo Lighting
+      company_slug:
+        description: Company slug used by bootstrap
+        default: recalltrace-demo
+permissions:
+  contents: read
+concurrency:
+  group: vercel-production
+  cancel-in-progress: false
+env:
+  VERCEL_CLI: vercel@64.7.0
+  VERCEL_PROJECT: recall-trace
+  SUPABASE_URL: https://cacsvupttgdgcpacddmg.supabase.co
+  SUPABASE_STORAGE_BUCKET: recalltrace-private
+
+jobs:
+  bootstrap:
+    if: ${{ inputs.bootstrap }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7.4
+        ports: ['6379:6379']
+    env:
+      # Operator runtime: development mode only so the fictional C10 fixture guard
+      # allows seeding; it talks to the real database through the migration role.
+      APP_ENV: development
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      MFA_ENCRYPTION_KEY: ${{ secrets.MFA_ENCRYPTION_KEY }}
+      SESSION_REDIS_URL: redis://127.0.0.1:6379/0
+      RATELIMIT_STORAGE_URI: redis://127.0.0.1:6379/1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - run: python -m pip install --require-hashes -r requirements.txt
+      - name: Select verified migration connection
+        env:
+          RAW: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          url=$(python -c 'import os; from app.vercel import database_url; print(database_url(os.environ["RAW"]))')
+          echo "::add-mask::$url"
+          echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
+      - name: Apply migrations (no-op when already at head)
+        run: flask --app wsgi:app db upgrade
+      - name: Company, owner and permissions
+        env:
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          OWNER_PASSWORD: ${{ secrets.OWNER_PASSWORD }}
+          COMPANY_NAME: ${{ inputs.company_name }}
+          COMPANY_SLUG: ${{ inputs.company_slug }}
+        run: |
+          flask --app wsgi:app create-company --name "$COMPANY_NAME" --slug "$COMPANY_SLUG"
+          flask --app wsgi:app create-owner --company "$COMPANY_SLUG" --email "$OWNER_EMAIL" --password "$OWNER_PASSWORD"
+          flask --app wsgi:app init-business --company "$COMPANY_SLUG"
+      - name: Fictional C10 investigation
+        env:
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          COMPANY_SLUG: ${{ inputs.company_slug }}
+        run: flask --app wsgi:app seed-investigation-demo --company "$COMPANY_SLUG" --owner-email "$OWNER_EMAIL"
+
+  deploy:
+    needs: bootstrap
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Link (creates the project on first run)
+        run: npx --yes "$VERCEL_CLI" link --yes --project "$VERCEL_PROJECT" --token "$VERCEL_TOKEN"
+      - name: Production deployment
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          MFA_ENCRYPTION_KEY: ${{ secrets.MFA_ENCRYPTION_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          MAIL_API_KEY: ${{ secrets.MAIL_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: |
+          url=$(npx --yes "$VERCEL_CLI" deploy --prod --yes --token "$VERCEL_TOKEN" \
+            -e APP_ENV=production -e MFA_KEY_VERSION=v1 -e STORAGE_BACKEND=supabase \
+            -e SCANNER_MODE=unconfigured -e MAIL_MODE=resend \
+            -e SUPABASE_URL="$SUPABASE_URL" -e SUPABASE_STORAGE_BUCKET="$SUPABASE_STORAGE_BUCKET" \
+            -e SECRET_KEY="$SECRET_KEY" -e MFA_ENCRYPTION_KEY="$MFA_ENCRYPTION_KEY" \
+            -e DATABASE_URL="$DATABASE_URL" -e SESSION_REDIS_URL="$REDIS_URL" \
+            -e SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
+            -e MAIL_API_KEY="$MAIL_API_KEY" -e MAIL_FROM="$MAIL_FROM")
+          echo "DEPLOYMENT_URL=$url" >> "$GITHUB_ENV"
+      - name: Production domain and readiness
+        run: |
+          host=${DEPLOYMENT_URL#https://}
+          domain=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$host" | jq -r '.alias | map(select(endswith(".vercel.app"))) | min_by(length)')
+          echo "Production URL: https://$domain"
+          echo "### Production URL: https://$domain" >> "$GITHUB_STEP_SUMMARY"
+          curl -sS "https://$domain/health/live"; echo
+          code=$(curl -sS -o ready.json -w '%{http_code}' "https://$domain/health/ready")
+          cat ready.json; echo
+          echo "Readiness HTTP $code" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$code" = 200
