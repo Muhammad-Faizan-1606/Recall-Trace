@@ -103,7 +103,16 @@ jobs:
           MAIL_API_KEY: ${{ secrets.MAIL_API_KEY }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
         run: |
-          url=$(npx --yes "$VERCEL_CLI" deploy --prod --yes --token "$VERCEL_TOKEN" \
+          # Exact project domains for host validation (all belong to this project).
+          project=$(jq -r .projectId .vercel/project.json)
+          org=$(jq -r .orgId .vercel/project.json)
+          hosts=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$project/domains?teamId=$org" \
+            | jq -r '[.domains[].name] | join(",")' || true)
+          echo "Allowed hosts: ${hosts:-<from VERCEL_PROJECT_PRODUCTION_URL>}"
+          host_flag=()
+          if [ -n "$hosts" ]; then host_flag=(-e "ALLOWED_HOSTS=$hosts"); fi
+          url=$(npx --yes "$VERCEL_CLI" deploy --prod --yes --token "$VERCEL_TOKEN" "${host_flag[@]}" \
             -e APP_ENV=production -e MFA_KEY_VERSION=v1 -e STORAGE_BACKEND=supabase \
             -e SCANNER_MODE=unconfigured -e MAIL_MODE=resend \
             -e SUPABASE_URL="$SUPABASE_URL" -e SUPABASE_STORAGE_BUCKET="$SUPABASE_STORAGE_BUCKET" \
@@ -124,3 +133,15 @@ jobs:
           cat ready.json; echo
           echo "Readiness HTTP $code" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$code" = 200
+      - name: Runtime error from the function (only on failure)
+        if: failure() && env.DEPLOYMENT_URL != ''
+        run: |
+          (timeout 60 npx --yes "$VERCEL_CLI" logs "$DEPLOYMENT_URL" --token "$VERCEL_TOKEN" > runtime.log 2>&1 &)
+          sleep 8
+          for domain in $(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/${DEPLOYMENT_URL#https://}" | jq -r '.alias[]'); do
+            curl -sS -o /dev/null "https://$domain/health/ready" || true
+          done
+          sleep 40
+          # The application never logs secrets; startup errors name the missing setting.
+          grep -vE '^\s*$' runtime.log | tail -80
