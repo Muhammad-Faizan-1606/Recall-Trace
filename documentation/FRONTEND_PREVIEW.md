@@ -1,18 +1,20 @@
 # Read-only frontend preview
 
+**Live preview:** [RecallTrace on GitHub Pages](https://muhammad-faizan-1606.github.io/Recall-Trace/). No login is required. [The publishing workflow succeeded](https://github.com/Muhammad-Faizan-1606/Recall-Trace/actions/runs/41818371923) after the owner enabled Pages; HTTPS is enforced. The deployed artifact matches the tested source. Its local static browser checks passed all eight screens at desktop/mobile widths. A direct public HTTP/browser check from the managed environment remains unavailable because that hostname is outside its active network allowlist.
+
 The owner requested a public frontend demonstration while email, Redis and worker/scanner hosting are arranged. This preview displays fictional sample screens with the application's shared Jinja base and locally served styles. It does not connect to the real database, storage, authentication or external delivery services.
 
 The overview, C10 investigation/SVG graph, stock/lots, catalog/partners, notices, evidence, company access and settings pages work without signing in. Each page identifies itself as a read-only demo; actions are disabled. No business or security records are created and no real communications are sent. The sample C10 scope keeps 150 lamps separate from the 50 unused switches and excludes unrelated C11/L3/S3.
 
 ## Run or deploy
 
-The current free publishing route is GitHub Pages. Render rejected the explicit free-service request with HTTP 402 because payment information is required; no Render service or paid upgrade was created. The GitHub connection can push this repository but cannot enable Pages settings (the provider returned HTTP 403). The owner must make this one-time change:
+The current free publishing route is GitHub Pages. Render rejected the explicit free-service request with HTTP 402 because payment information is required; no Render service or paid upgrade was created. The GitHub connection could not enable Pages settings (HTTP 403), so the owner completed the following one-time change. The existing site is now configured; these steps are retained for a fresh installation:
 
 1. Open [this repository's Pages settings](https://github.com/Muhammad-Faizan-1606/Recall-Trace/settings/pages).
 2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
 3. Run or rerun **Publish read-only frontend preview** in Actions. This workflow is already configured; it needs no provider credentials.
 
-After a successful deployment, the expected address is `https://muhammad-faizan-1606.github.io/Recall-Trace/`. Do not describe that address as live until the deployment succeeds. The workflow renders the fictional views, copies public assets only, and uploads a static artifact. It publishes no application source, configuration, credentials or business database. Static hosting does not carry Flask's response headers; the HTML includes a restrictive CSP and no-index metadata, with no authentication or writable endpoints.
+The published address is `https://muhammad-faizan-1606.github.io/Recall-Trace/`. Verify each future workflow result before claiming a new release is live. The workflow renders the fictional views, copies public assets only, and uploads a static artifact. It publishes no application source, configuration, credentials or business database. Static hosting does not carry Flask's response headers; the HTML includes a restrictive CSP and no-index metadata, with no authentication or writable endpoints.
 
 The exporter can also be verified independently:
 
