@@ -1,5 +1,15 @@
 # RecallTrace implementation status
 
+## Overview page and investigation workflow UX — 11 November 2026
+
+- New company **Overview** (landing page after choosing a company, first sidebar item): counts of open investigations, lots on hold, open quality issues and lots in stock, each linking to its list; open investigations; your open tasks; lots on hold; recent activity written as plain sentences from the audit log.
+- Investigation page: progress stepper (Draft, Submitted, Approved, Closed), a "Next step" panel holding the stage's main action, a summary row, affected shipments first, and secondary forms folded into disclosures. All forms, endpoints and rules are unchanged.
+- Readable dates everywhere (`when`: "4 Nov 2026, 22:06 UTC"; `day`: "4 Nov 2026").
+- `app/static/app.js` (same-origin, CSP-compatible, optional): confirmation before delete/archive/remove/revoke/reject buttons, and a quick row filter above tables with eight or more rows.
+- Tests: new `tests/test_overview.py`. Full suite **488 passed, 16 failed** (the PostgreSQL-17-only privilege tests); Ruff and Bandit clean; desktop and phone screenshots without overflow or browser errors.
+
+Live measurement after the performance deploy (run 42983306027): static assets served from Vercel's CDN (`x-vercel-cache: HIT`, about 0.17 s, one-year immutable caching). Sign-in page server time about 281 ms, of which about 279 ms is a single Redis call: the Upstash database is in a distant region from the Mumbai function. Moving it to ap-south-1 would remove about 0.3 s per Redis call; the owner chose to leave it for now.
+
 ## Request performance — 11 November 2026
 
 See DECISIONS.md for the measured baseline and design. Locally, queries per signed-in page fell from 14 to 9 (investigations), 22 to 13 (operations) and 16 to 11 (quality); static requests make zero Redis calls. New `tests/test_performance.py` covers versioned immutable static caching without cookies, private pages with Server-Timing, the once-a-minute activity write, and authorization being re-read under the company lock. Full suite: **483 passed, 16 failed** (the PostgreSQL-17-only privilege tests); Ruff and Bandit clean. Live before/after numbers are recorded below once deployed.

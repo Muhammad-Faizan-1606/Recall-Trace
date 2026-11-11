@@ -5,6 +5,7 @@
   <title>{% block title %}RecallTrace{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
 {% macro nav_link(href, text) %}{% set current = request.path == href or request.path.startswith(href ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ text }}</a>{% endmacro %}
@@ -20,6 +21,9 @@
 <div class="layout">
 {% if company is defined %}
 <nav class="sidebar" aria-label="Workspace">
+  <div class="side-group">
+    {{ nav_link(url_for('overview.overview', company_id=company_id), 'Overview') }}
+  </div>
   <div class="side-group">
     <p class="side-heading">Recall</p>
     {{ nav_link(url_for('recall.dashboard', company_id=company_id), 'Investigations') }}

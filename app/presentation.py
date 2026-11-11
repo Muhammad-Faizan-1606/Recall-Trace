@@ -1,5 +1,6 @@
 """Display helpers shared by templates: readable quantities and status tags."""
 
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
 from markupsafe import Markup
@@ -80,6 +81,26 @@ def status_tag(value):
     return Markup('<span class="tag{}">{}</span>').format(tone_class, text)
 
 
+def when_text(value):
+    """'4 Nov 2026, 22:06 UTC' instead of '2026-11-04 22:06:37.221724+00:00'."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is not None:
+        value = value.astimezone(UTC)
+    return f"{value.day} {value:%b %Y, %H:%M} UTC"
+
+
+def day_text(value):
+    """'4 Nov 2026' for date-only columns."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is not None:
+        value = value.astimezone(UTC)
+    return f"{value.day} {value:%b %Y}"
+
+
 def register(app):
     app.add_template_filter(quantity_text, "qty")
     app.add_template_filter(status_tag, "tag")
+    app.add_template_filter(when_text, "when")
+    app.add_template_filter(day_text, "day")

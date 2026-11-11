@@ -3,7 +3,7 @@
 <h1>Audit history</h1>
 <p>Recorded workflow events are immutable. Metadata excludes passwords, tokens, and evidence contents.</p>
 <div class="table-responsive"><table class="table"><thead><tr><th>UTC time</th><th>Action</th><th>Entity</th><th>Actor membership</th><th>Safe metadata</th><th>Correlation</th></tr></thead><tbody>
-{% for event in page.items %}<tr><td>{{ event.created_at }}</td><td>{{ event.action }}</td><td>{{ event.entity_kind }} {{ event.entity_id or '' }}</td><td>{{ event.actor_id or 'System' }}</td><td>{{ event.safe_details }}</td><td>{{ event.correlation_id }}</td></tr>{% else %}<tr><td colspan="6">No audit events yet.</td></tr>{% endfor %}
+{% for event in page.items %}<tr><td>{{ event.created_at|when }}</td><td>{{ event.action }}</td><td>{{ event.entity_kind }} {{ event.entity_id or '' }}</td><td>{{ event.actor_id or 'System' }}</td><td>{{ event.safe_details }}</td><td>{{ event.correlation_id }}</td></tr>{% else %}<tr><td colspan="6">No audit events yet.</td></tr>{% endfor %}
 </tbody></table></div>
 <nav aria-label="Audit pages">{% if page.has_prev %}<a href="{{ url_for('security.audit',company_id=company_id,page=page.prev_num) }}">Previous</a>{% endif %} {% if page.has_next %}<a href="{{ url_for('security.audit',company_id=company_id,page=page.next_num) }}">Next</a>{% endif %}</nav>
 {% endblock %}
