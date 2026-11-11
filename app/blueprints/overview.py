@@ -1,17 +1,18 @@
 """Company overview: what needs attention, in one screen."""
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, select
 
 from app.extensions import db
-from app.models import Membership, Organization, User
-from app.models.master import Lot
-from app.models.operations import StockBalance
+from app.models import Item, Membership, Organization, User
+from app.models.master import Lot, Partner
+from app.models.operations import Shipment, StockBalance
 from app.models.quality import Nonconformance, QualityHold
 from app.models.recall import CaseTask, RecallCase
 from app.models.security import AuditEvent
 from app.policies import membership_for, require
+from app.services.master import lot_name
 
 bp = Blueprint("overview", __name__)
 
@@ -200,4 +201,134 @@ def overview(company_id):
         my_tasks=my_tasks,
         activity=[(event, name or "System", describe(event)) for event, name in activity],
         first_name=(current_user.display_name or "").split(" ")[0],
+    )
+
+
+def _like(text):
+    """Case-insensitive contains pattern with LIKE wildcards escaped."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+@bp.get("/companies/<uuid:company_id>/search")
+@login_required
+def search(company_id):
+    require(company_id, "catalog.read")
+    company = db.session.get(Organization, company_id)
+    query = (request.args.get("q") or "").strip()[:80]
+    groups = []
+    if len(query) >= 2:
+        pattern = _like(query)
+
+        def rows(model, *columns, order):
+            return db.session.scalars(
+                select(model)
+                .where(
+                    model.organization_id == company_id,
+                    db.or_(*[column.ilike(pattern, escape="\\") for column in columns]),
+                )
+                .order_by(order)
+                .limit(8)
+            ).all()
+
+        groups = [
+            (
+                "Investigations",
+                [
+                    (
+                        f"{r.title}",
+                        r.reference,
+                        url_for("recall.detail", company_id=company_id, case_id=r.id),
+                    )
+                    for r in rows(
+                        RecallCase,
+                        RecallCase.reference,
+                        RecallCase.title,
+                        order=RecallCase.reference,
+                    )
+                ],
+            ),
+            (
+                "Lots",
+                [
+                    (
+                        lot_name(r),
+                        "Lot",
+                        url_for(
+                            "master.detail", company_id=company_id, resource="lots", record_id=r.id
+                        ),
+                    )
+                    for r in rows(Lot, Lot.lot_code, Lot.supplier_lot_code, order=Lot.lot_code)
+                ],
+            ),
+            (
+                "Items",
+                [
+                    (
+                        r.name,
+                        r.code,
+                        url_for(
+                            "catalog.detail", company_id=company_id, kind="items", record_id=r.id
+                        ),
+                    )
+                    for r in rows(Item, Item.code, Item.name, order=Item.code)
+                ],
+            ),
+            (
+                "Partners",
+                [
+                    (
+                        r.name,
+                        r.code,
+                        url_for(
+                            "master.detail",
+                            company_id=company_id,
+                            resource="partners",
+                            record_id=r.id,
+                        ),
+                    )
+                    for r in rows(Partner, Partner.code, Partner.name, order=Partner.code)
+                ],
+            ),
+            (
+                "Quality issues",
+                [
+                    (
+                        r.reference,
+                        r.severity,
+                        url_for("quality.issue", company_id=company_id, record_id=r.id),
+                    )
+                    for r in rows(
+                        Nonconformance,
+                        Nonconformance.reference,
+                        Nonconformance.description,
+                        order=Nonconformance.reference,
+                    )
+                ],
+            ),
+            (
+                "Shipments",
+                [
+                    (
+                        r.reference,
+                        r.status,
+                        url_for(
+                            "operations.detail",
+                            company_id=company_id,
+                            kind="shipments",
+                            record_id=r.id,
+                        ),
+                    )
+                    for r in rows(Shipment, Shipment.reference, order=Shipment.reference)
+                ],
+            ),
+        ]
+        groups = [(title, items) for title, items in groups if items]
+    return render_template(
+        "search.html",
+        company=company,
+        company_id=company_id,
+        query=query,
+        groups=groups,
+        total=sum(len(items) for _, items in groups),
     )

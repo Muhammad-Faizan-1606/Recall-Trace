@@ -1,57 +1,90 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-bs-theme="dark">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
   <title>{% block title %}RecallTrace{% endblock %}</title>
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
-{% macro nav_link(href, text) %}{% set current = request.path == href or request.path.startswith(href ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ text }}</a>{% endmacro %}
+{% set sprite = url_for('static', filename='vendor/icons/sprite.svg') %}
+{% macro icon(name) %}<svg class="icon" aria-hidden="true" focusable="false"><use href="{{ sprite }}#i-{{ name }}"></use></svg>{% endmacro %}
+{% macro nav_link(href, text, glyph) %}{% set current = request.path == href or request.path.startswith(href ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
 <body class="{{ 'has-sidebar' if company is defined else 'no-sidebar' }}">
 <a class="visually-hidden-focusable skip-link" href="#main">Skip to content</a>
-<header class="topbar">
-  <div class="topbar-inner">
-    <a class="brand" href="{{ url_for('catalog.companies') }}"><svg class="brand-mark" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7.4l5.1 5.1v7.4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5z"/><circle cx="7" cy="7" r="1.6"/></svg>RecallTrace</a>
-    {% if company is defined %}<a class="topbar-company" href="{{ url_for('catalog.companies') }}" title="Switch company">{{ company.name }}</a>{% endif %}
-    {% if current_user.is_authenticated %}<form class="topbar-user" method="post" action="{{ url_for('auth.logout') }}">{{ logout_form.hidden_tag() }}<a href="{{ url_for('sessions.listing') }}">Your sessions</a><span class="topbar-name">{{ current_user.display_name }}</span><button class="btn btn-sm btn-outline-secondary">Sign out</button></form>{% endif %}
-  </div>
-</header>
-<div class="layout">
 {% if company is defined %}
-<nav class="sidebar" aria-label="Workspace">
-  <div class="side-group">
-    {{ nav_link(url_for('overview.overview', company_id=company_id), 'Overview') }}
+<aside class="sidebar" id="sidebar" aria-label="Workspace">
+  <div class="sidebar-top">
+    <a class="brand" href="{{ url_for('catalog.companies') }}"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7.4l5.1 5.1v7.4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5z"/><circle cx="7" cy="7" r="1.6"/></svg></span>RecallTrace</a>
+    <button class="icon-button sidebar-close" type="button" data-sidebar-close aria-label="Close menu">{{ icon('x') }}</button>
   </div>
-  <div class="side-group">
-    <p class="side-heading">Recall</p>
-    {{ nav_link(url_for('recall.dashboard', company_id=company_id), 'Investigations') }}
-    {{ nav_link(url_for('notices.listing', company_id=company_id), 'Notices') }}
+  <a class="company-chip" href="{{ url_for('catalog.companies') }}" title="Switch company"><span class="company-initial" aria-hidden="true">{{ company.name[:1] }}</span><span><strong>{{ company.name }}</strong><small>Switch company</small></span></a>
+  <nav aria-label="Workspace sections">
+    <div class="side-group">
+      {{ nav_link(url_for('overview.overview', company_id=company_id), 'Overview', 'layout-dashboard') }}
+    </div>
+    <div class="side-group">
+      <p class="side-heading">Recall</p>
+      {{ nav_link(url_for('recall.dashboard', company_id=company_id), 'Investigations', 'scan-search') }}
+      {{ nav_link(url_for('notices.listing', company_id=company_id), 'Notices', 'megaphone') }}
+    </div>
+    <div class="side-group">
+      <p class="side-heading">Stock and quality</p>
+      {{ nav_link(url_for('operations.dashboard', company_id=company_id), 'Operations', 'boxes') }}
+      {{ nav_link(url_for('quality.dashboard', company_id=company_id), 'Quality', 'shield-check') }}
+    </div>
+    <div class="side-group">
+      <p class="side-heading">Records</p>
+      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='items'), 'Items', 'tag') }}
+      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='variants'), 'Variants', 'layers') }}
+      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='units'), 'Units', 'ruler') }}
+      {{ nav_link(url_for('master.dashboard', company_id=company_id), 'Master data', 'database') }}
+      {{ nav_link(url_for('evidence.listing', company_id=company_id), 'Evidence & reports', 'folder-lock') }}
+    </div>
+    <div class="side-group">
+      <p class="side-heading">Administration</p>
+      {% if can_access_company(company_id) %}{{ nav_link(url_for('access.dashboard', company_id=company_id), 'Company access', 'users') }}{% endif %}
+      {{ nav_link(url_for('security.index'), 'Account security', 'key-round') }}
+    </div>
+  </nav>
+  {% if current_user.is_authenticated %}
+  <div class="profile-card">
+    <span class="avatar" aria-hidden="true">{{ (current_user.display_name or 'U')[:1] }}</span>
+    <span class="profile-text"><strong>{{ current_user.display_name }}</strong><a href="{{ url_for('sessions.listing') }}">Your sessions</a></span>
+    <form method="post" action="{{ url_for('auth.logout') }}">{{ logout_form.hidden_tag() }}<button class="icon-button" type="submit" title="Sign out" aria-label="Sign out">{{ icon('log-out') }}</button></form>
   </div>
-  <div class="side-group">
-    <p class="side-heading">Stock and quality</p>
-    {{ nav_link(url_for('operations.dashboard', company_id=company_id), 'Operations') }}
-    {{ nav_link(url_for('quality.dashboard', company_id=company_id), 'Quality') }}
-  </div>
-  <div class="side-group">
-    <p class="side-heading">Records</p>
-    {% for section in ['items', 'variants', 'units'] %}{{ nav_link(url_for('catalog.listing', company_id=company_id, kind=section), section|capitalize) }}{% endfor %}
-    {{ nav_link(url_for('master.dashboard', company_id=company_id), 'Master data') }}
-    {{ nav_link(url_for('evidence.listing', company_id=company_id), 'Evidence & reports') }}
-  </div>
-  <div class="side-group">
-    <p class="side-heading">Administration</p>
-    {% if can_access_company(company_id) %}{{ nav_link(url_for('access.dashboard', company_id=company_id), 'Company access') }}{% endif %}
-    {{ nav_link(url_for('security.index'), 'Account security') }}
-  </div>
-</nav>
+  {% endif %}
+</aside>
+<div class="sidebar-backdrop" data-sidebar-close hidden></div>
 {% endif %}
-<main id="main" class="content">
-{% if config.get('SCANNER_MODE') == 'unconfigured' %}<p class="notice-strip" role="note">University demonstration deployment: malware scanning is not configured, so every uploaded evidence file stays quarantined and cannot be downloaded or accepted.</p>{% endif %}
-{% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert alert-{{ category }}" role="status">{{ message }}</div>{% endfor %}{% endwith %}
-{% block content %}{% endblock %}
-<footer class="page-footer">{% block workspace_footer %}{{ 'Development' if config.APP_ENV != 'production' else 'Business' }} workspace. Quantities and trace scope show recorded evidence, not confirmed defects.{% endblock %}</footer>
-</main>
+<div class="main-column">
+  <header class="topbar">
+    {% if company is defined %}
+    <button class="icon-button menu-button" type="button" data-sidebar-open aria-controls="sidebar" aria-label="Open menu">{{ icon('menu') }}</button>
+    <div class="greeting">
+      <span>Welcome{% if current_user.is_authenticated %}, {{ (current_user.display_name or '').split(' ')[0] }}{% endif %}</span>
+      <small>{{ today_text() }}</small>
+    </div>
+    <form class="topbar-search" role="search" method="get" action="{{ url_for('overview.search', company_id=company_id) }}">
+      {{ icon('search') }}
+      <label class="visually-hidden" for="global-search">Search lots, investigations, items and partners</label>
+      <input id="global-search" name="q" type="search" placeholder="Search lots, investigations, items…" value="{{ query if query is defined else '' }}" autocomplete="off">
+    </form>
+    {% else %}
+    <a class="brand" href="{{ url_for('catalog.companies') }}"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7.4l5.1 5.1v7.4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5z"/><circle cx="7" cy="7" r="1.6"/></svg></span>RecallTrace</a>
+    <span class="topbar-spacer"></span>
+    {% if current_user.is_authenticated %}<form class="topbar-user" method="post" action="{{ url_for('auth.logout') }}">{{ logout_form.hidden_tag() }}<a href="{{ url_for('sessions.listing') }}">Your sessions</a><button class="btn btn-sm btn-outline-secondary">Sign out</button></form>{% endif %}
+    {% endif %}
+    {% if config.APP_ENV != 'preview' %}<button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch between dark and light theme" title="Switch theme"><span class="theme-dark-icon">{{ icon('sun') }}</span><span class="theme-light-icon">{{ icon('moon') }}</span></button>{% endif %}
+  </header>
+  <main id="main" class="content">
+    {% if config.get('SCANNER_MODE') == 'unconfigured' %}<p class="notice-strip" role="note">University demonstration deployment: malware scanning is not configured, so every uploaded evidence file stays quarantined and cannot be downloaded or accepted.</p>{% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert alert-{{ category }}" role="status">{{ message }}</div>{% endfor %}{% endwith %}
+    {% block content %}{% endblock %}
+    <footer class="page-footer">{% block workspace_footer %}{{ 'Development' if config.APP_ENV != 'production' else 'Business' }} workspace. Quantities and trace scope show recorded evidence, not confirmed defects.{% endblock %}</footer>
+  </main>
 </div>
 </body></html>

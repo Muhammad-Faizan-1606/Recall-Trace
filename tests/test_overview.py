@@ -61,3 +61,27 @@ def test_dates_are_readable():
     assert when_text(moment) == "4 Nov 2026, 22:06 UTC"
     assert day_text(moment) == "4 Nov 2026"
     assert when_text(None) is None
+
+
+def test_search_finds_company_records_and_stays_scoped(app, records, client):
+    aurora, beacon = records["companies"]["aurora"], records["companies"]["beacon"]
+    grant(aurora)
+    with signed(app, aurora):
+        seed_c10(aurora)
+    login(client)
+    page = client.get(f"/companies/{aurora}/search", query_string={"q": "c10"}).text
+    assert "Suspect C10 switch lot" in page and "C10-SUPPLIER" in page
+    assert "C10-S1" in page
+    # Wildcards are literal: "%" alone must not match everything.
+    assert (
+        "Nothing matches"
+        in client.get(f"/companies/{aurora}/search", query_string={"q": "%%"}).text
+    )
+    assert client.get(f"/companies/{beacon}/search", query_string={"q": "c10"}).status_code == 404
+
+
+def test_shell_has_search_theme_toggle_and_menu(records, client):
+    login(client)
+    page = client.get(f"/companies/{records['companies']['aurora']}/overview").text
+    for marker in ('id="global-search"', "data-theme-toggle", "data-sidebar-open", "#i-search"):
+        assert marker in page

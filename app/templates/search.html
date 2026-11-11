@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Search · {{ company.name }}{% endblock %}
+{% block content %}
+<h1>Search</h1>
+{% if not query %}<p class="page-intro">Type at least two characters in the search box above to find investigations, lots, items, partners, quality issues and shipments.</p>
+{% elif query|length < 2 %}<p class="page-intro">Type at least two characters.</p>
+{% elif not groups %}<p class="page-intro">Nothing matches “{{ query }}”. Try a lot code such as C10, a product name or a reference.</p>
+{% else %}<p class="page-intro">{{ total }} result{{ 's' if total != 1 }} for “{{ query }}”.</p>
+<div class="overview-grid">
+  {% for title, items in groups %}
+  <section class="panel" aria-labelledby="group-{{ loop.index }}">
+    <div class="panel-head"><h2 id="group-{{ loop.index }}">{{ title }}</h2><span class="count-pill">{{ items|length }}</span></div>
+    <ul class="row-list">{% for label, meta, href in items %}
+      <li><a class="row-title" href="{{ href }}">{{ label }}</a><span class="row-meta">{{ meta }}</span></li>
+    {% endfor %}</ul>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

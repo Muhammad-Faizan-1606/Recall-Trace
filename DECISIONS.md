@@ -164,3 +164,13 @@ The VM runs a standard-library HTTP service in front of the local ClamAV socket,
 ## 11 November 2026 — Operating-system security updates in images
 
 CI's Trivy scan began failing after new Alpine advisories (zlib in both images; krb5-libs and libxslt in the database-tools image), all with fixed packages available. Python dependencies had no findings. Both images keep their digest-pinned bases and now run `apk upgrade --no-cache` at build time, so published distribution fixes are applied without waiting for a new base digest. No findings are suppressed.
+
+## 11 November 2026 — Dark console redesign
+
+Owner request: a more engaging, easy-to-navigate interface inspired by dark product dashboards (teal-glow and violet-glass task boards) and the Tranquil site (near-black, DM Sans-style headlines, pill buttons). Implemented as a dark-first theme with a light theme toggle (saved per browser, applied before paint by a same-origin script, so the strict CSP is unchanged):
+
+- DM Sans (400–700) bundled locally under the SIL Open Font License; IBM Plex removed.
+- Lucide icons (ISC) as a 28-symbol local SVG sprite.
+- App shell: fixed sidebar with icons, company switcher and profile card with sign-out; sticky top bar with greeting, date, global search (press "/" to focus) and the theme toggle; on phones the sidebar becomes a slide-out drawer (Escape closes it).
+- New company-scoped search across investigations, lots, items, partners, quality issues and shipments, with LIKE wildcards escaped.
+- Design tokens for both themes; semantic status colours unchanged in meaning. The read-only preview omits the theme toggle because its pages must expose only disabled buttons.
