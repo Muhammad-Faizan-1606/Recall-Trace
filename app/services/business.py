@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import Organization
-from app.policies import membership_for, require
+from app.policies import forget_authorization, membership_for, require
 
 
 class DomainError(ValueError):
@@ -31,6 +31,8 @@ def company_lock(company_id):
     This deliberately favors a simple, provable locking protocol over throughput.
     Call before reading operational state, and hold until the transaction commits.
     """
+    # Authorization checked before this lock must be re-read under it.
+    forget_authorization()
     row = db.session.scalar(
         select(Organization)
         .where(Organization.id == company_id)

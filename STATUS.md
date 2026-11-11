@@ -1,5 +1,9 @@
 # RecallTrace implementation status
 
+## Request performance — 11 November 2026
+
+See DECISIONS.md for the measured baseline and design. Locally, queries per signed-in page fell from 14 to 9 (investigations), 22 to 13 (operations) and 16 to 11 (quality); static requests make zero Redis calls. New `tests/test_performance.py` covers versioned immutable static caching without cookies, private pages with Server-Timing, the once-a-minute activity write, and authorization being re-read under the company lock. Full suite: **483 passed, 16 failed** (the PostgreSQL-17-only privilege tests); Ruff and Bandit clean. Live before/after numbers are recorded below once deployed.
+
 ## Interface redesign and quantity formatting — 4 November 2026
 
 New app shell and design system (see DECISIONS.md): grouped sidebar navigation, locally bundled IBM Plex Sans, quality-tag status colours, compact tables, a sign-in page that explains the product, and quantities without storage padding. `app/presentation.py` provides the `qty` and `tag` filters (tags built with auto-escaping `Markup.format`).

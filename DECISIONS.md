@@ -143,3 +143,14 @@ Owner request: a more professional, user-friendly interface that does not look g
 - Quantities display without storage padding (50.000000 → 50) through a `qty` filter; stored Decimal values are unchanged.
 
 Templates keep every link name and flow, so the change is presentational. The separate read-only preview keeps its own stylesheet.
+
+## 11 November 2026 — Request performance
+
+Measured on the live deployment before the change: about 8.7 s on a cold start, about 1.0–1.2 s for a warm sign-in page (0.43 s of that network), static files served through the Python function with `Cache-Control: no-store`, and 14–22 database queries per signed-in page.
+
+- Static assets get content-hashed URLs and a one-year immutable policy so Vercel's CDN serves them. Static requests skip the server-side session and the rate limiter, so they make no Redis or database call and set no cookie. Pages keep `no-store`.
+- Every response carries `Server-Timing` (database time and query count, connection time, Redis time and calls, total). Requests over one second are logged with that breakdown. Only durations and counts are exposed.
+- Session activity ("last seen") is written at most once a minute. The per-request SELECT still enforces revocation, expiry, account version and the 30-minute idle limit, so idle expiry keeps one-minute precision.
+- Membership and permission codes are read once per request and cached in the request only. The cache is discarded when the company lock is taken and on every commit or rollback, so locked mutations still re-check authorization under the lock.
+- Lot names are cached per product variant within a request (removes an N+1).
+- Vercel uses a small bounded SQLAlchemy pool (2 + 3 overflow, pre-ping, 120 s recycle) through the Supabase transaction pooler instead of a new TLS connection per request, with Fluid compute enabled so warm instances are reused. Alembic loads only outside Vercel request functions.

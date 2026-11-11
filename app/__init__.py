@@ -9,7 +9,10 @@ from redis.exceptions import RedisError
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.extensions import csrf, db, limiter, login_manager, migrate, sessions
+from app.extensions import csrf, db, limiter, login_manager, sessions
+from app.performance import is_static_path
+
+HEARTBEAT_SECONDS = 60
 
 
 def create_app(config=None):
@@ -57,7 +60,11 @@ def create_app(config=None):
             app.config["SESSION_REDIS_URL"], **app.config.get("SESSION_REDIS_OPTIONS", {})
         )
     db.init_app(app)
-    migrate.init_app(app, db)
+    if not os.environ.get("VERCEL"):
+        # Request functions never run migrations; skipping Alembic shortens cold starts.
+        from flask_migrate import Migrate
+
+        Migrate(app, db)
     sessions.init_app(app)
     csrf.init_app(app)
     login_manager.init_app(app)
@@ -88,6 +95,11 @@ def create_app(config=None):
         )
         if row is None:
             return None
+        # The SELECT above already enforced revocation, expiry, account version and the
+        # 30-minute idle limit. Record activity at most once a minute: idle expiry keeps
+        # one-minute precision without a write and commit on every page view.
+        if row.last_seen_at > now() - timedelta(seconds=HEARTBEAT_SECONDS):
+            return user
         # Concurrent browser requests must not conflict on the registry's ORM version.
         touched = db.session.execute(
             update(AuthSession)
@@ -117,7 +129,9 @@ def create_app(config=None):
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
-        response.headers["Cache-Control"] = "no-store"
+        if not is_static_path(app, request.path):
+            # Pages carry private data; static assets get a CDN policy in app.performance.
+            response.headers["Cache-Control"] = "no-store"
         response.headers["X-Request-ID"] = str(getattr(g, "correlation_id", uuid.uuid4()))
         if app.config["APP_ENV"] == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
@@ -182,6 +196,9 @@ def create_app(config=None):
     from app.presentation import register as register_presentation
 
     register_presentation(app)
+    from app.performance import register as register_performance
+
+    register_performance(app, db, limiter)
     from app.blueprints.master import bp as master_bp
 
     app.register_blueprint(master_bp)

@@ -7,7 +7,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from redis.backoff import NoBackoff
 from redis.retry import Retry
 from sqlalchemy.engine import make_url
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import QueuePool
 
 from app import create_app
 
@@ -108,10 +108,17 @@ def create_vercel_app():
             "Vercel requires STORAGE_BACKEND=supabase; local files are not persistent."
         )
     overrides = {
-        # A warm function must not retain idle PostgreSQL connections. Use the
-        # provider's verified pooler and leave its connection budget explicit.
+        # Warm function instances are reused, so keep a small bounded pool instead of
+        # opening a new TLS connection to the database for every request. The
+        # Supabase transaction pooler multiplexes these; pre-ping replaces a
+        # connection the pooler closed, and recycle bounds how long one is held.
         "SQLALCHEMY_ENGINE_OPTIONS": {
-            "poolclass": NullPool,
+            "poolclass": QueuePool,
+            "pool_size": 2,
+            "max_overflow": 3,
+            "pool_timeout": 5,
+            "pool_recycle": 120,
+            "pool_pre_ping": True,
             "connect_args": {"connect_timeout": 5, "prepare_threshold": None},
         },
         "SESSION_REDIS_OPTIONS": _redis_options(),

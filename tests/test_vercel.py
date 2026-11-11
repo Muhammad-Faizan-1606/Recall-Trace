@@ -13,7 +13,7 @@ from redis import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import QueuePool
 
 from app.extensions import csrf, db, limiter
 from app.vercel import FILE_LIMIT, create_vercel_app, database_url, redis_url
@@ -124,7 +124,9 @@ def test_vercel_refuses_ephemeral_evidence_even_with_private_directory(
 def test_vercel_uses_external_state_and_bounded_verified_clients(deployment):
     app = create_vercel_app()
     with app.app_context():
-        assert isinstance(db.engine.pool, NullPool)
+        assert isinstance(db.engine.pool, QueuePool)
+        assert db.engine.pool.size() == 2 and db.engine.pool._max_overflow == 3
+        assert db.engine.pool._pre_ping and db.engine.pool._recycle == 120
         for client in (app.config["SESSION_REDIS"], limiter.limiter.storage.storage):
             options = client.connection_pool.connection_kwargs
             assert options["socket_connect_timeout"] == 3

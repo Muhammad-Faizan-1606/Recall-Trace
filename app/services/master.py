@@ -118,9 +118,11 @@ def field_label(field):
 
 def lot_name(lot):
     """'L1 — LED desk lamp': a lot code alone means nothing to a first-time reader."""
-    cache = g.setdefault("_lot_names", {})
-    if lot.id not in cache:
-        item_name = db.session.scalar(
+    # Lots of one product variant share a name, so look each variant up once per request.
+    cache = g.setdefault("_variant_item_names", {})
+    key = (lot.organization_id, lot.variant_id)
+    if key not in cache:
+        cache[key] = db.session.scalar(
             select(Item.name)
             .join(ItemVariant, ItemVariant.item_id == Item.id)
             .where(
@@ -129,8 +131,8 @@ def lot_name(lot):
                 Item.organization_id == lot.organization_id,
             )
         )
-        cache[lot.id] = f"{lot.lot_code} — {item_name}" if item_name else lot.lot_code
-    return cache[lot.id]
+    item_name = cache[key]
+    return f"{lot.lot_code} — {item_name}" if item_name else lot.lot_code
 
 
 def label(row):
