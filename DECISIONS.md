@@ -160,3 +160,7 @@ Measured on the live deployment before the change: about 8.7 s on a cold start, 
 The owner has Azure for Students credit. ClamAV needs about 1.2 GB of RAM for its signatures, so the scanner runs on a B1ms-class VM (2 GB) rather than the free 1 GB size or a serverless function. Microsoft Defender malware scanning was not used because it scans only Azure Storage, and evidence lives in Supabase storage.
 
 The VM runs a standard-library HTTP service in front of the local ClamAV socket, with Caddy providing automatic HTTPS. Because the endpoint is public and Vercel has no fixed outbound IP to allowlist, the service requires a bearer token (`SCANNER_TOKEN`, at least 32 random characters, compared in constant time). Production now refuses an HTTPS scanner endpoint without a strong token. Any non-definite outcome (wrong token, ClamAV down, malformed reply) is reported as unavailable, so files stay quarantined. The deploy workflow enables scanning only when both `SCANNER_ENDPOINT` and `SCANNER_TOKEN` secrets exist; otherwise it keeps the explicit `SCANNER_MODE=unconfigured` opt-in.
+
+## 11 November 2026 — Operating-system security updates in images
+
+CI's Trivy scan began failing after new Alpine advisories (zlib in both images; krb5-libs and libxslt in the database-tools image), all with fixed packages available. Python dependencies had no findings. Both images keep their digest-pinned bases and now run `apk upgrade --no-cache` at build time, so published distribution fixes are applied without waiting for a new base digest. No findings are suppressed.

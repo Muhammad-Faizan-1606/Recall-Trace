@@ -4,14 +4,18 @@
 FROM postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b AS database-tools
 # This stage executes clients directly as postgres, never the database daemon or
 # its root-to-postgres privilege helper.
-RUN rm -f /usr/local/bin/gosu /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-ensure-initdb.sh
+RUN rm -f /usr/local/bin/gosu /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-ensure-initdb.sh \
+    # Apply Alpine security fixes published after the pinned base image (e.g. zlib, krb5).
+    && apk upgrade --no-cache
 USER postgres
 ENTRYPOINT []
 CMD ["pg_dump", "--help"]
 
 FROM python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8 AS web
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
-RUN addgroup -g 10001 recalltrace && adduser -D -u 10001 -G recalltrace recalltrace
+# Apply Alpine security fixes published after the pinned base image (e.g. zlib).
+RUN apk upgrade --no-cache \
+    && addgroup -g 10001 recalltrace && adduser -D -u 10001 -G recalltrace recalltrace
 WORKDIR /app
 COPY requirements.txt ./
 RUN --mount=type=secret,id=proxy_ca \
