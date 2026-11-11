@@ -1,16 +1,40 @@
 {% extends 'base.html' %}
 {% block title %}Overview · {{ company.name }}{% endblock %}
 {% block content %}
+{% set lead = cases[0] if cases else None %}
 <div class="page-head">
   <div>
     <h1>Overview</h1>
     <p>What needs attention in {{ company.name }} right now.</p>
   </div>
-  <div class="page-actions">
-    <a class="btn btn-outline-secondary" href="{{ url_for('quality.issue_form', company_id=company_id) }}">Report quality issue</a>
-    <a class="btn btn-primary" href="{{ url_for('recall.editor', company_id=company_id) }}">{{ icon('plus') }}New investigation</a>
-  </div>
 </div>
+
+<section class="feature" aria-labelledby="feature-title">
+  <div class="feature-body">
+    {% if lead %}
+      <p class="feature-label">{{ open_cases }} open investigation{{ 's' if open_cases != 1 }} · next up</p>
+      <h2 id="feature-title">{{ lead.title }}</h2>
+      <p>{% if lead.status in ['draft', 'rejected'] %}{{ lead.reference }} is a {{ lead.status }}. Confirm the suspect lots, compute a trace, then submit it for independent approval.
+      {% elif lead.status == 'submitted' %}{{ lead.reference }} is waiting for a second reviewer to approve the scope and place holds.
+      {% elif lead.status == 'approved' %}{{ lead.reference }} is approved. Notify customers, record verified recoveries and verify tasks before closing.
+      {% else %}{{ lead.reference }} is {{ lead.status|replace('_', ' ') }}.{% endif %}</p>
+      <div class="page-actions">
+        <a class="btn btn-primary" href="{{ url_for('recall.detail', company_id=company_id, case_id=lead.id) }}">Open investigation</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('recall.editor', company_id=company_id) }}">{{ icon('plus') }}New investigation</a>
+      </div>
+    {% else %}
+      <p class="feature-label">All clear</p>
+      <h2 id="feature-title">No open investigations</h2>
+      <p>When a supplier or production lot is suspected, start an investigation and RecallTrace will follow it to every product, stock location and customer it reached.</p>
+      <div class="page-actions">
+        <a class="btn btn-primary" href="{{ url_for('recall.editor', company_id=company_id) }}">{{ icon('plus') }}New investigation</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('quality.issue_form', company_id=company_id) }}">Report quality issue</a>
+      </div>
+    {% endif %}
+  </div>
+  <img class="feature-art" src="{{ url_for('static', filename='brand/recalltrace-mark-dark.webp') }}" width="192" height="170" alt="">
+  <svg class="feature-path" viewBox="0 0 420 160" aria-hidden="true" focusable="false"><path d="M8 150 C 120 150, 150 40, 260 70 S 380 120, 400 30"/><circle cx="400" cy="30" r="4"/></svg>
+</section>
 
 <dl class="facts">
   <div class="{{ 'is-alert' if open_cases }}"><dt>Open investigations</dt><dd><a href="{{ url_for('recall.dashboard', company_id=company_id) }}">{{ open_cases }}</a></dd></div>
@@ -38,7 +62,7 @@
         <thead><tr><th scope="col">Lot</th><th scope="col">Held since</th></tr></thead>
         <tbody>{% for hold, lot in holds %}
           <tr><td><a href="{{ url_for('quality.hold', company_id=company_id, hold_id=hold.id) }}">{{ lot_name(lot) }}</a></td><td class="fine-print">{{ hold.placed_at|when }}</td></tr>
-        {% else %}<tr><td colspan="2" class="empty">No lots are on hold. Approving an investigation places holds on every affected lot.</td></tr>{% endfor %}</tbody>
+        {% else %}<tr><td colspan="2" class="p-0"><div class="empty-state"><img class="logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-mark.webp') }}" width="192" height="170" alt=""><img class="logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-mark-dark.webp') }}" width="192" height="170" alt=""><p><strong>No lots are on hold.</strong>Approving an investigation places holds on every affected lot.</p></div></td></tr>{% endfor %}</tbody>
       </table></div>
     </section>
   </div>
@@ -50,7 +74,7 @@
         <li><a class="row-title" href="{{ url_for('recall.detail', company_id=company_id, case_id=case.id) }}">{{ task.title }}</a>
           <span class="row-meta">{{ case.reference }}{{ ' · mandatory' if task.mandatory }}</span></li>
       {% endfor %}</ul>
-      {% else %}<p class="empty">Nothing assigned to you.</p>{% endif %}
+      {% else %}<p class="empty">Nothing assigned to you. Tasks from investigations appear here.</p>{% endif %}
     </section>
 
     <section class="panel" aria-labelledby="activity-heading">

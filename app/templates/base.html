@@ -13,7 +13,7 @@
   {% block extra_head %}{% endblock %}
 </head>
 {% set sprite = url_for('static', filename='vendor/icons/sprite.svg') %}
-{% macro brand_logo() %}<a class="brand" href="{{ url_for('catalog.companies') }}"><img class="logo logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-logo.webp') }}" width="520" height="156" alt="RecallTrace"><img class="logo logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-logo-dark.webp') }}" width="520" height="156" alt="RecallTrace"></a>{% endmacro %}
+{% macro brand_logo(on_navy=False) %}<a class="brand" href="{{ url_for('catalog.companies') }}">{% if on_navy %}<img class="logo" src="{{ url_for('static', filename='brand/recalltrace-logo-dark.webp') }}" width="520" height="156" alt="RecallTrace">{% else %}<img class="logo logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-logo.webp') }}" width="520" height="156" alt="RecallTrace"><img class="logo logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-logo-dark.webp') }}" width="520" height="156" alt="RecallTrace">{% endif %}</a>{% endmacro %}
 {% macro icon(name) %}<svg class="icon" aria-hidden="true" focusable="false"><use href="{{ sprite }}#i-{{ name }}"></use></svg>{% endmacro %}
 {% macro nav_link(href, text, glyph, match=None) %}{% set prefix = match or href %}{% set current = request.path == href or request.path.startswith(prefix ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
 {% macro brand_mark(href) %}<a class="topbar-mark" href="{{ href }}" aria-label="RecallTrace home"><img class="logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-mark.webp') }}" width="192" height="170" alt=""><img class="logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-mark-dark.webp') }}" width="192" height="170" alt=""></a>{% endmacro %}
@@ -22,7 +22,7 @@
 {% if company is defined %}
 <aside class="sidebar" id="sidebar" aria-label="Workspace">
   <div class="sidebar-top">
-    {{ brand_logo() }}
+    {{ brand_logo(true) }}
     <button class="icon-button sidebar-close" type="button" data-sidebar-close aria-label="Close menu">{{ icon('x') }}</button>
   </div>
   <a class="company-chip" href="{{ url_for('catalog.companies') }}" title="Switch company"><span class="company-initial" aria-hidden="true">{{ company.name[:1] }}</span><span><strong>{{ company.name }}</strong><small>Switch company</small></span></a>

@@ -197,3 +197,15 @@ Owner feedback: the dark console still read as generic AI-generated UI and was n
 ## 11 November 2026 — Owner-supplied logo
 
 The owner supplied the RecallTrace logo: a running coral "R" with a mint trace path and a location pin, beside a navy and coral wordmark. It was cut from the supplied image with a colour-preserving matte (no redrawing) and served as local WebP assets under `app/static/brand/`. A dark-theme copy swaps only the navy ink for a light ink so the wordmark stays readable. It is used in the sidebar, the sign-in page and the phone top bar (mark only); the 32px favicon and the 180px home-screen icon use the mark on the logo's cream background. The logo's coral is close to the red used for failed and severe status, so it remains a brand colour only. At the owner's request the interface accent now matches the logo's navy (#11263f) for buttons, the current menu item, tabs, focus rings and progress; links use a slightly bluer navy (#22497a) so they stay distinct from body text. The dark theme inverts this: light navy buttons with logo-navy text.
+
+## 11 November 2026 — Brand layer for a premium feel
+
+Owner feedback: the light design felt dull. Personality now comes from the brand rather than generic effects (still no glow, gradients, glass or hero-metric tiles):
+
+- The canvas uses the logo's warm cream, and white cards get a 1–2px shadow instead of a hairline alone.
+- The sidebar is the logo's navy, with the light-ink logo, a coral company initial and a mint icon on the current item.
+- Each page has one navy feature card that carries the next action. On the Overview it names the next investigation and what to do with it, beside the running-R mascot and a dotted mint trace path ending in a coral pin. On an investigation it is the Next step panel.
+- Progress shows completed steps in mint and the current step as a coral dot. Empty states show the mascot with a short explanation.
+- Larger titles (32px) and display-face figures in the facts line. Coral and mint stay decorative and never mean status.
+- One entrance animation as the page loads (6px rise, 320ms, staggered), disabled under reduced motion. Buttons move 1px when pressed.
+- Sign-in uses a split layout: a navy story panel with the logo and the trace example, beside the form.
