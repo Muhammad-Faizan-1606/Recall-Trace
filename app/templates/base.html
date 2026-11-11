@@ -4,6 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>{% block title %}RecallTrace{% endblock %}</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='brand/favicon-32.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='brand/apple-touch-icon.png') }}">
   <script src="{{ url_for('static', filename='theme.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
@@ -11,14 +13,16 @@
   {% block extra_head %}{% endblock %}
 </head>
 {% set sprite = url_for('static', filename='vendor/icons/sprite.svg') %}
+{% macro brand_logo() %}<a class="brand" href="{{ url_for('catalog.companies') }}"><img class="logo logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-logo.webp') }}" width="520" height="156" alt="RecallTrace"><img class="logo logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-logo-dark.webp') }}" width="520" height="156" alt="RecallTrace"></a>{% endmacro %}
 {% macro icon(name) %}<svg class="icon" aria-hidden="true" focusable="false"><use href="{{ sprite }}#i-{{ name }}"></use></svg>{% endmacro %}
 {% macro nav_link(href, text, glyph, match=None) %}{% set prefix = match or href %}{% set current = request.path == href or request.path.startswith(prefix ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
-<body class="{{ 'has-sidebar' if company is defined else 'no-sidebar' }}">
+{% macro brand_mark(href) %}<a class="topbar-mark" href="{{ href }}" aria-label="RecallTrace home"><img class="logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-mark.webp') }}" width="192" height="170" alt=""><img class="logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-mark-dark.webp') }}" width="192" height="170" alt=""></a>{% endmacro %}
+<body class="{{ 'has-sidebar' if company is defined else 'no-sidebar' }}{{ ' is-signin' if request and request.endpoint == 'auth.login' }}">
 <a class="visually-hidden-focusable skip-link" href="#main">Skip to content</a>
 {% if company is defined %}
 <aside class="sidebar" id="sidebar" aria-label="Workspace">
   <div class="sidebar-top">
-    <a class="brand" href="{{ url_for('catalog.companies') }}"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7.4l5.1 5.1v7.4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5z"/><circle cx="7" cy="7" r="1.6"/></svg></span>RecallTrace</a>
+    {{ brand_logo() }}
     <button class="icon-button sidebar-close" type="button" data-sidebar-close aria-label="Close menu">{{ icon('x') }}</button>
   </div>
   <a class="company-chip" href="{{ url_for('catalog.companies') }}" title="Switch company"><span class="company-initial" aria-hidden="true">{{ company.name[:1] }}</span><span><strong>{{ company.name }}</strong><small>Switch company</small></span></a>
@@ -62,6 +66,7 @@
   <header class="topbar">
     {% if company is defined %}
     <button class="icon-button menu-button" type="button" data-sidebar-open aria-controls="sidebar" aria-label="Open menu">{{ icon('menu') }}</button>
+    {{ brand_mark(url_for('overview.overview', company_id=company_id)) }}
     {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
     <ol class="crumbs" aria-label="You are here">
       <li><a href="{{ url_for('overview.overview', company_id=company_id) }}">{{ company.name }}</a></li>
@@ -73,7 +78,7 @@
       <input id="global-search" name="q" type="search" placeholder="Search lots, investigations, items" value="{{ query if query is defined else '' }}" autocomplete="off"><kbd aria-hidden="true">/</kbd>
     </form>
     {% else %}
-    <a class="brand" href="{{ url_for('catalog.companies') }}"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7.4l5.1 5.1v7.4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5z"/><circle cx="7" cy="7" r="1.6"/></svg></span>RecallTrace</a>
+    {{ brand_logo() }}
     <span class="topbar-spacer"></span>
     {% if current_user.is_authenticated %}<form class="topbar-user" method="post" action="{{ url_for('auth.logout') }}">{{ logout_form.hidden_tag() }}<a href="{{ url_for('sessions.listing') }}">Your sessions</a><button class="btn btn-sm btn-outline-secondary">Sign out</button></form>{% endif %}
     {% endif %}
