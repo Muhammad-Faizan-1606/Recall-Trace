@@ -1,5 +1,9 @@
 # RecallTrace implementation status
 
+## Live malware scanning — 11 November 2026
+
+Azure VM `recalltrace-scan` (Ubuntu 24.04, Standard_B1ms, 2 GB) in India South Central, created after Central India and UAE North had no B1ms capacity for this subscription. Only ports 22, 80 and 443 are open; SSH is key-only. `operations/scanner/setup.sh` installed ClamAV, the token-protected service and Caddy HTTPS. Verified on the VM over HTTPS: clean file `clean`, EICAR test string `infected`, wrong token HTTP 401, about 1.45 GB of 1.9 GB memory used. Deploy run 43003273817 reported "Malware scanning: enabled" and readiness HTTP 200; the quarantine banner is gone from the live site. The owner starts and stops the VM in the Azure portal; while it is stopped, uploads stay quarantined. Azure's built-in auto-shutdown is not offered in this region, and the self-deallocation alternative (VM-scoped role assignment) awaits the owner's approval.
+
 ## Malware scanner prepared — 11 November 2026
 
 Added `operations/scanner/` (service, one-command Ubuntu setup with ClamAV and Caddy HTTPS, README) and bearer-token support in the app (`SCANNER_TOKEN`, required in production for an HTTPS scanner). The deploy workflow enables real scanning when the `SCANNER_ENDPOINT` and `SCANNER_TOKEN` secrets exist. Tests: `tests/test_scanner_service.py` exercises the service against a fake ClamAV socket (clean, infected, wrong or missing token, oversized, ClamAV outage, weak token); evidence and configuration tests cover sending and requiring the token. **Not yet done:** the Azure VM itself, so the live site still runs with scanning unconfigured.
