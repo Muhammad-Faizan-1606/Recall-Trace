@@ -204,11 +204,16 @@ def scan_bytes(data):
     if endpoint:
         if urlparse(endpoint).scheme != "https":
             return "unavailable"
+        headers = {"Content-Type": "application/octet-stream"}
+        token = current_app.config.get("SCANNER_TOKEN")
+        if token:
+            # The scanner accepts files only from holders of this shared secret.
+            headers["Authorization"] = f"Bearer {token}"
         try:
             response = requests.post(
                 endpoint,
                 data=data,
-                headers={"Content-Type": "application/octet-stream"},
+                headers=headers,
                 timeout=(3, 30),
                 allow_redirects=False,
             )

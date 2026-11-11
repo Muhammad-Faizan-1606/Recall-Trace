@@ -54,6 +54,7 @@ def deployment(monkeypatch, tmp_path):
         "SUPABASE_STORAGE_BUCKET": "recalltrace-private",
         "SUPABASE_SERVICE_KEY": "synthetic-storage-key-7b4c2d1e9f6a",
         "SCANNER_ENDPOINT": "https://scanner.example.test/scan",
+        "SCANNER_TOKEN": "synthetic-scanner-token-7f3a9c2e5b1d8f4a6c0e",
         "MAIL_MODE": "resend",
         "MAIL_API_KEY": "synthetic-mail-key-4c7d2e9f1a",
         "MAIL_FROM": "RecallTrace <app@sender.example>",

@@ -94,6 +94,24 @@ def test_malformed_scanner_json_fails_closed(app, monkeypatch, payload):
     assert evidence.scan_bytes(PDF) == "unavailable"
 
 
+def test_scanner_token_is_sent_only_in_the_authorization_header(app, monkeypatch):
+    monkeypatch.setitem(app.config, "SCANNER_ENDPOINT", "https://scanner.example.test/scan")
+    monkeypatch.setitem(app.config, "SCANNER_TOKEN", "synthetic-scanner-token-7f3a9c2e5b1d8f4a6c0e")
+    calls = []
+
+    def capture(url, **kwargs):
+        calls.append((url, kwargs))
+        return response(payload={"status": "clean"})
+
+    monkeypatch.setattr(evidence.requests, "post", capture)
+    assert evidence.scan_bytes(PDF) == "clean"
+    url, kwargs = calls[0]
+    assert kwargs["headers"]["Authorization"] == (
+        "Bearer synthetic-scanner-token-7f3a9c2e5b1d8f4a6c0e"
+    )
+    assert "synthetic-scanner-token" not in url
+
+
 def test_scanner_redirect_never_follows_private_payload(app, monkeypatch):
     monkeypatch.setitem(app.config, "SCANNER_ENDPOINT", "https://scanner.example.test/scan")
     calls = []

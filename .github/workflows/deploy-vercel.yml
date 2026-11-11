@@ -134,7 +134,18 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           MAIL_API_KEY: ${{ secrets.MAIL_API_KEY }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          SCANNER_ENDPOINT: ${{ secrets.SCANNER_ENDPOINT }}
+          SCANNER_TOKEN: ${{ secrets.SCANNER_TOKEN }}
         run: |
+          # Real malware scanning once both scanner secrets exist; until then uploads
+          # stay quarantined under the explicit demonstration opt-in.
+          scanner_flag=(-e SCANNER_MODE=unconfigured)
+          if [ -n "$SCANNER_ENDPOINT" ] && [ -n "$SCANNER_TOKEN" ]; then
+            scanner_flag=(-e "SCANNER_ENDPOINT=$SCANNER_ENDPOINT" -e "SCANNER_TOKEN=$SCANNER_TOKEN")
+            echo "Malware scanning: enabled"
+          else
+            echo "Malware scanning: not configured (uploads stay quarantined)"
+          fi
           # Exact project domains for host validation (all belong to this project).
           project=$(jq -r .projectId .vercel/project.json)
           org=$(jq -r .orgId .vercel/project.json)
@@ -144,9 +155,9 @@ jobs:
           echo "Allowed hosts: ${hosts:-<from VERCEL_PROJECT_PRODUCTION_URL>}"
           host_flag=()
           if [ -n "$hosts" ]; then host_flag=(-e "ALLOWED_HOSTS=$hosts"); fi
-          url=$(npx --yes "$VERCEL_CLI" deploy --prod --yes --token "$VERCEL_TOKEN" "${host_flag[@]}" \
+          url=$(npx --yes "$VERCEL_CLI" deploy --prod --yes --token "$VERCEL_TOKEN" "${host_flag[@]}" "${scanner_flag[@]}" \
             -e APP_ENV=production -e MFA_KEY_VERSION=v1 -e STORAGE_BACKEND=supabase \
-            -e SCANNER_MODE=unconfigured -e MAIL_MODE=resend \
+            -e MAIL_MODE=resend \
             -e SUPABASE_URL="$SUPABASE_URL" -e SUPABASE_STORAGE_BUCKET="$SUPABASE_STORAGE_BUCKET" \
             -e SECRET_KEY="$SECRET_KEY" -e MFA_ENCRYPTION_KEY="$MFA_ENCRYPTION_KEY" \
             -e DATABASE_URL="$DATABASE_URL" -e SESSION_REDIS_URL="$REDIS_URL" \

@@ -154,3 +154,9 @@ Measured on the live deployment before the change: about 8.7 s on a cold start, 
 - Membership and permission codes are read once per request and cached in the request only. The cache is discarded when the company lock is taken and on every commit or rollback, so locked mutations still re-check authorization under the lock.
 - Lot names are cached per product variant within a request (removes an N+1).
 - Vercel uses a small bounded SQLAlchemy pool (2 + 3 overflow, pre-ping, 120 s recycle) through the Supabase transaction pooler instead of a new TLS connection per request, with Fluid compute enabled so warm instances are reused. Alembic loads only outside Vercel request functions.
+
+## 11 November 2026 — Malware scanner on an Azure VM
+
+The owner has Azure for Students credit. ClamAV needs about 1.2 GB of RAM for its signatures, so the scanner runs on a B1ms-class VM (2 GB) rather than the free 1 GB size or a serverless function. Microsoft Defender malware scanning was not used because it scans only Azure Storage, and evidence lives in Supabase storage.
+
+The VM runs a standard-library HTTP service in front of the local ClamAV socket, with Caddy providing automatic HTTPS. Because the endpoint is public and Vercel has no fixed outbound IP to allowlist, the service requires a bearer token (`SCANNER_TOKEN`, at least 32 random characters, compared in constant time). Production now refuses an HTTPS scanner endpoint without a strong token. Any non-definite outcome (wrong token, ClamAV down, malformed reply) is reported as unavailable, so files stay quarantined. The deploy workflow enables scanning only when both `SCANNER_ENDPOINT` and `SCANNER_TOKEN` secrets exist; otherwise it keeps the explicit `SCANNER_MODE=unconfigured` opt-in.

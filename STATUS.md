@@ -1,5 +1,9 @@
 # RecallTrace implementation status
 
+## Malware scanner prepared — 11 November 2026
+
+Added `operations/scanner/` (service, one-command Ubuntu setup with ClamAV and Caddy HTTPS, README) and bearer-token support in the app (`SCANNER_TOKEN`, required in production for an HTTPS scanner). The deploy workflow enables real scanning when the `SCANNER_ENDPOINT` and `SCANNER_TOKEN` secrets exist. Tests: `tests/test_scanner_service.py` exercises the service against a fake ClamAV socket (clean, infected, wrong or missing token, oversized, ClamAV outage, weak token); evidence and configuration tests cover sending and requiring the token. **Not yet done:** the Azure VM itself, so the live site still runs with scanning unconfigured.
+
 ## Overview page and investigation workflow UX — 11 November 2026
 
 - New company **Overview** (landing page after choosing a company, first sidebar item): counts of open investigations, lots on hold, open quality issues and lots in stock, each linking to its list; open investigations; your open tasks; lots on hold; recent activity written as plain sentences from the audit log.

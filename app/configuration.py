@@ -23,6 +23,7 @@ PRODUCTION_SETTINGS = (
     "SUPABASE_STORAGE_BUCKET",
     "SUPABASE_SERVICE_KEY",
     "SCANNER_ENDPOINT",
+    "SCANNER_TOKEN",
     "SCANNER_MODE",
     "CLAMAV_HOST",
     "CLAMAV_PORT",
@@ -219,6 +220,9 @@ def validate_config(app):
     scanner = _endpoint(cfg.get("SCANNER_ENDPOINT")) or cfg.get("CLAMAV_HOST")
     if scanner_mode == "unconfigured" and scanner:
         _failure("SCANNER_MODE=required when a scanner is configured")
+    if _endpoint(cfg.get("SCANNER_ENDPOINT")) and not _secret(cfg.get("SCANNER_TOKEN")):
+        # A public HTTPS scanner without a secret would scan anyone's files.
+        _failure("a random SCANNER_TOKEN of at least 32 characters for the HTTPS scanner")
     if scanner_mode == "required" and not scanner:
         # SCANNER_MODE=unconfigured is the explicit demonstration opt-in: uploads are
         # still stored privately, but scan_bytes reports "unavailable" so every file
