@@ -1,6 +1,6 @@
-{% extends 'base.html' %}{% block content %}
-<h1>Your companies</h1><p>Choose a company to maintain its catalog, post stock movements and investigate trace evidence.</p>
-<div class="row g-3">{% for company in companies %}<div class="col-md-6"><article class="card"><div class="card-body"><h2 class="h4">{{ company.name }}</h2><a class="btn btn-primary" href="{{ url_for('overview.overview', company_id=company.id) }}">Open workspace</a></div></article></div>{% else %}<p>No active internal memberships. Contact your company administrator.</p>{% endfor %}</div>
-{% if partner_companies %}<h2 class="h4 mt-4">Partner notices</h2><div class="list-group">{% for partner_company in partner_companies %}<a class="list-group-item list-group-item-action" href="{{ url_for('notices.listing', company_id=partner_company.id) }}">{{ partner_company.name }} — Your approved notices</a>{% endfor %}</div>{% endif %}
+{% extends 'base.html' %}{% block title %}Your companies · RecallTrace{% endblock %}{% block content %}
+<div class="page-head"><div><h1>Your companies</h1><p>Choose a company to maintain its catalog, post stock movements and investigate trace evidence.</p></div></div>
+<div class="directory"><section aria-label="Companies"><ul>{% for company in companies %}<li><a href="{{ url_for('overview.overview', company_id=company.id) }}"><span><strong>{{ company.name }}</strong><span>Open workspace</span></span>{{ icon('chevron-right') }}</a></li>{% else %}<li class="empty py-3">No active internal memberships. Contact your company administrator.</li>{% endfor %}</ul></section>
+{% if partner_companies %}<section aria-labelledby="partner-heading"><h2 id="partner-heading">Partner notices</h2><ul>{% for partner_company in partner_companies %}<li><a href="{{ url_for('notices.listing', company_id=partner_company.id) }}"><span><strong>{{ partner_company.name }}</strong><span>Your approved notices</span></span>{{ icon('chevron-right') }}</a></li>{% endfor %}</ul></section>{% endif %}</div>
 <p class="mt-4"><a href="{{ url_for('security.index') }}">Manage account security and authenticator</a></p>
 {% endblock %}

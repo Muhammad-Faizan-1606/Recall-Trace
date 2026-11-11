@@ -1,4 +1,11 @@
 {% extends 'base.html' %}
 {% block title %}Master data · RecallTrace{% endblock %}
-{% block content %}<h1>Master data</h1><p>Maintain the partners, facilities, catalog classifications and lot identities used by operational workflows.</p>
-<div class="row g-3">{% for resource_name, resource_title in titles.items() %}<div class="col-md-4"><article class="card h-100"><div class="card-body"><h2 class="h5">{{ resource_title }}</h2><a href="{{ url_for('master.listing', company_id=company_id, resource=resource_name) }}">Open {{ resource_title|lower }}</a></div></article></div>{% endfor %}</div>{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Master data</h1><p>Maintain the partners, facilities, catalog classifications and lot identities used by operational workflows.</p></div></div>
+{% set groups = [
+  ('Partners', [('partners', 'Suppliers, customers and carriers you trade with'), ('partner-roles', 'Whether a partner supplies, buys or carries'), ('contacts', 'People to reach at each partner'), ('addresses', 'Where partners receive goods and notices'), ('carriers', 'Who moves your shipments')]),
+  ('Facilities', [('sites', 'Your factories and offices'), ('warehouses', 'Buildings that hold stock'), ('locations', 'Shelves, bays and quarantine areas inside a warehouse')]),
+  ('Products and lots', [('lots', 'Every batch you receive or produce'), ('supplier-items', 'Which supplier part matches which of your items'), ('categories', 'Groups for organising items'), ('classifications', 'Which category each item belongs to')]),
+] %}
+<div class="directory">{% for heading, entries in groups %}<section aria-labelledby="group-{{ loop.index }}"><h2 id="group-{{ loop.index }}">{{ heading }}</h2><ul>{% for resource_name, blurb in entries if resource_name in titles %}<li><a href="{{ url_for('master.listing', company_id=company_id, resource=resource_name) }}"><span><strong>{{ titles[resource_name] }}</strong><span>{{ blurb }}</span></span>{{ icon('chevron-right') }}<span class="visually-hidden">Open {{ titles[resource_name]|lower }}</span></a></li>{% endfor %}</ul></section>{% endfor %}</div>
+{% endblock %}

@@ -1,12 +1,16 @@
-/* Apply the saved theme before the page paints (dark is the default). */
+/* Apply the theme before the page paints: the saved choice, else the system setting. */
 (function () {
+  var theme = "light";
   try {
     var saved = localStorage.getItem("recalltrace-theme");
     if (saved === "light" || saved === "dark") {
-      document.documentElement.setAttribute("data-theme", saved);
-      document.documentElement.setAttribute("data-bs-theme", saved);
+      theme = saved;
+    } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark";
     }
   } catch (error) {
-    /* Storage unavailable: keep the default theme. */
+    /* Storage unavailable: fall back to light. */
   }
+  document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.setAttribute("data-bs-theme", theme);
 })();

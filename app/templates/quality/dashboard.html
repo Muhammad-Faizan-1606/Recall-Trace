@@ -1,6 +1,24 @@
-{% extends 'base.html' %}{% block content %}<h1>Quality and holds</h1><p>Published criteria and completed observations remain frozen. A different reviewer must authorize release of a lot hold.</p>
-<div class="d-flex gap-2 flex-wrap mb-4"><a class="btn btn-primary" href="{{ url_for('quality.template_form',company_id=company_id) }}">New template</a><a class="btn btn-primary" href="{{ url_for('quality.inspection_form',company_id=company_id) }}">Inspect lot</a><a class="btn btn-primary" href="{{ url_for('quality.issue_form',company_id=company_id) }}">Report quality issue</a><a class="btn btn-warning" href="{{ url_for('quality.hold_form',company_id=company_id) }}">Place hold</a></div>
-<h2>Inspection templates</h2><ul>{% for row in templates %}<li><a href="{{ url_for('quality.template',company_id=company_id,template_id=row.id) }}">{{ row.code }} revision {{ row.revision }}</a> — {{ row.status|tag }}</li>{% else %}<li>No templates. Create criteria and publish a revision before inspecting a lot.</li>{% endfor %}</ul>
-<h2>Inspections</h2><ul>{% for row in inspections %}<li><a href="{{ url_for('quality.inspection',company_id=company_id,inspection_id=row.id) }}">{{ row.reference }}</a> — {{ row.status|tag }}</li>{% else %}<li>No inspections recorded.</li>{% endfor %}</ul>
-<h2>Quality issues</h2><ul>{% for row in issues %}<li><a href="{{ url_for('quality.issue',company_id=company_id,record_id=row.id) }}">{{ row.reference }}</a> — {{ row.severity|tag }} / {{ row.status|tag }}<p>{{ row.description }}</p></li>{% else %}<li>No quality issues reported.</li>{% endfor %}</ul>
-<h2>Lot holds</h2><ul>{% for row in holds %}<li><a href="{{ url_for('quality.hold',company_id=company_id,hold_id=row.id) }}">{{ row.reason }}</a> — {{ 'Released' if row.released_at else 'Active' }}</li>{% else %}<li>No holds placed.</li>{% endfor %}</ul>{% endblock %}
+{% extends 'base.html' %}{% block title %}Quality · {{ company.name }}{% endblock %}{% block content %}
+<div class="page-head">
+  <div><h1>Quality and holds</h1><p>Published criteria and completed observations remain frozen. A different reviewer must authorize release of a lot hold.</p></div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('quality.template_form',company_id=company_id) }}">New template</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('quality.inspection_form',company_id=company_id) }}">Inspect lot</a>
+    <a class="btn btn-warning" href="{{ url_for('quality.hold_form',company_id=company_id) }}">Place hold</a>
+    <a class="btn btn-primary" href="{{ url_for('quality.issue_form',company_id=company_id) }}">Report quality issue</a>
+  </div>
+</div>
+<nav aria-label="On this page"><ul class="tabs"><li><a href="#issues">Quality issues <span class="count-pill">{{ issues|length }}</span></a></li><li><a href="#holds">Lot holds <span class="count-pill">{{ holds|selectattr('released_at', 'none')|list|length }}</span></a></li><li><a href="#inspections">Inspections <span class="count-pill">{{ inspections|length }}</span></a></li><li><a href="#templates">Inspection templates <span class="count-pill">{{ templates|length }}</span></a></li></ul></nav>
+
+<section class="section" id="issues" aria-labelledby="issues-heading"><h2 id="issues-heading">Quality issues</h2>
+<div class="table-responsive"><table class="table"><thead><tr><th scope="col">Reference</th><th scope="col">What was found</th><th scope="col">Severity</th><th scope="col">Status</th></tr></thead><tbody>{% for row in issues %}<tr><td><a href="{{ url_for('quality.issue',company_id=company_id,record_id=row.id) }}">{{ row.reference }}</a></td><td class="text-break">{{ row.description }}</td><td>{{ row.severity|tag }}</td><td>{{ row.status|tag }}</td></tr>{% else %}<tr><td colspan="4" class="empty">No quality issues reported.</td></tr>{% endfor %}</tbody></table></div></section>
+
+<section class="section" id="holds" aria-labelledby="holds-heading"><h2 id="holds-heading">Lot holds</h2>
+<div class="table-responsive"><table class="table"><thead><tr><th scope="col">Reason</th><th scope="col">State</th><th scope="col">Placed</th></tr></thead><tbody>{% for row in holds %}<tr><td><a href="{{ url_for('quality.hold',company_id=company_id,hold_id=row.id) }}">{{ row.reason }}</a></td><td>{{ ('released' if row.released_at else 'held')|tag }} <span class="visually-hidden">{{ 'Released' if row.released_at else 'Active' }}</span></td><td class="fine-print">{{ row.placed_at|when }}</td></tr>{% else %}<tr><td colspan="3" class="empty">No holds placed.</td></tr>{% endfor %}</tbody></table></div></section>
+
+<section class="section" id="inspections" aria-labelledby="inspections-heading"><h2 id="inspections-heading">Inspections</h2>
+<div class="table-responsive"><table class="table"><thead><tr><th scope="col">Reference</th><th scope="col">Status</th><th scope="col">Started</th></tr></thead><tbody>{% for row in inspections %}<tr><td><a href="{{ url_for('quality.inspection',company_id=company_id,inspection_id=row.id) }}">{{ row.reference }}</a></td><td>{{ row.status|tag }}</td><td class="fine-print">{{ row.created_at|day }}</td></tr>{% else %}<tr><td colspan="3" class="empty">No inspections recorded.</td></tr>{% endfor %}</tbody></table></div></section>
+
+<section class="section" id="templates" aria-labelledby="templates-heading"><h2 id="templates-heading">Inspection templates</h2>
+<div class="table-responsive"><table class="table"><thead><tr><th scope="col">Checklist</th><th scope="col">Status</th></tr></thead><tbody>{% for row in templates %}<tr><td><a href="{{ url_for('quality.template',company_id=company_id,template_id=row.id) }}">{{ row.code }} revision {{ row.revision }}</a></td><td>{{ row.status|tag }}</td></tr>{% else %}<tr><td colspan="2" class="empty">No templates. Create criteria and publish a revision before inspecting a lot.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

@@ -99,6 +99,15 @@ def day_text(value):
     return f"{value.day} {value:%b %Y}"
 
 
+def clock_text(value):
+    """'22:06' (UTC) for times shown under a day heading."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is not None:
+        value = value.astimezone(UTC)
+    return f"{value:%H:%M}"
+
+
 def today_text():
     """'Tuesday, 11 November 2026' for the top bar (UTC date)."""
     today = datetime.now(UTC)
@@ -110,4 +119,5 @@ def register(app):
     app.add_template_filter(status_tag, "tag")
     app.add_template_filter(when_text, "when")
     app.add_template_filter(day_text, "day")
+    app.add_template_filter(clock_text, "clock")
     app.add_template_global(today_text, "today_text")

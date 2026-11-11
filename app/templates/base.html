@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark" data-bs-theme="dark">
+<html lang="en" data-theme="light" data-bs-theme="light">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
@@ -12,7 +12,7 @@
 </head>
 {% set sprite = url_for('static', filename='vendor/icons/sprite.svg') %}
 {% macro icon(name) %}<svg class="icon" aria-hidden="true" focusable="false"><use href="{{ sprite }}#i-{{ name }}"></use></svg>{% endmacro %}
-{% macro nav_link(href, text, glyph) %}{% set current = request.path == href or request.path.startswith(href ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
+{% macro nav_link(href, text, glyph, match=None) %}{% set prefix = match or href %}{% set current = request.path == href or request.path.startswith(prefix ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
 <body class="{{ 'has-sidebar' if company is defined else 'no-sidebar' }}">
 <a class="visually-hidden-focusable skip-link" href="#main">Skip to content</a>
 {% if company is defined %}
@@ -38,9 +38,7 @@
     </div>
     <div class="side-group">
       <p class="side-heading">Records</p>
-      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='items'), 'Items', 'tag') }}
-      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='variants'), 'Variants', 'layers') }}
-      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='units'), 'Units', 'ruler') }}
+      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='items'), 'Catalog', 'tag', '/companies/' ~ company_id ~ '/catalog') }}
       {{ nav_link(url_for('master.dashboard', company_id=company_id), 'Master data', 'database') }}
       {{ nav_link(url_for('evidence.listing', company_id=company_id), 'Evidence & reports', 'folder-lock') }}
     </div>
@@ -64,21 +62,22 @@
   <header class="topbar">
     {% if company is defined %}
     <button class="icon-button menu-button" type="button" data-sidebar-open aria-controls="sidebar" aria-label="Open menu">{{ icon('menu') }}</button>
-    <div class="greeting">
-      <span>Welcome{% if current_user.is_authenticated %}, {{ (current_user.display_name or '').split(' ')[0] }}{% endif %}</span>
-      <small>{{ today_text() }}</small>
-    </div>
+    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
+    <ol class="crumbs" aria-label="You are here">
+      <li><a href="{{ url_for('overview.overview', company_id=company_id) }}">{{ company.name }}</a></li>
+      <li><span aria-current="location">{{ 'Search' if request.endpoint == 'overview.search' else sections.get(request.blueprint, 'Workspace') }}</span></li>
+    </ol>
     <form class="topbar-search" role="search" method="get" action="{{ url_for('overview.search', company_id=company_id) }}">
       {{ icon('search') }}
       <label class="visually-hidden" for="global-search">Search lots, investigations, items and partners</label>
-      <input id="global-search" name="q" type="search" placeholder="Search lots, investigations, items…" value="{{ query if query is defined else '' }}" autocomplete="off">
+      <input id="global-search" name="q" type="search" placeholder="Search lots, investigations, items" value="{{ query if query is defined else '' }}" autocomplete="off"><kbd aria-hidden="true">/</kbd>
     </form>
     {% else %}
     <a class="brand" href="{{ url_for('catalog.companies') }}"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7.4l5.1 5.1v7.4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5z"/><circle cx="7" cy="7" r="1.6"/></svg></span>RecallTrace</a>
     <span class="topbar-spacer"></span>
     {% if current_user.is_authenticated %}<form class="topbar-user" method="post" action="{{ url_for('auth.logout') }}">{{ logout_form.hidden_tag() }}<a href="{{ url_for('sessions.listing') }}">Your sessions</a><button class="btn btn-sm btn-outline-secondary">Sign out</button></form>{% endif %}
     {% endif %}
-    {% if config.APP_ENV != 'preview' %}<button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch between dark and light theme" title="Switch theme"><span class="theme-dark-icon">{{ icon('sun') }}</span><span class="theme-light-icon">{{ icon('moon') }}</span></button>{% endif %}
+    {% if config.APP_ENV != 'preview' %}<button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch between dark and light theme" title="Switch theme"><span class="theme-dark-icon">{{ icon('moon') }}</span><span class="theme-light-icon">{{ icon('sun') }}</span></button>{% endif %}
   </header>
   <main id="main" class="content">
     {% if config.get('SCANNER_MODE') == 'unconfigured' %}<p class="notice-strip" role="note">University demonstration deployment: malware scanning is not configured, so every uploaded evidence file stays quarantined and cannot be downloaded or accepted.</p>{% endif %}

@@ -1,10 +1,16 @@
 {% extends 'base.html' %}
+{% block title %}Operations · {{ company.name }}{% endblock %}
 {% block content %}
-<h1>Operations</h1>
-<p>Receive supplier lots, record production genealogy and dispatch finished stock. Quantities use each SKU's base unit.</p>
-<nav aria-label="Operations" class="d-flex flex-wrap gap-2 mb-4">{% for key in kinds %}<a class="btn btn-outline-primary" href="{{ url_for('operations.listing',company_id=company_id,kind=key) }}">{{ key.replace('-',' ').title() }}</a>{% endfor %}<a class="btn btn-outline-secondary" href="{{ url_for('operations.journal',company_id=company_id) }}">Stock journal</a></nav>
-<h2 class="h4">Stock by lot and location</h2>
-{% if mismatches %}<div class="alert alert-danger" role="alert">Stock reconciliation found {{ mismatches|length }} discrepancies. Investigate before posting further movements.</div>{% else %}<p class="text-success">Recorded balances reconcile with the posted stock journal.</p>{% endif %}
-<div class="table-responsive"><table class="table"><thead><tr><th>Lot</th><th>Location</th><th>Quantity</th></tr></thead><tbody>{% for row in balances %}<tr><td>{{ lot_name(lots[row.lot_id]) }}</td><td>{{ locations[row.location_id].name }}</td><td>{{ row.quantity|qty }}</td></tr>{% else %}<tr><td colspan="3">No stock yet. Create a purchase order and post its receipt to add stock.</td></tr>{% endfor %}</tbody></table></div>
-<p class="text-secondary">Showing up to 200 balances. The stock journal preserves every posting and compensating reversal.</p>
+<div class="page-head">
+  <div><h1>Operations</h1><p>Receive supplier lots, record production genealogy and dispatch finished stock. Quantities use each SKU's base unit.</p></div>
+  <div class="page-actions"><a class="btn btn-outline-secondary" href="{{ url_for('operations.journal',company_id=company_id) }}">Stock journal</a></div>
+</div>
+{% set describe = {'purchase-orders': 'What you ordered from suppliers', 'receipts': 'Supplier lots arriving into stock', 'production': 'Which lots went into which products', 'sales-orders': 'What customers ordered', 'shipments': 'Lots dispatched to customers', 'transfers': 'Stock moved between locations'} %}
+<nav aria-label="Operations" class="directory mb-4"><div><h2>Documents</h2><ul>{% for key in kinds %}<li><a href="{{ url_for('operations.listing',company_id=company_id,kind=key) }}"><span><strong>{{ key.replace('-',' ').title() }}</strong><span>{{ describe.get(key, '') }}</span></span>{{ icon('chevron-right') }}</a></li>{% endfor %}</ul></div></nav>
+<section class="section" aria-labelledby="stock-heading">
+<div class="section-head"><h2 id="stock-heading">Stock by lot and location</h2>{% if not mismatches %}<span class="section-note text-success">Recorded balances reconcile with the posted stock journal.</span>{% endif %}</div>
+{% if mismatches %}<div class="alert alert-danger" role="alert">Stock reconciliation found {{ mismatches|length }} discrepancies. Investigate before posting further movements.</div>{% endif %}
+<div class="table-responsive"><table class="table"><thead><tr><th scope="col">Lot</th><th scope="col">Location</th><th scope="col" class="num">Quantity</th></tr></thead><tbody>{% for row in balances %}<tr><td>{{ lot_name(lots[row.lot_id]) }}</td><td>{{ locations[row.location_id].name }}</td><td class="num">{{ row.quantity|qty }}</td></tr>{% else %}<tr><td colspan="3" class="empty">No stock yet. Create a purchase order and post its receipt to add stock.</td></tr>{% endfor %}</tbody></table></div>
+<p class="fine-print">Showing up to 200 balances. The stock journal preserves every posting and compensating reversal.</p>
+</section>
 {% endblock %}

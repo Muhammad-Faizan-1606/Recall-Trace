@@ -1,7 +1,9 @@
-{% extends 'base.html' %}{% block content %}
-<a href="{{ url_for('operations.dashboard',company_id=company_id) }}">Operations</a>
-<h1>{{ kind.replace('-',' ').title() }}</h1>
-{% if can_manage %}<a class="btn btn-primary mb-3" href="{{ url_for('operations.create',company_id=company_id,kind=kind) }}">New draft</a>{% endif %}
-<table class="table"><thead><tr><th>Reference</th><th>Status</th><th>Created</th></tr></thead><tbody>{% for row in page.items %}<tr><td><a href="{{ url_for('operations.detail',company_id=company_id,kind=kind,record_id=row.id) }}">{{ row.reference }}</a></td><td>{{ row.status|tag }}</td><td>{{ row.created_at|day }}</td></tr>{% else %}<tr><td colspan="3">No records. Add a draft to begin.</td></tr>{% endfor %}</tbody></table>
-<nav aria-label="Pages">{% if page.has_prev %}<a href="{{ url_for('operations.listing',company_id=company_id,kind=kind,page=page.prev_num) }}">Previous</a>{% endif %} Page {{ page.page }} {% if page.has_next %}<a href="{{ url_for('operations.listing',company_id=company_id,kind=kind,page=page.next_num) }}">Next</a>{% endif %}</nav>
+{% extends 'base.html' %}{% block title %}{{ kind.replace('-',' ').title() }} · Operations{% endblock %}{% block content %}
+<p class="back-link"><a href="{{ url_for('operations.dashboard',company_id=company_id) }}">Operations</a></p>
+<div class="page-head">
+  <div><h1>{{ kind.replace('-',' ').title() }}</h1><p>Drafts can be edited; posted documents are kept and corrected only by reversal.</p></div>
+  {% if can_manage %}<div class="page-actions"><a class="btn btn-primary" href="{{ url_for('operations.create',company_id=company_id,kind=kind) }}">{{ icon('plus') }}New draft</a></div>{% endif %}
+</div>
+<div class="table-responsive"><table class="table"><thead><tr><th scope="col">Reference</th><th scope="col">Status</th><th scope="col">Created</th></tr></thead><tbody>{% for row in page.items %}<tr><td><a href="{{ url_for('operations.detail',company_id=company_id,kind=kind,record_id=row.id) }}">{{ row.reference }}</a></td><td>{{ row.status|tag }}</td><td class="fine-print">{{ row.created_at|day }}</td></tr>{% else %}<tr><td colspan="3" class="empty">No records. Add a draft to begin.</td></tr>{% endfor %}</tbody></table></div>
+<nav class="pager" aria-label="Pages">{% if page.has_prev %}<a href="{{ url_for('operations.listing',company_id=company_id,kind=kind,page=page.prev_num) }}">Previous</a>{% endif %} <span>Page {{ page.page }}</span> {% if page.has_next %}<a href="{{ url_for('operations.listing',company_id=company_id,kind=kind,page=page.next_num) }}">Next</a>{% endif %}</nav>
 {% endblock %}

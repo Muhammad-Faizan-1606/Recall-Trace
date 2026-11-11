@@ -174,3 +174,22 @@ Owner request: a more engaging, easy-to-navigate interface inspired by dark prod
 - App shell: fixed sidebar with icons, company switcher and profile card with sign-out; sticky top bar with greeting, date, global search (press "/" to focus) and the theme toggle; on phones the sidebar becomes a slide-out drawer (Escape closes it).
 - New company-scoped search across investigations, lots, items, partners, quality issues and shipments, with LIKE wildcards escaped.
 - Design tokens for both themes; semantic status colours unchanged in meaning. The read-only preview omits the theme toggle because its pages must expose only disabled buttons.
+
+## 11 November 2026 — "Recall desk" redesign replaces the dark console
+
+Owner feedback: the dark console still read as generic AI-generated UI and was not easy enough to understand. The owner pointed to four public anti-slop design guides (Vanszs/Anti-AI-UI, pbakaus/impeccable, Leonxlnx/taste-skill, nextlevelbuilder/ui-ux-pro-max-skill). Their shared list of tells matched the previous design: dark by habit, an accent glow, pill buttons everywhere, a "Welcome, name" greeting, and gradient big-number tiles. The redesign follows their rules for data-dense operational tools:
+
+- Theme is chosen from the use scene. Investigators work in offices and warehouses during the day, so light (warm paper surfaces, ink text) is the default. Dark follows the operating-system setting or the toggle, uses warm neutrals and has no glow.
+- One accent (ink blue), used only for actions, the current navigation item, focus rings and the current progress step. Green, amber and red are reserved for status, and the written status always accompanies the colour.
+- Two type families: Bricolage Grotesque (600, SIL OFL, bundled locally) for page and section titles only; DM Sans for everything else, with tabular figures.
+- Small radii (6px controls, 8px panels), border-only panels with no shadows and no nesting, rectangular buttons, and transitions of colour only. `prefers-reduced-motion` disables all transitions.
+- Signature element: status tags styled as printed quality labels (square swatch plus label).
+- Navigation and structure:
+  - The greeting is replaced by a company / section breadcrumb.
+  - Items, Variants and Units are one Catalog entry with tabs.
+  - Every list page has the same header (title, one-line purpose, primary action on the right).
+  - The Overview shows a plain facts line and tables instead of hero tiles, and groups activity by day.
+  - The investigation page uses two columns: evidence on the left, and a sticky rail with next step, progress and key facts on the right. On phones the rail comes first.
+  - Master data and Operations show a grouped directory with one-line explanations instead of an identical card grid.
+  - The quality dashboard uses tables with jump links.
+- No change to routes, permissions, forms or business rules. Visible wording that tests and the presenter guide rely on is unchanged.

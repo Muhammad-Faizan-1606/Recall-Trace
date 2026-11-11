@@ -1,51 +1,66 @@
 {% extends 'base.html' %}
 {% block title %}Overview · {{ company.name }}{% endblock %}
 {% block content %}
-<h1>Overview</h1>
-<p class="page-intro">What needs attention in {{ company.name }} right now.</p>
+<div class="page-head">
+  <div>
+    <h1>Overview</h1>
+    <p>What needs attention in {{ company.name }} right now.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('quality.issue_form', company_id=company_id) }}">Report quality issue</a>
+    <a class="btn btn-primary" href="{{ url_for('recall.editor', company_id=company_id) }}">{{ icon('plus') }}New investigation</a>
+  </div>
+</div>
 
-<dl class="stat-strip">
-  <div class="stat{{ ' stat-alert' if open_cases }}"><dt>Open investigations</dt><dd><a href="{{ url_for('recall.dashboard', company_id=company_id) }}">{{ open_cases }}</a></dd></div>
-  <div class="stat{{ ' stat-hold' if active_holds }}"><dt>Lots on hold</dt><dd><a href="{{ url_for('quality.dashboard', company_id=company_id) }}">{{ active_holds }}</a></dd></div>
-  <div class="stat{{ ' stat-alert' if open_issues }}"><dt>Open quality issues</dt><dd><a href="{{ url_for('quality.dashboard', company_id=company_id) }}">{{ open_issues }}</a></dd></div>
-  <div class="stat"><dt>Lots in stock</dt><dd><a href="{{ url_for('operations.dashboard', company_id=company_id) }}">{{ lots_in_stock }}</a></dd></div>
+<dl class="facts">
+  <div class="{{ 'is-alert' if open_cases }}"><dt>Open investigations</dt><dd><a href="{{ url_for('recall.dashboard', company_id=company_id) }}">{{ open_cases }}</a></dd></div>
+  <div><dt>Lots on hold</dt><dd><a href="{{ url_for('quality.dashboard', company_id=company_id) }}#holds">{{ active_holds }}</a></dd></div>
+  <div class="{{ 'is-alert' if open_issues }}"><dt>Open quality issues</dt><dd><a href="{{ url_for('quality.dashboard', company_id=company_id) }}#issues">{{ open_issues }}</a></dd></div>
+  <div><dt>Lots in stock</dt><dd><a href="{{ url_for('operations.dashboard', company_id=company_id) }}">{{ lots_in_stock }}</a></dd></div>
 </dl>
 
-<div class="overview-grid">
-  <section class="panel" aria-labelledby="cases-heading">
-    <div class="panel-head"><h2 id="cases-heading">Open investigations</h2><a href="{{ url_for('recall.dashboard', company_id=company_id) }}">All investigations</a></div>
-    {% if cases %}<ul class="row-list">{% for case in cases %}
-      <li><a class="row-title" href="{{ url_for('recall.detail', company_id=company_id, case_id=case.id) }}">{{ case.title }}</a>
-        <span class="row-meta">{{ case.reference }}</span>
-        <span class="row-tags">{{ case.severity|tag }} {{ case.status|tag }}</span></li>
-    {% endfor %}</ul>
-    {% else %}<p class="empty">No open investigations. Start one from <a href="{{ url_for('recall.dashboard', company_id=company_id) }}">Investigations</a> when a lot is suspected.</p>{% endif %}
-  </section>
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="cases-heading">
+      <div class="section-head"><h2 id="cases-heading">Open investigations</h2><a href="{{ url_for('recall.dashboard', company_id=company_id) }}">All investigations</a></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Investigation</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Last change</th></tr></thead>
+        <tbody>{% for case in cases %}
+          <tr><td><a href="{{ url_for('recall.detail', company_id=company_id, case_id=case.id) }}">{{ case.title }}</a><div class="fine-print">{{ case.reference }}</div></td>
+            <td>{{ case.severity|tag }}</td><td>{{ case.status|tag }}</td><td class="fine-print">{{ case.updated_at|when }}</td></tr>
+        {% else %}<tr><td colspan="4" class="empty">No open investigations. When a supplier or production lot is suspected, start a new investigation and add it as the suspect lot.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
 
-  <section class="panel" aria-labelledby="tasks-heading">
-    <div class="panel-head"><h2 id="tasks-heading">Your open tasks</h2></div>
-    {% if my_tasks %}<ul class="row-list">{% for task, case in my_tasks %}
-      <li><a class="row-title" href="{{ url_for('recall.detail', company_id=company_id, case_id=case.id) }}">{{ task.title }}</a>
-        <span class="row-meta">{{ case.reference }}{{ ' · mandatory' if task.mandatory }}</span></li>
-    {% endfor %}</ul>
-    {% else %}<p class="empty">Nothing assigned to you.</p>{% endif %}
-  </section>
+    <section class="section" aria-labelledby="holds-heading">
+      <div class="section-head"><h2 id="holds-heading">Lots on hold</h2><a href="{{ url_for('quality.dashboard', company_id=company_id) }}#holds">All holds</a></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Lot</th><th scope="col">Held since</th></tr></thead>
+        <tbody>{% for hold, lot in holds %}
+          <tr><td><a href="{{ url_for('quality.hold', company_id=company_id, hold_id=hold.id) }}">{{ lot_name(lot) }}</a></td><td class="fine-print">{{ hold.placed_at|when }}</td></tr>
+        {% else %}<tr><td colspan="2" class="empty">No lots are on hold. Approving an investigation places holds on every affected lot.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
 
-  <section class="panel" aria-labelledby="holds-heading">
-    <div class="panel-head"><h2 id="holds-heading">Lots on hold</h2><a href="{{ url_for('quality.dashboard', company_id=company_id) }}">Quality</a></div>
-    {% if holds %}<ul class="row-list">{% for hold, lot in holds %}
-      <li><a class="row-title" href="{{ url_for('quality.hold', company_id=company_id, hold_id=hold.id) }}">{{ lot_name(lot) }}</a>
-        <span class="row-meta">Held since {{ hold.placed_at|when }}</span></li>
-    {% endfor %}</ul>
-    {% else %}<p class="empty">No lots are on hold. Approving an investigation places holds on every affected lot.</p>{% endif %}
-  </section>
+  <aside class="rail" aria-label="For you">
+    <section class="panel" aria-labelledby="tasks-heading">
+      <div class="panel-head"><h2 id="tasks-heading">Your open tasks</h2>{% if my_tasks %}<span class="count-pill">{{ my_tasks|length }}</span>{% endif %}</div>
+      {% if my_tasks %}<ul class="row-list task-list">{% for task, case in my_tasks %}
+        <li><a class="row-title" href="{{ url_for('recall.detail', company_id=company_id, case_id=case.id) }}">{{ task.title }}</a>
+          <span class="row-meta">{{ case.reference }}{{ ' · mandatory' if task.mandatory }}</span></li>
+      {% endfor %}</ul>
+      {% else %}<p class="empty">Nothing assigned to you.</p>{% endif %}
+    </section>
 
-  <section class="panel" aria-labelledby="activity-heading">
-    <div class="panel-head"><h2 id="activity-heading">Recent activity</h2></div>
-    {% if activity %}<ol class="activity">{% for event, actor, summary in activity %}
-      <li><span><strong>{{ actor }}</strong> {{ summary }}</span><time datetime="{{ event.created_at.isoformat() }}">{{ event.created_at|when }}</time></li>
-    {% endfor %}</ol>
-    {% else %}<p class="empty">No activity recorded yet.</p>{% endif %}
-  </section>
+    <section class="panel" aria-labelledby="activity-heading">
+      <div class="panel-head"><h2 id="activity-heading">Recent activity</h2></div>
+      {% if activity %}<ol class="activity">{% for event, actor, summary in activity %}
+        {% if loop.changed(event.created_at|day) %}<li class="day">{{ event.created_at|day }}</li>{% endif %}
+        <li class="event"><time datetime="{{ event.created_at.isoformat() }}">{{ event.created_at|clock }}</time><span><strong>{{ actor }}</strong> {{ summary }}</span></li>
+      {% endfor %}</ol>
+      {% else %}<p class="empty">No activity recorded yet.</p>{% endif %}
+    </section>
+  </aside>
 </div>
 {% endblock %}

@@ -6,7 +6,8 @@
 {% set open_case = row.status not in ['closed','cancelled'] %}
 {% set step = 1 if row.status in ['draft','rejected'] else 2 if row.status == 'submitted' else 4 if row.status == 'closed' else 3 %}
 {% set latest = runs[0] if runs else None %}
-<p class="breadcrumb-link"><a href="{{ url_for('recall.dashboard',company_id=company_id) }}">All investigations</a></p>
+{% set open_tasks = tasks|selectattr('status', 'equalto', 'open')|list|length %}
+<p class="back-link"><a href="{{ url_for('recall.dashboard',company_id=company_id) }}">All investigations</a></p>
 <div class="record-head">
   <div>
     <h1>{{ row.title }}</h1>
@@ -16,64 +17,88 @@
 </div>
 <p class="record-reason">{{ row.reason }}</p>
 
-{% if row.status != 'cancelled' %}
-<ol class="stepper" aria-label="Investigation progress">
-  {% for label in ['Draft', 'Submitted', 'Approved', 'Closed'] %}
-  <li class="{{ 'is-done' if loop.index < step else 'is-current' if loop.index == step else '' }}"{% if loop.index == step %} aria-current="step"{% endif %}><span>{{ label }}</span></li>
-  {% endfor %}
-</ol>
-{% endif %}
+<div class="split rail-first">
+  <div>
+    <section class="section" aria-labelledby="shipments-heading">
+      <div class="section-head"><h2 id="shipments-heading">Affected shipments</h2><span class="section-note">Quantities in each product's base unit</span></div>
+      <div class="table-responsive"><table class="table"><thead><tr><th>Shipment, customer and lot</th><th class="num">Dispatched</th><th class="num">Physical recovery</th><th class="num">Total verified resolution</th></tr></thead><tbody>{% for exposure,line,lot in exposures %}<tr><td>{{ shipment_labels.get(line.id, line.id) }}</td><td class="num">{{ exposure.quantity_dispatched|qty }}</td><td class="num">{{ exposure.quantity_recovered|qty }}</td><td class="num">{{ exposure.quantity_resolved|qty }}</td></tr>{% else %}<tr><td colspan="4" class="empty">No shipments are affected yet. Compute a downstream trace to find them.</td></tr>{% endfor %}</tbody></table></div>
+      {% if row.status=='approved' and exposures %}<details><summary>Record verified recovery or disposition</summary><p>Reusing the same evidence reference retries the same event in its original case. Recorded dispositions for the same shipment line also resolve exposure in overlapping cases; their original evidence is shown below. Acknowledgement alone never changes these quantities. Returned goods require a separate quarantine receipt before any stock becomes available.</p><form method="post" action="{{ url_for('recall.recovery',company_id=company_id,case_id=row.id) }}">{{ fields(recovery) }}<button class="btn btn-primary">Record verified disposition</button></form></details>{% endif %}
+      {% if recoveries %}<ul class="stack-list mt-3">{% for recovery_row,origin_case in recoveries %}<li id="recovery-{{ recovery_row.id }}"><span class="item-title">{{ recovery_row.evidence_reference }}</span>: {{ recovery_row.quantity|qty }} {{ recovery_row.disposition|replace('_', ' ') }}. {{ recovery_row.evidence_note }}<p class="fine-print">{{ 'Reused disposition evidence from case' if origin_case.id != row.id else 'Recorded in case' }} <a href="{{ url_for('recall.detail',company_id=company_id,case_id=origin_case.id) }}#recovery-{{ recovery_row.id }}">{{ origin_case.reference }}</a>; evidence record {{ recovery_row.id }}; shipment line {{ recovery_row.shipment_line_id }}.</p></li>{% endfor %}</ul>{% endif %}
+    </section>
 
-<section class="next-step" aria-labelledby="next-step-title">
-  <h2 id="next-step-title">Next step</h2>
-  {% if editable %}
-    {% if row.status == 'rejected' %}<p>The reviewer sent this back for correction. Fix the scope, recompute the trace and submit again.</p>{% endif %}
-    {% if not latest %}<p>Add the suspect lots below, then compute a downstream trace to see which products and shipments they reached.</p>
-    {% else %}<p>Check the latest trace, then submit it. A different reviewer must approve it with a recent authenticator check.</p>{% endif %}
-    <form method="post" action="{{ url_for('recall.submit',company_id=company_id,case_id=row.id) }}">{{ action.hidden_tag() }}<button class="btn btn-primary">Submit for independent approval</button></form>
-  {% elif row.status == 'submitted' %}
-    <p>Waiting for independent approval. Approving places holds on every affected lot at the same moment; the person who submitted cannot approve.</p>
-    <form method="post" action="{{ url_for('recall.approve',company_id=company_id,case_id=row.id) }}">{{ action.hidden_tag() }}<button class="btn btn-success">Approve current complete scope and place holds</button></form>
-    <details><summary>Reject for correction</summary><form method="post" action="{{ url_for('recall.reject',company_id=company_id,case_id=row.id) }}">{{ action.hidden_tag() }}{{ field(action.note) }}<button class="btn btn-outline-danger">Reject for correction</button></form></details>
-  {% elif row.status in ['approved','closed'] %}
-    {% if row.status == 'approved' %}<p>Approved and affected lots are on hold. Notify each customer, record verified recovery per shipment, verify tasks, then close.</p>
-    {% else %}<p>Closed. The scope, decisions and evidence are preserved.</p>{% endif %}
-    <details><summary>Reopen for a new scope review</summary><form method="post" action="{{ url_for('recall.reopen',company_id=company_id,case_id=row.id) }}">{{ action.hidden_tag() }}{{ field(action.note) }}<button class="btn btn-outline-warning">Reopen for a new scope review</button></form></details>
-  {% else %}<p>This investigation is {{ row.status|replace('_', ' ') }}.</p>{% endif %}
-  <p class="fine-print">Approvals and closure require recent MFA. A trace reports potentially related stock; it does not certify defective units or product safety.</p>
-</section>
+    <section class="section" aria-labelledby="sources-heading">
+      <div class="section-head"><h2 id="sources-heading">Suspect lots</h2><span class="section-note">Where the trace starts</span></div>
+      <ul class="stack-list">{% for source_row,lot in sources %}<li><span class="item-title">{{ lot_name(lot) }}</span>: {{ source_row.source_note }}{% if editable %}<div class="item-actions"><form class="m-0" method="post" action="{{ url_for('recall.remove_source',company_id=company_id,case_id=row.id,source_id=source_row.id) }}">{{ action.csrf_token }}<input name="version" type="hidden" value="{{ source_row.version }}"><button class="btn btn-sm btn-outline-danger">Remove draft source</button></form></div>{% endif %}</li>{% else %}<li class="empty">No suspect lots selected.</li>{% endfor %}</ul>
+      {% if editable %}<details><summary>Add suspect lot</summary><form method="post" action="{{ url_for('recall.source',company_id=company_id,case_id=row.id) }}">{{ fields(source) }}<button class="btn btn-primary">Add source evidence</button></form></details>{% endif %}
+    </section>
 
-<dl class="stat-strip compact">
-  <div class="stat"><dt>Suspect lots</dt><dd>{{ sources|length }}</dd></div>
-  <div class="stat"><dt>Affected shipments</dt><dd>{{ exposures|length }}</dd></div>
-  <div class="stat"><dt>Latest trace</dt><dd class="stat-text">{% if latest %}<a href="{{ url_for('recall.trace',company_id=company_id,trace_id=latest.id) }}">{{ latest.status|tag }}</a>{% else %}None yet{% endif %}</dd></div>
-  <div class="stat"><dt>Open tasks</dt><dd>{{ tasks|selectattr('status', 'equalto', 'open')|list|length }}</dd></div>
-</dl>
+    <section class="section" aria-labelledby="traces-heading">
+      <div class="section-head"><h2 id="traces-heading">Trace snapshots</h2><span class="section-note">Each run is kept as evidence</span></div>
+      <ul class="stack-list">{% for run in runs %}<li><a href="{{ url_for('recall.trace',company_id=company_id,trace_id=run.id) }}">{{ run.direction|capitalize }} trace, {{ run.created_at|when }}</a> {{ run.status|tag }} <span class="fine-print">data revision {{ run.trace_revision }}</span></li>{% else %}<li class="empty">No trace computed yet.</li>{% endfor %}</ul>
+      {% if row.status not in ['closed','cancelled','rejected'] %}<form class="inline-form" method="post" action="{{ url_for('recall.compute',company_id=company_id,case_id=row.id) }}">{{ fields(trace_form) }}<button class="btn btn-outline-secondary">Compute recorded trace</button></form>{% endif %}
+    </section>
 
-<h2>Affected shipments</h2>
-<div class="table-responsive"><table class="table"><thead><tr><th>Shipment, customer and lot</th><th class="num">Dispatched</th><th class="num">Physical recovery</th><th class="num">Total verified resolution</th></tr></thead><tbody>{% for exposure,line,lot in exposures %}<tr><td>{{ shipment_labels.get(line.id, line.id) }}</td><td class="num">{{ exposure.quantity_dispatched|qty }}</td><td class="num">{{ exposure.quantity_recovered|qty }}</td><td class="num">{{ exposure.quantity_resolved|qty }}</td></tr>{% else %}<tr><td colspan="4" class="empty">No shipments are affected yet. Compute a downstream trace to find them.</td></tr>{% endfor %}</tbody></table></div>
-{% if row.status=='approved' and exposures %}<details><summary>Record verified recovery or disposition</summary><p>Reusing the same evidence reference retries the same event in its original case. Recorded dispositions for the same shipment line also resolve exposure in overlapping cases; their original evidence is shown below. Acknowledgement alone never changes these quantities. Returned goods require a separate quarantine receipt before any stock becomes available.</p><form method="post" action="{{ url_for('recall.recovery',company_id=company_id,case_id=row.id) }}">{{ fields(recovery) }}<button class="btn btn-primary">Record verified disposition</button></form></details>{% endif %}
-{% if recoveries %}<ul class="plain-list">{% for recovery_row,origin_case in recoveries %}<li id="recovery-{{ recovery_row.id }}"><strong>{{ recovery_row.evidence_reference }}</strong>: {{ recovery_row.quantity|qty }} {{ recovery_row.disposition|replace('_', ' ') }}. {{ recovery_row.evidence_note }}<p class="fine-print">{{ 'Reused disposition evidence from case' if origin_case.id != row.id else 'Recorded in case' }} <a href="{{ url_for('recall.detail',company_id=company_id,case_id=origin_case.id) }}#recovery-{{ recovery_row.id }}">{{ origin_case.reference }}</a>; evidence record {{ recovery_row.id }}; shipment line {{ recovery_row.shipment_line_id }}.</p></li>{% endfor %}</ul>{% endif %}
+    <section class="section" aria-labelledby="tasks-heading">
+      <div class="section-head"><h2 id="tasks-heading">Tasks</h2>{% if tasks %}<span class="section-note">{{ open_tasks }} open of {{ tasks|length }}</span>{% endif %}</div>
+      <ul class="stack-list">{% for task_row in tasks %}<li><span class="item-title">{{ task_row.title }}</span> {{ task_row.status|tag }}{% if task_row.mandatory %} <span class="fine-print">mandatory</span>{% endif %}<p class="text-break">{{ task_row.description }}</p><div class="item-actions">{% if task_row.status=='open' %}<a href="{{ url_for('recall.task_editor',company_id=company_id,case_id=row.id,task_id=task_row.id) }}">Edit task</a>{% endif %}</div>{% if row.status!='closed' and task_row.status in ['open','completed'] %}<details><summary>{{ 'Independently verify task' if task_row.status=='completed' else 'Complete assigned task' }}</summary><form method="post" action="{{ url_for('recall.complete_task',company_id=company_id,case_id=row.id,task_id=task_row.id) }}">{{ action.csrf_token }}<input type="hidden" name="version" value="{{ task_row.version }}"><input type="hidden" name="verify" value="{{ 'yes' if task_row.status=='completed' else 'no' }}">{{ field(action.note) }}<button class="btn btn-primary">{{ 'Independently verify task' if task_row.status=='completed' else 'Complete assigned task' }}</button></form></details>{% endif %}</li>{% else %}<li class="empty">No tasks assigned.</li>{% endfor %}</ul>
+      {% if open_case %}<details><summary>Assign investigation task</summary><form method="post" action="{{ url_for('recall.task',company_id=company_id,case_id=row.id) }}">{{ fields(task) }}<button class="btn btn-primary">Assign task</button></form></details>{% endif %}
+    </section>
 
-<h2>Trace snapshots</h2>
-<ul class="plain-list">{% for run in runs %}<li><a href="{{ url_for('recall.trace',company_id=company_id,trace_id=run.id) }}">{{ run.direction|capitalize }} trace, {{ run.created_at|when }}</a> {{ run.status|tag }} <span class="fine-print">data revision {{ run.trace_revision }}</span></li>{% else %}<li class="empty">No trace computed yet.</li>{% endfor %}</ul>
-{% if row.status not in ['closed','cancelled','rejected'] %}<form class="inline-form" method="post" action="{{ url_for('recall.compute',company_id=company_id,case_id=row.id) }}">{{ fields(trace_form) }}<button class="btn btn-primary">Compute recorded trace</button></form>{% endif %}
+    <section class="section" aria-labelledby="discussion-heading">
+      <div class="section-head"><h2 id="discussion-heading">Discussion</h2><span class="section-note">Comments are never edited, only corrected</span></div>
+      <ul class="stack-list discussion">{% for comment_row in comments %}<li><time datetime="{{ comment_row.created_at.isoformat() }}">{{ comment_row.created_at|when }}</time><p>{{ comment_row.body }}</p>{% if open_case %}<div class="item-actions"><a href="{{ url_for('recall.amend_comment',company_id=company_id,case_id=row.id,comment_id=comment_row.id) }}">Append correction</a></div>{% endif %}</li>{% else %}<li class="empty">No comments yet.</li>{% endfor %}</ul>
+      {% if open_case %}<details><summary>Add comment</summary><form method="post" action="{{ url_for('recall.comment',company_id=company_id,case_id=row.id) }}">{{ fields(comment) }}<button class="btn btn-primary">Add comment</button></form></details>{% endif %}
+    </section>
 
-<h2>Suspect lots</h2>
-<ul class="plain-list">{% for source_row,lot in sources %}<li><strong>{{ lot_name(lot) }}</strong>: {{ source_row.source_note }}{% if editable %}<form class="inline-action" method="post" action="{{ url_for('recall.remove_source',company_id=company_id,case_id=row.id,source_id=source_row.id) }}">{{ action.csrf_token }}<input name="version" type="hidden" value="{{ source_row.version }}"><button class="btn btn-sm btn-outline-danger">Remove draft source</button></form>{% endif %}</li>{% else %}<li class="empty">No suspect lots selected.</li>{% endfor %}</ul>
-{% if editable %}<details><summary>Add suspect lot</summary><form method="post" action="{{ url_for('recall.source',company_id=company_id,case_id=row.id) }}">{{ fields(source) }}<button class="btn btn-primary">Add source evidence</button></form></details>{% endif %}
+    <section class="section" aria-labelledby="evidence-heading">
+      <div class="section-head"><h2 id="evidence-heading">Private evidence</h2><a href="{{ url_for('evidence.listing', company_id=company_id) }}">Upload files</a></div>
+      <ul class="stack-list">{% for link in links %}<li>{{ link.document_id }}{% if editable %}<form class="inline-action" method="post" action="{{ url_for('recall.detach_document',company_id=company_id,case_id=row.id,link_id=link.id) }}">{{ action.csrf_token }}<input name="version" type="hidden" value="{{ link.version }}"><button class="btn btn-sm btn-outline-danger">Detach draft evidence</button></form>{% endif %}</li>{% else %}<li class="empty">No documents attached. Only files that passed the malware scan can be attached.</li>{% endfor %}</ul>
+      {% if open_case %}<details><summary>Attach scanned document</summary><form method="post" action="{{ url_for('recall.document',company_id=company_id,case_id=row.id) }}">{{ fields(documents) }}<button class="btn btn-primary">Attach scanned document</button></form></details>{% endif %}
+    </section>
 
-<h2>Tasks</h2>
-<ul class="plain-list">{% for task_row in tasks %}<li><strong>{{ task_row.title }}</strong> {{ task_row.status|tag }}{% if task_row.mandatory %} <span class="fine-print">mandatory</span>{% endif %}<p class="text-break">{{ task_row.description }}</p>{% if task_row.status=='open' %}<a href="{{ url_for('recall.task_editor',company_id=company_id,case_id=row.id,task_id=task_row.id) }}">Edit task</a>{% endif %}{% if row.status!='closed' and task_row.status in ['open','completed'] %}<details><summary>{{ 'Independently verify task' if task_row.status=='completed' else 'Complete assigned task' }}</summary><form method="post" action="{{ url_for('recall.complete_task',company_id=company_id,case_id=row.id,task_id=task_row.id) }}">{{ action.csrf_token }}<input type="hidden" name="version" value="{{ task_row.version }}"><input type="hidden" name="verify" value="{{ 'yes' if task_row.status=='completed' else 'no' }}">{{ field(action.note) }}<button class="btn btn-outline-primary">{{ 'Independently verify task' if task_row.status=='completed' else 'Complete assigned task' }}</button></form></details>{% endif %}</li>{% else %}<li class="empty">No tasks assigned.</li>{% endfor %}</ul>
-{% if open_case %}<details><summary>Assign investigation task</summary><form method="post" action="{{ url_for('recall.task',company_id=company_id,case_id=row.id) }}">{{ fields(task) }}<button class="btn btn-primary">Assign task</button></form></details>{% endif %}
+    {% if row.status=='approved' %}<section class="section" aria-labelledby="closure-heading"><h2 id="closure-heading">Closure review</h2><p>Requires a current complete trace, verified mandatory tasks, resolved dispatched quantities, and reviewed acknowledgements or explicitly recorded exceptions. Holds remain until independently released.</p><form method="post" action="{{ url_for('recall.close',company_id=company_id,case_id=row.id) }}">{{ fields(action) }}<button class="btn btn-success">Record reviewed closure</button></form></section>{% endif %}
+  </div>
 
-<h2>Discussion</h2>
-<ul class="plain-list discussion">{% for comment_row in comments %}<li><time datetime="{{ comment_row.created_at.isoformat() }}">{{ comment_row.created_at|when }}</time><p>{{ comment_row.body }}</p>{% if open_case %}<a href="{{ url_for('recall.amend_comment',company_id=company_id,case_id=row.id,comment_id=comment_row.id) }}">Append correction</a>{% endif %}</li>{% else %}<li class="empty">No comments yet.</li>{% endfor %}</ul>
-{% if open_case %}<details><summary>Add comment</summary><form method="post" action="{{ url_for('recall.comment',company_id=company_id,case_id=row.id) }}">{{ fields(comment) }}<button class="btn btn-secondary">Add comment</button></form></details>{% endif %}
+  <aside class="rail" aria-label="Status and next step">
+    <section class="panel next-step" aria-labelledby="next-step-title">
+      <h2 id="next-step-title">Next step</h2>
+      {% if editable %}
+        {% if row.status == 'rejected' %}<p>The reviewer sent this back for correction. Fix the scope, recompute the trace and submit again.</p>{% endif %}
+        {% if not latest %}<p>Add the suspect lots, then compute a downstream trace to see which products and shipments they reached.</p>
+        {% else %}<p>Check the latest trace, then submit it. A different reviewer must approve it with a recent authenticator check.</p>{% endif %}
+        <form method="post" action="{{ url_for('recall.submit',company_id=company_id,case_id=row.id) }}">{{ action.hidden_tag() }}<button class="btn btn-primary">Submit for independent approval</button></form>
+      {% elif row.status == 'submitted' %}
+        <p>Waiting for independent approval. Approving places holds on every affected lot at the same moment; the person who submitted cannot approve.</p>
+        <form method="post" action="{{ url_for('recall.approve',company_id=company_id,case_id=row.id) }}">{{ action.hidden_tag() }}<button class="btn btn-success">Approve current complete scope and place holds</button></form>
+        <details><summary>Reject for correction</summary><form method="post" action="{{ url_for('recall.reject',company_id=company_id,case_id=row.id) }}">{{ action.hidden_tag() }}{{ field(action.note) }}<button class="btn btn-outline-danger">Reject for correction</button></form></details>
+      {% elif row.status in ['approved','closed'] %}
+        {% if row.status == 'approved' %}<p>Approved and affected lots are on hold. Notify each customer, record verified recovery per shipment, verify tasks, then close.</p>
+        {% else %}<p>Closed. The scope, decisions and evidence are preserved.</p>{% endif %}
+        <details><summary>Reopen for a new scope review</summary><form method="post" action="{{ url_for('recall.reopen',company_id=company_id,case_id=row.id) }}">{{ action.hidden_tag() }}{{ field(action.note) }}<button class="btn btn-outline-warning">Reopen for a new scope review</button></form></details>
+      {% else %}<p>This investigation is {{ row.status|replace('_', ' ') }}.</p>{% endif %}
+      <p class="fine-print">Approvals and closure require recent MFA. A trace reports potentially related stock; it does not certify defective units or product safety.</p>
+    </section>
 
-<h2>Private evidence</h2>
-<ul class="plain-list">{% for link in links %}<li>{{ link.document_id }}{% if editable %}<form class="inline-action" method="post" action="{{ url_for('recall.detach_document',company_id=company_id,case_id=row.id,link_id=link.id) }}">{{ action.csrf_token }}<input name="version" type="hidden" value="{{ link.version }}"><button class="btn btn-sm btn-outline-danger">Detach draft evidence</button></form>{% endif %}</li>{% else %}<li class="empty">No documents attached. Only files that passed the malware scan can be attached.</li>{% endfor %}</ul>
-{% if open_case %}<details><summary>Attach scanned document</summary><form method="post" action="{{ url_for('recall.document',company_id=company_id,case_id=row.id) }}">{{ fields(documents) }}<button class="btn btn-secondary">Attach scanned document</button></form></details>{% endif %}
+    {% if row.status != 'cancelled' %}
+    <section class="panel" aria-labelledby="progress-title">
+      <h2 id="progress-title" class="mb-2">Progress</h2>
+      <ol class="stepper" aria-label="Investigation progress">
+        {% for label in ['Draft', 'Submitted', 'Approved', 'Closed'] %}
+        <li class="{{ 'is-done' if loop.index < step else 'is-current' if loop.index == step else '' }}"{% if loop.index == step %} aria-current="step"{% endif %}><span>{{ label }}</span></li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
 
-{% if row.status=='approved' %}<h2>Closure review</h2><p>Requires a current complete trace, verified mandatory tasks, resolved dispatched quantities, and reviewed acknowledgements or explicitly recorded exceptions. Holds remain until independently released.</p><form method="post" action="{{ url_for('recall.close',company_id=company_id,case_id=row.id) }}">{{ fields(action) }}<button class="btn btn-success">Record reviewed closure</button></form>{% endif %}
+    <section class="panel" aria-labelledby="glance-title">
+      <h2 id="glance-title" class="mb-2">At a glance</h2>
+      <dl class="kv">
+        <dt>Suspect lots</dt><dd>{{ sources|length }}</dd>
+        <dt>Affected shipments</dt><dd>{{ exposures|length }}</dd>
+        <dt>Latest trace</dt><dd>{% if latest %}<a href="{{ url_for('recall.trace',company_id=company_id,trace_id=latest.id) }}">{{ latest.status|tag }}</a>{% else %}None yet{% endif %}</dd>
+        <dt>Open tasks</dt><dd>{{ open_tasks }}</dd>
+      </dl>
+    </section>
+  </aside>
+</div>
 {% endblock %}
