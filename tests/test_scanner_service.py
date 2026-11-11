@@ -1,5 +1,6 @@
 """The VM scanning service: token check, ClamAV protocol and fail-closed answers."""
 
+import http.client
 import importlib.util
 import json
 import socket
@@ -109,8 +110,19 @@ def test_wrong_or_missing_token_is_refused(scanner):
 
 
 def test_oversized_uploads_are_refused(scanner):
+    # The service answers from the declared size alone and never reads the body, so the
+    # test declares an oversized length without streaming one (avoids a racing write).
     base, _ = scanner
-    assert call(f"{base}/scan", b"x" * (1024 * 1024 + 1))[0] == 413
+    host, port = base.removeprefix("http://").split(":")
+    connection = http.client.HTTPConnection(host, int(port), timeout=10)
+    connection.putrequest("POST", "/scan")
+    connection.putheader("Authorization", f"Bearer {TOKEN}")
+    connection.putheader("Content-Length", str(1024 * 1024 + 1))
+    connection.endheaders()
+    response = connection.getresponse()
+    assert response.status == 413
+    assert json.loads(response.read()) == {"status": "too_large"}
+    connection.close()
 
 
 def test_clamav_outage_fails_closed(scanner):
