@@ -24,7 +24,7 @@ See DECISIONS.md for the measured baseline and design. Locally, queries per sign
 
 ## Recall desk interface — 11 November 2026
 
-Later the same day: the owner's logo was added, the accent changed to the logo navy, and a brand layer added a navy sidebar, navy next-action cards, mascot empty states and a split sign-in page (see DECISIONS.md).
+Later the same day: the owner's logo was added, the accent changed to the logo navy, and a brand layer added a navy sidebar, navy next-action cards, mascot empty states and a split sign-in page. A final pass switched to Poppins and Montserrat, pill buttons with arrow chips, soft status badges, and a motion system (page transitions, theme reveal, scroll reveal, count-up figures, clickable rows) that respects reduced motion (see DECISIONS.md).
 
 The dark console look was replaced with a light-by-default "recall desk" design; dark follows the system setting or the toggle. The full rationale is in DECISIONS.md. The navigation now shows a company / section breadcrumb and a single Catalog entry with tabs. Overview, investigation, quality, operations, master data, catalog, company access, companies, search and trace pages were restructured. Templates and CSS changed; routes, permissions and business rules did not.
 

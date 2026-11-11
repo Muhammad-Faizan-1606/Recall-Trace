@@ -353,7 +353,7 @@ The read-only preview needs no database: `RECALLTRACE_PREVIEW=read-only` and
 
 - **Course:** Web Engineering (CSE601330). The project follows the supplied Flask project rubric (`references/Flask_Project_Rubric.pdf`).
 - **Team:** [add the names of the students who built and can explain this project]
-- **Third-party material:** [Bootstrap](https://getbootstrap.com/) 5.3.8 (MIT License, `app/static/vendor/BOOTSTRAP-LICENSE`); [IBM Plex Sans](https://github.com/IBM/plex) (SIL Open Font License 1.1, `app/static/vendor/fonts/IBM-PLEX-OFL-LICENSE`); the open-source Python packages listed in `requirements.in`; the public Supabase root certificate in `certs/`.
+- **Third-party material:** [Bootstrap](https://getbootstrap.com/) 5.3.8 (MIT License, `app/static/vendor/BOOTSTRAP-LICENSE`); [Poppins](https://github.com/itfoundry/Poppins) and [Montserrat](https://github.com/JulietaUla/Montserrat) (SIL Open Font License 1.1, `app/static/vendor/fonts/`); [Lucide](https://lucide.dev/) icons (ISC License, `app/static/vendor/icons/LUCIDE-LICENSE`); the open-source Python packages listed in `requirements.in`; the public Supabase root certificate in `certs/`.
 - **AI assistance:** this project was developed with the help of an AI coding agent (OpenAI Codex), as recorded in `AGENTS.md`, `STATUS.md` and `DECISIONS.md`. [Edit this line to match your course's disclosure policy and describe which parts you wrote or reviewed yourselves.]
 
 ## Further documentation

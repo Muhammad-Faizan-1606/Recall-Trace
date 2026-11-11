@@ -209,3 +209,22 @@ Owner feedback: the light design felt dull. Personality now comes from the brand
 - Larger titles (32px) and display-face figures in the facts line. Coral and mint stay decorative and never mean status.
 - One entrance animation as the page loads (6px rise, 320ms, staggered), disabled under reduced motion. Buttons move 1px when pressed.
 - Sign-in uses a split layout: a navy story panel with the logo and the trace example, beside the form.
+
+## 11 November 2026 — Poppins and Montserrat, pill buttons and a motion system
+
+Owner request: smoother motion and flow, Poppins and Montserrat as the only fonts, status labels that do not look like buttons, real-looking buttons, and the Tranquil site as reference. This deliberately overrides the earlier choice of small-radius rectangular buttons, because the owner's brief wins.
+
+- **Fonts.** Montserrat (500–700) for titles and key figures, Poppins (400–600) for everything else. Both are bundled locally under the SIL Open Font License. DM Sans and Bricolage Grotesque were removed.
+- **Buttons.** Rounded pills. A main action ends in a round arrow chip, as on the Tranquil site; the arrow turns on hover. Buttons with an icon show it in a round chip that spins a quarter turn. Main buttons gain a soft navy shadow on hover and press in slightly when clicked. The chip arrows are two small same-origin SVG files, because the strict security policy blocks inline data images.
+- **Status labels.** Soft, borderless pills with a round dot, so they read as labels and never as buttons.
+- **Page flow.**
+  - Browsers that support cross-document view transitions cross-fade between pages. The sidebar stays still and the current-page highlight slides to its new position.
+  - Switching theme spreads the new theme in a circle from the toggle.
+  - The first visit staggers content in. Blocks below the fold rise into view on scroll; everything appears once the reader reaches the end of the page or prints it.
+  - Key figures count up when the page opens.
+  - The top bar floats with a light blur and gains depth on scroll.
+  - Folded forms open smoothly where the browser supports it.
+  - Flash messages slide in, can be closed, and success messages leave after six seconds.
+  - Whole table rows open their record.
+  - The mascot gently bobs and its dotted trail moves.
+- **Reduced motion.** Under the reduced-motion setting all animation, view transitions and scroll reveal are off and content shows immediately. No content or control depends on JavaScript.
