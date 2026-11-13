@@ -366,8 +366,11 @@ def test_demo_factory_seeds_once_and_every_screen_renders(app, records, client):
     )
     assert result.exit_code == 0, result.output
     assert "1156 machines" in result.output
-    again = runner.invoke(args=["seed-factory-demo", "--owner-email", "catalog-editor@aurora.test"])
+    again = runner.invoke(args=["seed-factory-demo", "--owner-of", SLUG])
+    assert again.exit_code == 0, again.output
     assert "nothing changed" in again.output
+    both = runner.invoke(args=["seed-factory-demo"])
+    assert both.exit_code != 0 and "exactly one" in both.output
     company = db.session.scalar(select(Organization).where(Organization.slug == SLUG))
     assert (
         db.session.scalar(

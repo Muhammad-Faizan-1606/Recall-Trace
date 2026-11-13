@@ -95,13 +95,11 @@ jobs:
           COMPANY_SLUG: ${{ inputs.company_slug }}
         run: flask --app wsgi:app seed-demo-extras --company "$COMPANY_SLUG"
 
-      - name: Fictional Lahore Knit Mills factory (owned by the configured owner)
+      - name: Fictional Lahore Knit Mills factory (owned by the demo company's owner)
         if: ${{ inputs.factory_demo }}
         env:
-          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
-        run: |
-          email=$(printf '%s' "$OWNER_EMAIL" | tr -d '\r\n' | xargs)
-          flask --app wsgi:app seed-factory-demo --owner-email "$email"
+          COMPANY_SLUG: ${{ inputs.company_slug }}
+        run: flask --app wsgi:app seed-factory-demo --owner-of "$COMPANY_SLUG"
 
   deploy:
     needs: bootstrap

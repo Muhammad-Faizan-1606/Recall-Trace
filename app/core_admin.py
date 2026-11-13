@@ -237,16 +237,45 @@ def seed_demo_extras(company, owner_email):
 
 
 @click.command("seed-factory-demo")
-@click.option("--owner-email", required=True, help="Existing active account to own the demo.")
+@click.option("--owner-email", default=None, help="Existing active account to own the demo.")
+@click.option(
+    "--owner-of",
+    default=None,
+    help="Or: use the active owner of this existing company (slug) as the demo owner.",
+)
 @with_appcontext
-def seed_factory_demo(owner_email):
+def seed_factory_demo(owner_email, owner_of):
     """Create the fictional Lahore Knit Mills (demo) factory, owned by an existing account."""
     if current_app.config["APP_ENV"] != "development":
         raise click.ClickException("Fictional factory fixtures require development mode.")
-    user = db.session.scalar(
-        select(User).where(db.func.lower(User.email) == owner_email.strip().lower())
-    )
-    if user is None or not user.is_active or user.archived_at is not None:
+    if bool(owner_email) == bool(owner_of):
+        raise click.ClickException("Give exactly one of --owner-email or --owner-of.")
+    if owner_email:
+        user = db.session.scalar(
+            select(User).where(db.func.lower(User.email) == owner_email.strip().lower())
+        )
+    else:
+        user = db.session.scalar(
+            select(User)
+            .join(Membership, Membership.user_id == User.id)
+            .join(Organization, Organization.id == Membership.organization_id)
+            .join(MembershipRole, MembershipRole.membership_id == Membership.id)
+            .join(Role, Role.id == MembershipRole.role_id)
+            .where(
+                Organization.slug == owner_of.strip(),
+                Membership.status == "active",
+                Membership.archived_at.is_(None),
+                Membership.partner_id.is_(None),
+                Role.code == "owner",
+                Role.protected.is_(True),
+                Role.archived_at.is_(None),
+                User.active.is_(True),
+                User.archived_at.is_(None),
+            )
+            .order_by(Membership.created_at)
+            .limit(1)
+        )
+    if user is None or not user.is_active:
         raise click.ClickException("Choose an existing active account.")
     from app.policies import forget_authorization
     from app.services.factory_demo import NAME, ensure_company, seed
