@@ -253,3 +253,11 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Planning factors.** Process-loss factors (1.10 knitting, 1.05 dyeing) and panels per piece by product type are documented constants. They can become per-style settings when a factory supplies real figures.
 - **No scenario table.** The plan doc's `plan_scenarios` table was not created: what-if previews are computed in memory and applied by saving the order, so a scenario table would have been an empty model.
 - **Demo ratings corrected.** The step 1 demo underrated cutters (900 panels/h) and packing tables (180 pieces/h), which made them artificial bottlenecks. They now use 4,000 and 600, and the seed corrects an existing demo in the fictional company only.
+
+## 13 November 2026 — Factory Suite step 4: line balancing
+
+- **Sewing lines are the existing sewing work centres.** The plan doc listed a `sewing_lines` table. A sewing line already exists as a work centre in the sewing department, with its site, shift pattern and machines, so a second table would have duplicated it. Balances point at the work centre.
+- **What the line runs is derived, not stored.** It is the newest published balance revision for the line. Published balances stay as history, frozen by the existing draft guards, so no status update on old rows is needed when a line changes style.
+- **One station is one operator with one machine type.** Manual work (trimming, folding) may join any station, but two machine types never share one, which is how sewing floors are physically laid out. Splitting an operation between operators is allowed and recorded as a share with 4 decimal places that the service keeps summing to 1.
+- **The auto-balance is explainable rather than optimal.** It shares operators between machine types in proportion to their work, then divides each type evenly in sewing order. It typically reaches 89–93% balance efficiency on the demo styles. Exact optimisation (integer programming with precedence) is out of scope; an industrial engineer refines the result with moves and suggestions.
+- **Balances do not yet change the planning engine.** Planning still uses operators × minutes × efficiency for sewing capacity. Applying each line's balance efficiency to its capacity is a natural follow-up once a factory confirms that is how they plan; it is not done silently.

@@ -8,7 +8,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.extensions import db
@@ -387,4 +387,77 @@ class CapacityBooking(Owned, db.Model):
         _in("stage", STAGES),
         CheckConstraint("quantity > 0", name="quantity"),
         db.Index("ix_capacity_bookings_center_day", "organization_id", "work_center_id", "day"),
+    )
+
+
+# ---------- Step 4: line balancing ----------
+
+BALANCE_STATUSES = ("draft", "published")
+
+
+class LineBalance(Owned, db.Model):
+    """How one style's published bulletin is laid out on one sewing line.
+
+    Drafts are edited freely; published revisions are frozen by the draft guards. The
+    latest published revision of a line is what the line is running now.
+    """
+
+    __tablename__ = "line_balances"
+    work_center_id: Mapped[uuid.UUID] = mapped_column()
+    bulletin_id: Mapped[uuid.UUID] = mapped_column()
+    revision: Mapped[int] = mapped_column()
+    status: Mapped[str] = mapped_column(db.String(20), default="draft", server_default="draft")
+    # Planned efficiency for this style on this line, in percent.
+    target_efficiency: Mapped[Decimal] = mapped_column(db.Numeric(5, 2))
+    note: Mapped[str | None] = mapped_column(db.String(200))
+    published_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    __table_args__ = (
+        *identity("work_center_id", "revision"),
+        tenant_fk("work_center_id", "work_centers"),
+        tenant_fk("bulletin_id", "operation_bulletins"),
+        _in("status", BALANCE_STATUSES),
+        CheckConstraint("revision > 0", name="revision"),
+        CheckConstraint(
+            "target_efficiency > 0 AND target_efficiency <= 100", name="target_efficiency"
+        ),
+        CheckConstraint("(status = 'published') = (published_at IS NOT NULL)", name="published_at"),
+    )
+
+
+class LineStation(Owned, db.Model):
+    """One operator's workplace on the line, optionally tied to a physical machine."""
+
+    __tablename__ = "line_stations"
+    balance_id: Mapped[uuid.UUID] = mapped_column()
+    number: Mapped[int] = mapped_column()
+    machine_id: Mapped[uuid.UUID | None] = mapped_column()
+    __table_args__ = (
+        *identity("balance_id", "number"),
+        # Lets assignments prove they belong to a station of the same balance.
+        UniqueConstraint("organization_id", "balance_id", "id"),
+        # A machine serves at most one station of a balance (empty for manual stations).
+        UniqueConstraint("organization_id", "balance_id", "machine_id"),
+        tenant_fk("balance_id", "line_balances"),
+        tenant_fk("machine_id", "machines"),
+        CheckConstraint("number BETWEEN 1 AND 200", name="number"),
+    )
+
+
+class StationOperation(Owned, db.Model):
+    """A share of one bulletin operation done at one station (1 = all of it)."""
+
+    __tablename__ = "station_operations"
+    balance_id: Mapped[uuid.UUID] = mapped_column()
+    station_id: Mapped[uuid.UUID] = mapped_column()
+    bulletin_operation_id: Mapped[uuid.UUID] = mapped_column()
+    share: Mapped[Decimal] = mapped_column(db.Numeric(5, 4))
+    __table_args__ = (
+        *identity("station_id", "bulletin_operation_id"),
+        tenant_fk("balance_id", "line_balances"),
+        ForeignKeyConstraint(
+            ["organization_id", "balance_id", "station_id"],
+            ["line_stations.organization_id", "line_stations.balance_id", "line_stations.id"],
+        ),
+        tenant_fk("bulletin_operation_id", "bulletin_operations"),
+        CheckConstraint("share > 0 AND share <= 1", name="share"),
     )

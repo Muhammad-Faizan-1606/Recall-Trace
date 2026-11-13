@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}{{ view.style.code }} on {{ view.line.name }} · Line balance{% endblock %}
+{% block content %}
+{% set draft = balance.status == 'draft' %}
+{% set editable = draft and can_manage %}
+<p class="back-link"><a href="{{ url_for('balancing.line', company_id=company_id, line_id=view.line.id) }}">{{ view.line.name }} · {{ site.name if site }}</a></p>
+<div class="record-head">
+  <div>
+    <h1>{{ view.style.code }} on {{ view.line.name }}</h1>
+    <p class="record-meta">{{ balance.status|tag }}{% if is_current %}<span class="tag tag-good">running now</span>{% endif %}<span>Revision {{ balance.revision }}</span><span>{{ view.style.name }}</span><a href="{{ url_for('factory.bulletin', company_id=company_id, bulletin_id=view.bulletin.id) }}">Bulletin rev {{ view.bulletin.revision }}</a></p>
+  </div>
+  {% if can_manage %}
+  <div class="page-actions">
+    {% if draft %}
+      <form class="m-0" method="post" action="{{ url_for('balancing.balance_discard', company_id=company_id, balance_id=balance.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-danger" type="submit">Discard draft</button></form>
+      <form class="m-0" method="post" action="{{ url_for('balancing.balance_publish', company_id=company_id, balance_id=balance.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit"{% if not m.complete %} disabled{% endif %}>Publish to the line</button></form>
+    {% else %}
+      <form class="m-0" method="post" action="{{ url_for('balancing.balance_revise', company_id=company_id, balance_id=balance.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-secondary" type="submit">Start new revision</button></form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<dl class="facts">
+  <div><dt>Stations</dt><dd>{{ m.stations }}<small class="fine-print"> operators</small></dd></div>
+  <div><dt>Pitch time</dt><dd>{{ m.pitch|two }}<small class="fine-print"> min</small></dd></div>
+  <div class="{{ 'is-alert' if m.balance_efficiency < 85 }}"><dt>Balance efficiency</dt><dd>{{ m.balance_efficiency|cap }}%</dd></div>
+  <div><dt>Pieces per day</dt><dd>{{ m.per_day|cap }}<small class="fine-print"> · {{ m.per_hour|cap }}/h</small></dd></div>
+</dl>
+
+{% if m.unassigned %}<div class="alert alert-warning" role="status"><strong>Not fully assigned:</strong> {% for op, missing in m.unassigned %}{{ op.name }} ({{ (missing * hundred)|cap }}% left){{ ', ' if not loop.last }}{% endfor %}. Every operation must be fully assigned before publishing.</div>{% endif %}
+{% if m.mixed %}<div class="alert alert-danger" role="alert">Station{{ 's' if m.mixed|length != 1 }} {{ m.mixed|join(', ') }} combine{{ 's' if m.mixed|length == 1 }} two machine types. One operator works one kind of machine; move one of the operations away.</div>{% endif %}
+{% for name, needed, available in m.by_class if needed > available %}<div class="alert alert-warning" role="status">{{ needed }} {{ name }} station{{ 's' if needed != 1 }} need machines but only {{ available }} {{ 'is' if available == 1 else 'are' }} working on this line.</div>{% endfor %}
+
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="stations-heading">
+      <div class="section-head"><h2 id="stations-heading">Stations</h2><span class="section-note">Bar = station minutes per piece · line = pitch time ({{ m.pitch|two }} min)</span></div>
+      <div class="table-responsive"><table class="table stations">
+        <thead><tr><th scope="col" class="num">#</th><th scope="col">Work</th><th scope="col">Machine</th><th scope="col" class="num">Minutes</th><th scope="col" class="load-col">Load against pitch</th></tr></thead>
+        <tbody>{% for row in m.rows %}{% set station = row.station %}
+          <tr class="station-{{ row.state }}">
+            <td class="num"><strong>{{ station.number }}</strong></td>
+            <td>{% for op, share in station.work %}<div>{{ op.name }}{% if share < 1 %} <span class="fine-print">{{ (share * hundred)|cap }}%</span>{% endif %}</div>{% endfor %}</td>
+            <td>{% if station.machine %}{{ station.machine.asset_tag }}<div class="fine-print">{{ station.class_name }}</div>{% elif station.class_id %}<span class="tag tag-bad">no machine</span><div class="fine-print">{{ station.class_name }}</div>{% else %}<span class="fine-print">Manual</span>{% endif %}</td>
+            <td class="num">{{ row.load|two }}</td>
+            <td class="load-col"><span class="load-track"><span class="load-bar lb-{{ row.bar }}"></span><span class="pitch-mark"></span></span><span class="load-text">{{ row.percent|cap }}%{% if row.state == 'bottleneck' %} · bottleneck{% elif row.state == 'over' %} · over{% elif row.state == 'under' %} · idle time{% endif %}</span></td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty">No stations. Lay the line out again with a number of operators.</td></tr>{% endfor %}</tbody>
+        {% if m.rows %}<tfoot><tr><th scope="row" colspan="3">Garment SAM</th><td class="num"><strong>{{ m.total_sam|two }}</strong></td><td></td></tr></tfoot>{% endif %}
+      </table></div>
+    </section>
+
+    <section class="section" aria-labelledby="output-heading">
+      <div class="section-head"><h2 id="output-heading">What the imbalance costs</h2></div>
+      <dl class="kv">
+        <dt>Bottleneck</dt><dd>Station {{ m.bottleneck_numbers|join(', ') }} at {{ m.bottleneck|two }} min per piece</dd>
+        <dt>Line output</dt><dd>{{ view.minutes|cap }} productive min × {{ balance.target_efficiency|qty }}% ÷ {{ m.bottleneck|two }} = <strong>{{ m.per_day|cap }} pieces a day</strong></dd>
+        <dt>Perfectly balanced</dt><dd>{{ m.stations }} × {{ view.minutes|cap }} × {{ balance.target_efficiency|qty }}% ÷ {{ m.total_sam|two }} SAM = {{ m.balanced_per_day|cap }} pieces a day</dd>
+        <dt>Lost to imbalance</dt><dd>{{ m.lost_per_day|cap }} pieces a day</dd>
+      </dl>
+    </section>
+  </div>
+
+  <aside class="rail" aria-label="Improve the balance">
+    {% if view.suggestions %}
+    <section class="panel next-step" aria-labelledby="suggest-title">
+      <h2 id="suggest-title">Suggested</h2>
+      {% for s in view.suggestions %}
+      <div class="suggestion">
+        <p class="mb-1">{% if s.kind == 'move' %}Move {{ s.percent }}% of <strong>{{ s.op.name }}</strong> from station {{ s.from_number }} to station {{ s.to_number }}.{% else %}Add a floating operator beside station {{ s.from_number }} to take half of <strong>{{ s.op.name }}</strong>.{% endif %}</p>
+        <p class="fine-print mb-2">Bottleneck {{ m.bottleneck|two }} → {{ s.bottleneck_after|two }} min · +{{ s.gain_per_day|round|int }} pieces a day</p>
+        {% if editable %}<form method="post" action="{{ url_for('balancing.balance_move', company_id=company_id, balance_id=balance.id) }}">{{ action_form.hidden_tag() }}<input type="hidden" name="from_station" value="{{ s.from_number }}"><input type="hidden" name="operation_id" value="{{ s.op.id }}"><input type="hidden" name="to_station" value="{{ s.to_number if s.to_number else 'new' }}"><input type="hidden" name="percent" value="{{ s.percent }}"><button class="btn btn-sm btn-success" type="submit">Apply</button></form>{% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if editable %}
+    <section class="panel" aria-labelledby="move-title">
+      <h2 id="move-title">Move work</h2>
+      <form method="post" action="{{ url_for('balancing.balance_move', company_id=company_id, balance_id=balance.id) }}">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="work">Work</label>
+        <select class="form-select mb-2" id="work" name="work" required>{% for row in m.rows %}{% for op, share in row.station.work %}<option value="{{ row.station.number }}:{{ op.id }}">Station {{ row.station.number }} · {{ op.name }}{% if share < 1 %} ({{ (share * hundred)|cap }}%){% endif %}</option>{% endfor %}{% endfor %}</select>
+        <label class="form-label" for="to_station">To</label>
+        <select class="form-select mb-2" id="to_station" name="to_station">{% for row in m.rows %}<option value="{{ row.station.number }}">Station {{ row.station.number }} · {{ row.station.class_name }}</option>{% endfor %}<option value="new">A new station</option></select>
+        <label class="form-label" for="percent">How much of it</label>
+        <div class="input-group mb-3"><input class="form-control" id="percent" name="percent" type="number" min="1" max="100" value="100" required><span class="input-group-text">%</span></div>
+        <button class="btn btn-primary w-100" type="submit">Move</button>
+      </form>
+    </section>
+    <section class="panel" aria-labelledby="relayout-title">
+      <h2 id="relayout-title">Lay out again</h2>
+      <p class="fine-print">Replaces this draft's stations with a fresh automatic layout.</p>
+      <form method="post" action="{{ url_for('balancing.balance_rebalance', company_id=company_id, balance_id=balance.id) }}">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="operators">Operators</label>
+        <input class="form-control mb-2" id="operators" name="operators" type="number" min="1" max="200" value="{{ m.stations }}" required>
+        <button class="btn btn-outline-secondary w-100" type="submit">Lay out automatically</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="machines-title">
+      <h2 id="machines-title" class="mb-2">Machines</h2>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th scope="col">Type</th><th scope="col" class="num">Stations</th><th scope="col" class="num">Working</th></tr></thead>
+        <tbody>{% for name, needed, available in m.by_class %}<tr><td>{{ name }}</td><td class="num">{{ needed }}</td><td class="num{{ ' text-danger' if needed > available }}">{{ available }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

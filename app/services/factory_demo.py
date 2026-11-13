@@ -833,3 +833,123 @@ def seed_orders(organization, member, today=None):
         f"{added} fictional production orders planned ({len(RELEASED)} released, "
         f"{len(plans)} re-planned); {late} finish after their ex-factory date."
     ]
+
+
+# ---------- Step 4: fictional line balances ----------
+
+# Which style each site's lines run (cycled over the site's lines).
+LINE_STYLES = {
+    "QIE1": ("NP-TEE-101", "NP-LS-150", "NP-POLO-220"),
+    "QIE2": ("NP-TEE-101", "HP-SWT-500", "NP-HOOD-805", "NP-POLO-220"),
+    "PARK": ("NP-HOOD-805", "NP-TEE-101", "HP-JOG-310", "HP-SWT-500", "VL-TANK-120"),
+    "RWD": ("HP-JOG-310", "HP-SWT-500", "NP-LS-150"),
+    "SUN": ("VL-LEG-410", "VL-TANK-120"),
+}
+# Lines whose published balance was edited by hand into an uneven one, so the screen has
+# a real bottleneck to explain, and one line with a changeover draft in progress.
+UNEVEN = ("QIE2-L03", "PARK-L02")
+CHANGEOVER = ("RWD-L01", "NP-LS-150")
+
+
+def _largest_crew(ops, machines):
+    """Most operators (up to 32) whose machine stations this line can actually equip."""
+    from app.services.balancing import operators_by_class
+
+    working = {}
+    for machine, _ in machines:
+        if machine.status in ("active", "idle"):
+            working[machine.machine_class_id] = working.get(machine.machine_class_id, 0) + 1
+    minimum = len({op.class_id for op in ops})
+    for crew in range(32, minimum - 1, -1):
+        counts = operators_by_class(ops, crew)
+        if all(n <= working.get(cls, 0) for cls, n in counts.items() if cls is not None):
+            return crew
+    return minimum
+
+
+def _make_uneven(stations):
+    """Hand one station's whole first operation to its neighbour of the same machine type."""
+    for index, station in enumerate(stations[:-1]):
+        neighbour = stations[index + 1]
+        if station.class_id and station.class_id == neighbour.class_id and len(station.work) > 1:
+            op, share = station.work[0]
+            station.work = station.work[1:]
+            neighbour.work.append((op, share))
+            return
+
+
+def seed_balances(organization, member):
+    """Publish an automatic balance for every demo sewing line, once."""
+    from app.models import now as current_time
+    from app.models.factory import LineBalance, Style
+    from app.services import balancing, engineering
+    from app.services.factory import machines_by_center
+
+    company_id = organization.id
+    if db.session.scalar(select(LineBalance.id).where(LineBalance.organization_id == company_id)):
+        return []
+    styles = {
+        row.code: row
+        for row in db.session.scalars(select(Style).where(Style.organization_id == company_id))
+    }
+    current = engineering.current_bulletins(company_id)
+    lines = balancing.sewing_lines(company_id)
+    machines = machines_by_center(company_id, [line.id for line in lines])
+    published = 0
+    for line in lines:
+        site = line.code.split("-L")[0]
+        choices = LINE_STYLES.get(site)
+        if not choices:
+            continue
+        number = int(line.code.rsplit("L", 1)[1])
+        style = styles.get(choices[(number - 1) % len(choices)])
+        if style is None or style.id not in current:
+            continue
+        bulletin = current[style.id]
+        ops = balancing.bulletin_ops(company_id, bulletin.id)
+        on_line = machines.get(line.id, [])
+        stations = balancing.auto_layout(ops, _largest_crew(ops, on_line))
+        if line.code in UNEVEN:
+            _make_uneven(stations)
+        balance = LineBalance(
+            organization_id=company_id,
+            work_center_id=line.id,
+            bulletin_id=bulletin.id,
+            revision=1,
+            # Planned efficiency varies a little by line: 64% to 74%.
+            target_efficiency=D(64 + (number * 7 + len(site)) % 11),
+            note="Fictional demo balance",
+        )
+        db.session.add(balance)
+        db.session.flush()
+        balancing._write(company_id, balance, stations, on_line)
+        balance.status = "published"
+        balance.published_at = current_time()
+        db.session.flush()
+        published += 1
+        if line.code == CHANGEOVER[0] and CHANGEOVER[1] in styles:
+            next_style = styles[CHANGEOVER[1]]
+            if next_style.id in current:
+                next_ops = balancing.bulletin_ops(company_id, current[next_style.id].id)
+                draft = LineBalance(
+                    organization_id=company_id,
+                    work_center_id=line.id,
+                    bulletin_id=current[next_style.id].id,
+                    revision=2,
+                    target_efficiency=balance.target_efficiency,
+                    note="Changeover planned after the current order",
+                )
+                db.session.add(draft)
+                db.session.flush()
+                balancing._write(
+                    company_id,
+                    draft,
+                    balancing.auto_layout(next_ops, _largest_crew(next_ops, on_line)),
+                    on_line,
+                )
+    db.session.flush()
+    audit(company_id, "factory.demo_balances_seeded", "line_balances", None, {"count": published})
+    return [
+        f"{published} sewing lines balanced and published ({len(UNEVEN)} left uneven to show "
+        "the bottleneck tools), plus one changeover draft."
+    ]

@@ -30,6 +30,9 @@ FACTORY_TABLES = {
     "bulletin_operations",
     "production_orders",
     "capacity_bookings",
+    "line_balances",
+    "line_stations",
+    "station_operations",
 }
 
 

@@ -282,6 +282,7 @@ def seed_factory_demo(owner_email, owner_of):
         NAME,
         ensure_company,
         seed,
+        seed_balances,
         seed_orders,
         seed_styles,
     )
@@ -294,6 +295,7 @@ def seed_factory_demo(owner_email, owner_of):
         report = seed(organization, member)
         report += seed_styles(organization, member)
         report += seed_orders(organization, member)
+        report += seed_balances(organization, member)
         db.session.commit()
     click.echo(f"{NAME}: {'created' if created else 'already present'}; owner access confirmed.")
     for line in report or ["Factory register already present; nothing changed."]:

@@ -227,6 +227,9 @@ def create_app(config=None):
     from app.blueprints.planning import bp as planning_bp
 
     app.register_blueprint(planning_bp)
+    from app.blueprints.balancing import bp as balancing_bp
+
+    app.register_blueprint(balancing_bp)
     from app.cli import register
 
     register(app)

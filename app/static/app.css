@@ -722,6 +722,21 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .gs-28 { grid-column-start: 28; }
 .gw-1 { grid-column-end: span 1; } .gw-2 { grid-column-end: span 2; } .gw-3 { grid-column-end: span 3; } .gw-4 { grid-column-end: span 4; } .gw-5 { grid-column-end: span 5; } .gw-6 { grid-column-end: span 6; } .gw-7 { grid-column-end: span 7; } .gw-8 { grid-column-end: span 8; } .gw-9 { grid-column-end: span 9; } .gw-10 { grid-column-end: span 10; } .gw-11 { grid-column-end: span 11; } .gw-12 { grid-column-end: span 12; } .gw-13 { grid-column-end: span 13; } .gw-14 { grid-column-end: span 14; } .gw-15 { grid-column-end: span 15; } .gw-16 { grid-column-end: span 16; } .gw-17 { grid-column-end: span 17; } .gw-18 { grid-column-end: span 18; } .gw-19 { grid-column-end: span 19; } .gw-20 { grid-column-end: span 20; } .gw-21 { grid-column-end: span 21; } .gw-22 { grid-column-end: span 22; } .gw-23 { grid-column-end: span 23; } .gw-24 { grid-column-end: span 24; } .gw-25 { grid-column-end: span 25; } .gw-26 { grid-column-end: span 26; } .gw-27 { grid-column-end: span 27; } .gw-28 { grid-column-end: span 28; }
 
+/* Line balancing: station load against pitch time (track shows 0 to 1.43 x pitch). */
+.stations td { vertical-align: top; }
+.load-col { min-width: 220px; }
+.load-track { position: relative; display: block; height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.load-bar { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--accent); transition: width .4s var(--ease, ease); }
+.pitch-mark { position: absolute; top: -2px; bottom: -2px; left: 70%; width: 2px; background: var(--ink); opacity: .55; }
+.load-text { display: block; margin-top: .25rem; font-size: .75rem; color: var(--muted); }
+.station-under .load-bar { background: var(--line-strong); }
+.station-over .load-bar { background: var(--coral); }
+.station-bottleneck .load-bar { background: var(--bad); }
+.station-bottleneck > td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+.station-bottleneck .load-text { color: var(--bad); font-weight: 600; }
+.lb-0 { width: 0%; } .lb-1 { width: 5%; } .lb-2 { width: 10%; } .lb-3 { width: 15%; } .lb-4 { width: 20%; } .lb-5 { width: 25%; } .lb-6 { width: 30%; } .lb-7 { width: 35%; } .lb-8 { width: 40%; } .lb-9 { width: 45%; } .lb-10 { width: 50%; } .lb-11 { width: 55%; } .lb-12 { width: 60%; } .lb-13 { width: 65%; } .lb-14 { width: 70%; } .lb-15 { width: 75%; } .lb-16 { width: 80%; } .lb-17 { width: 85%; } .lb-18 { width: 90%; } .lb-19 { width: 95%; } .lb-20 { width: 100%; }
+.suggestion + .suggestion { margin-top: .875rem; padding-top: .875rem; border-top: 1px solid var(--line); }
+
 /* ---------- Motion and interaction ---------- */
 html { scroll-behavior: smooth; interpolate-size: allow-keywords; }
 

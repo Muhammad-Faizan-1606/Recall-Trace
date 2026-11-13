@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}{{ line.name }} · {{ site.name if site }}{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('balancing.lines', company_id=company_id) }}">Line balancing</a></p>
+<div class="record-head">
+  <div>
+    <h1>{{ line.name }} · {{ site.name if site }}</h1>
+    <p class="record-meta"><span>{{ line.code }}</span><span>Planned efficiency {{ line.target_efficiency|qty }}%</span><a href="{{ url_for('factory.detail', company_id=company_id, resource='work-centers', record_id=line.id) }}">Work centre and machines</a></p>
+  </div>
+</div>
+
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="history-heading">
+      <div class="section-head"><h2 id="history-heading">Balances</h2><span class="section-note">The newest published revision is what the line runs</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Revision</th><th scope="col">Style</th><th scope="col">Status</th><th scope="col" class="num">Stations</th><th scope="col" class="num">Balance</th><th scope="col" class="num">Pieces / day</th></tr></thead>
+        <tbody>{% for balance in history %}{% set style = styles.get(balance.bulletin_id) %}{% set figure = figures.get(balance.id) %}
+          <tr data-href="{{ url_for('balancing.balance', company_id=company_id, balance_id=balance.id) }}">
+            <td><a href="{{ url_for('balancing.balance', company_id=company_id, balance_id=balance.id) }}">Revision {{ balance.revision }}</a>{% if current and balance.id == current.id %} <span class="tag tag-good">running</span>{% endif %}</td>
+            <td>{{ style.code if style else '—' }}<div class="fine-print">{{ style.name if style else '' }}</div></td>
+            <td>{{ balance.status|tag }}</td>
+            <td class="num">{{ figure[0] if figure else '—' }}</td>
+            <td class="num">{{ (figure[1]|cap ~ '%') if figure else '—' }}</td>
+            <td class="num">{{ figure[2]|cap if figure else '—' }}</td>
+          </tr>
+        {% else %}<tr><td colspan="6" class="empty">No balances yet.{% if form %} Choose a style on the right to lay one out automatically.{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <aside class="rail" aria-label="Line">
+    {% if form %}
+    <section class="panel next-step" aria-labelledby="new-title">
+      <h2 id="new-title">Balance a style</h2>
+      <p>Operators are shared between machine types in proportion to their work, then each type's operations are divided evenly in sewing order. You can move work afterwards.</p>
+      <form method="post" action="{{ url_for('balancing.balance_new', company_id=company_id, line_id=line.id) }}" novalidate>
+        {{ form.hidden_tag() }}
+        {% for field in [form.bulletin_id, form.operators, form.target_efficiency, form.note] %}
+        <div class="mb-2">{{ field.label(class='form-label') }}{{ field(class='form-select' if field.type == 'SelectField' else 'form-control') }}{% if field.description %}<div class="form-text">{{ field.description }}</div>{% endif %}</div>
+        {% endfor %}
+        <button class="btn btn-primary mt-1" type="submit">Lay out the line</button>
+      </form>
+    </section>
+    {% elif can_manage %}
+    <section class="panel" aria-labelledby="draft-title"><h2 id="draft-title">Draft open</h2><p class="mb-0">Finish or discard the draft revision before starting another.</p></section>
+    {% endif %}
+    <section class="panel" aria-labelledby="mix-title">
+      <h2 id="mix-title" class="mb-2">Machines on this line</h2>
+      <dl class="kv">{% for name, counts in mix %}<dt>{{ name }}</dt><dd>{{ counts[0] }}{% if counts[0] != counts[1] %} of {{ counts[1] }} working{% endif %}</dd>{% else %}<dt>None</dt><dd>—</dd>{% endfor %}</dl>
+    </section>
+  </aside>
+</div>
+{% endblock %}

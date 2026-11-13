@@ -1,5 +1,40 @@
 # RecallTrace implementation status
 
+## Factory Suite step 4: line balancing — 13 November 2026
+
+- **Data:** migration `f04a01` adds `line_balances`, `line_stations` and `station_operations`. The schema is now 88 tables: 72 Core plus 16 Factory.
+  - A balance lays out one style's published bulletin on one sewing line, which is an existing sewing work centre. The newest published revision is what the line runs.
+  - Published balances are frozen by the existing draft-document and draft-line triggers.
+  - Assignments reference their station through a composite key that includes the balance, so the database proves a station's work belongs to the same balance.
+  - A machine can serve only one station per balance.
+- **Calculations** (`app/services/balancing.py`, pure functions):
+  - station load = Σ share × SAM
+  - pitch time = garment SAM ÷ stations
+  - bottleneck = the busiest station
+  - balance efficiency = SAM ÷ (stations × bottleneck)
+  - output = productive minutes × efficiency ÷ bottleneck
+  - output lost to imbalance compared with a perfectly balanced line
+  - work not fully assigned, stations mixing machine types, and machine shortfalls per type on the line
+- **Auto-balance:**
+  - Operators are shared between machine types so the busiest type is as light as possible.
+  - Each type's work is then divided evenly in sewing order, splitting an operation between neighbours only where a boundary falls inside it.
+  - Working machines of the right type are assigned to stations. A machine under maintenance is not used.
+- **Editing and history:**
+  - Move all or part of an operation to another station or a new one. One operator works one machine type, and a stale version is refused.
+  - Suggestions: the best single move off the bottleneck (whole operations preferred), and adding a floating operator. Each shows the new bottleneck and the extra pieces per day.
+  - Publish (only when every operation is fully assigned), start a new revision from a published one, discard a draft.
+- **Screens:**
+  - A line balancing overview: every sewing line grouped by site, with what it runs, stations, balance efficiency and pieces a day.
+  - A line page: balance history, machines on the line, and a "balance a style" form.
+  - The balancing board: station load bars against the pitch line, the bottleneck highlighted, the cost of imbalance with its arithmetic, suggestions with Apply buttons, a move form and re-layout.
+- **Demo:** all 38 fictional sewing lines are balanced and published, sized to the machines each line actually has. QIE2-L03 and PARK-L02 were left uneven on purpose (about 59% and 61%) to show the bottleneck tools. RWD-L01 has a changeover draft.
+- **Verification:** `tests/test_balancing.py` passes 10 tests on a hand-calculable five-operation line:
+  - operator split by machine type, the even split, metrics, and unassigned and mixed-type detection
+  - suggestions, machine assignment with a down machine
+  - moves, rejection of incompatible machine types and stale versions, publishing
+  - the database refusing changes to a published balance
+  - revision copy and discard, input validation, screens through CSRF, and read-only 403
+
 ## Factory Suite step 3: orders and capacity planning — 13 November 2026
 
 - **Data:** migration `f03a01` adds `production_orders` and `capacity_bookings`, the day-by-day ledger per order, stage and work centre. The schema is now 85 tables: 72 Core plus 13 Factory.

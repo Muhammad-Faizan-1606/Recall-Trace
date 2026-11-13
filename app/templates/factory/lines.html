@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Line balancing · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Line balancing</h1>
+    <p>What each sewing line is running, how evenly the work is shared between its operators, and what that costs in output.</p>
+  </div>
+</div>
+
+<dl class="facts">
+  <div><dt>Sewing lines</dt><dd>{{ total }}</dd></div>
+  <div><dt>Running a published balance</dt><dd>{{ running }}</dd></div>
+  <div><dt>Average balance efficiency</dt><dd>{% if average is not none %}{{ average|cap }}%{% else %}—{% endif %}</dd></div>
+  <div><dt>Pieces per day at plan</dt><dd>{{ pieces|cap }}</dd></div>
+</dl>
+
+<p class="fine-print">Balance efficiency = garment SAM ÷ (stations × busiest station's minutes). Below about 85% the line is waiting on its bottleneck; open the line to move work off it.</p>
+
+{% for site, items in groups %}
+<section class="section" aria-labelledby="site-{{ loop.index }}">
+  <div class="section-head"><h2 id="site-{{ loop.index }}">{{ site.name if site else 'Unknown site' }}</h2><span class="section-note">{{ items|length }} line{{ 's' if items|length != 1 }}</span></div>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th scope="col">Line</th><th scope="col">Running</th><th scope="col" class="num">Stations</th><th scope="col" class="num">Balance</th><th scope="col" class="num">Pieces / day</th><th scope="col">Draft</th></tr></thead>
+    <tbody>{% for line, balance, style, figure, draft in items %}
+      <tr data-href="{{ url_for('balancing.line', company_id=company_id, line_id=line.id) }}">
+        <td><a href="{{ url_for('balancing.line', company_id=company_id, line_id=line.id) }}">{{ line.name }}</a><div class="fine-print">{{ line.code }}</div></td>
+        <td>{% if balance %}<a href="{{ url_for('balancing.balance', company_id=company_id, balance_id=balance.id) }}">{{ style.code }}</a><div class="fine-print">{{ style.name }} · rev {{ balance.revision }}</div>{% else %}<span class="fine-print">No published balance</span>{% endif %}</td>
+        <td class="num">{{ figure[0] if figure else '—' }}</td>
+        <td class="num">{% if figure %}<span class="tag {{ 'tag-good' if figure[1] >= 90 else ('tag-waiting' if figure[1] >= 80 else 'tag-bad') }}">{{ figure[1]|cap }}%</span>{% else %}—{% endif %}</td>
+        <td class="num">{{ figure[2]|cap if figure else '—' }}</td>
+        <td>{% if draft %}<a href="{{ url_for('balancing.balance', company_id=company_id, balance_id=draft.id) }}">Revision {{ draft.revision }}</a>{% endif %}</td>
+      </tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+{% else %}
+<p class="empty">No sewing lines yet. Add a work centre in the sewing department under Factory setup.</p>
+{% endfor %}
+{% endblock %}
