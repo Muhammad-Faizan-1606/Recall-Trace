@@ -30,6 +30,7 @@ WAITING = {
     "held",
     "hold",
     "issued",
+    "maintenance",
     "medium",
     "open",
     "pending",
@@ -47,6 +48,7 @@ BAD = {
     "failed",
     "high",
     "infected",
+    "decommissioned",
     "rejected",
     "revoked",
 }

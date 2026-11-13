@@ -221,6 +221,9 @@ def create_app(config=None):
     from app.blueprints.recall import bp as recall_bp
 
     app.register_blueprint(recall_bp)
+    from app.blueprints.factory import bp as factory_bp
+
+    app.register_blueprint(factory_bp)
     from app.cli import register
 
     register(app)

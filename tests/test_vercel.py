@@ -214,7 +214,7 @@ def test_entrypoint_imports_without_local_configuration_or_operator_files(deploy
             sys.executable,
             "-c",
             "import index; from app.extensions import db; "
-            "assert len(db.metadata.tables) == 72; "
+            "assert len(db.metadata.tables) == 79; "
             "index.app.jinja_env.get_template('operations/editor.html'); "
             "response = index.app.test_client().get('/health/live', "
             "base_url='https://recalltrace.vercel.app'); "

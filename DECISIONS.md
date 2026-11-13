@@ -228,3 +228,12 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
   - Whole table rows open their record.
   - The mascot gently bobs and its dotted trail moves.
 - **Reduced motion.** Under the reduced-motion setting all animation, view transitions and scroll reveal are off and content shows immediately. No content or control depends on JavaScript.
+
+## 13 November 2026 — Factory Suite step 1 schema and access
+
+- **Schema expansion.** The owner approved growing the product beyond the 72-model Core release (documentation/docs/14_Factory_Suite_MCM_Plan.md). Step 1 adds 7 tables. The Core 72 stay exactly as specified, and contract tests check "Core 72 plus exactly the factory tables" rather than a looser count. The 28 historical Expanded models remain excluded.
+- **Capacity is derived, never stored.** It is always calculated from the machine register, efficiency, shift pattern and calendar, so a status change or holiday shows up immediately. Each machine class names its formula (knit, batch, continuous, rate, sewing), and identity fields that history depends on are frozen once a record is in use.
+- **Status changes have their own action.** Machine status is changed through a dedicated action with a required reason. Each change appends a row to `machine_status_events`, which is immutable in the database, like the other history tables.
+- **Production database access is applied by the migration.** Production uses a restricted runtime role and Supabase may auto-enable RLS on new tables. The migration therefore copies the runtime grants of an existing mutable Core table (`items`) instead of hard-coding a role name, revokes PUBLIC and the provider API roles, and disables RLS only on its own tables. This mirrors the original Core provisioning; authorization stays in the Flask policies.
+- **The demo seed is bulk.** The fictional factory has about a thousand machines, so it is inserted in one transaction with one summary audit event. Running the per-record service over a remote database would take many minutes. The company is new and owned only by the seeding account, and real records still go through the locked, audited service.
+- **Native form controls.** Bootstrap's select arrows and checkbox ticks are data-URI images that the strict CSP blocks. Native controls (with the accent colour) are used instead of weakening the CSP.

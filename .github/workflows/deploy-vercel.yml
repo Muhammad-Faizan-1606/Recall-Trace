@@ -12,6 +12,10 @@ on:
         description: Only add the fictional demonstration extras to an existing company
         type: boolean
         default: false
+      factory_demo:
+        description: Apply migrations and create the fictional Lahore Knit Mills factory (idempotent)
+        type: boolean
+        default: false
       company_name:
         description: Company display name used by bootstrap
         default: RecallTrace Demo Lighting
@@ -31,7 +35,7 @@ env:
 
 jobs:
   bootstrap:
-    if: ${{ inputs.bootstrap || inputs.demo_extras }}
+    if: ${{ inputs.bootstrap || inputs.demo_extras || inputs.factory_demo }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -86,9 +90,18 @@ jobs:
           flask --app wsgi:app seed-investigation-demo --company "$COMPANY_SLUG" --owner-email "$email"
 
       - name: Fictional demonstration extras (owner found automatically)
+        if: ${{ inputs.bootstrap || inputs.demo_extras }}
         env:
           COMPANY_SLUG: ${{ inputs.company_slug }}
         run: flask --app wsgi:app seed-demo-extras --company "$COMPANY_SLUG"
+
+      - name: Fictional Lahore Knit Mills factory (owned by the configured owner)
+        if: ${{ inputs.factory_demo }}
+        env:
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+        run: |
+          email=$(printf '%s' "$OWNER_EMAIL" | tr -d '\r\n' | xargs)
+          flask --app wsgi:app seed-factory-demo --owner-email "$email"
 
   deploy:
     needs: bootstrap

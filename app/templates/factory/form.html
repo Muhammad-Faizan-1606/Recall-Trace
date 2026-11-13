@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }} · RecallTrace{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ back }}">Back to the list</a></p>
+<div class="form-panel">
+  <h1>{{ title }}</h1>
+  {% if form.errors %}<div class="alert alert-danger" role="alert">Please correct the fields below.</div>{% endif %}
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {% for input in form %}{% if input.type not in ['HiddenField', 'CSRFTokenField'] %}
+    <div class="mb-3">
+      {% if input.type == 'SelectMultipleField' %}
+        <fieldset aria-describedby="{{ input.id }}-help">
+          <legend class="form-label">{{ input.label.text }}</legend>
+          <div class="day-picker">{% for option in input %}<label class="day-option">{{ option(class_='form-check-input') }}<span>{{ option.label.text }}</span></label>{% endfor %}</div>
+        </fieldset>
+      {% else %}
+        {{ input.label(class_='form-label') }}
+        {% set describe = (input.id ~ '-help') if input.description else '' %}
+        {% if input.errors %}{{ input(class_='form-select is-invalid' if input.type == 'SelectField' else 'form-control is-invalid', aria_describedby=(input.id ~ '-errors ' ~ describe)|trim, aria_invalid='true') }}{% elif describe %}{{ input(class_='form-select' if input.type == 'SelectField' else 'form-control', aria_describedby=describe) }}{% else %}{{ input(class_='form-select' if input.type == 'SelectField' else 'form-control') }}{% endif %}
+      {% endif %}
+      {% if input.description %}<div id="{{ input.id }}-help" class="form-text">{{ input.description }}</div>{% endif %}
+      {% if input.errors %}<div id="{{ input.id }}-errors" class="invalid-feedback d-block">{% for error in input.errors %}{{ error }} {% endfor %}</div>{% endif %}
+    </div>
+    {% endif %}{% endfor %}
+    <button class="btn btn-primary" type="submit">{{ submit }}</button>
+  </form>
+</div>
+{% endblock %}

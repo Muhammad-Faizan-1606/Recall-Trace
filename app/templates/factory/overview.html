@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Factory floor · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Factory floor</h1>
+    <p>What every site and department can produce today ({{ today.strftime('%A %d %B') }}), calculated live from the machine register, shift patterns and holidays.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('factory.setup', company_id=company_id) }}">Factory setup</a>
+    {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('factory.create', company_id=company_id, resource='machines') }}">{{ icon('plus') }}Register machine</a>{% endif %}
+  </div>
+</div>
+
+<dl class="facts">
+  <div><dt>Sites</dt><dd>{{ sites|length }}</dd></div>
+  <div><dt>Work centres</dt><dd><a href="{{ url_for('factory.listing', company_id=company_id, resource='work-centers') }}">{{ center_count }}</a></dd></div>
+  <div><dt>Machines available</dt><dd><a href="{{ url_for('factory.listing', company_id=company_id, resource='machines') }}">{{ totals.available }}</a><small class="fine-print"> of {{ totals.machines }}</small></dd></div>
+  <div class="{{ 'is-alert' if totals.maintenance }}"><dt>In maintenance</dt><dd>{{ totals.maintenance }}</dd></div>
+</dl>
+
+{% if not center_count %}
+<section class="feature" aria-labelledby="start-title">
+  <div class="feature-body">
+    <p class="feature-label">Set up your factory</p>
+    <h2 id="start-title">Model your sites, departments and machines</h2>
+    <p>Start with a shift pattern, then add a work centre for each department at each site, then register the machines in it. Capacity appears here as soon as a machine is registered.</p>
+    {% if can_manage %}<div class="page-actions"><a class="btn btn-primary" href="{{ url_for('factory.setup', company_id=company_id) }}">Open factory setup</a></div>{% endif %}
+  </div>
+</section>
+{% else %}
+<section class="section" aria-labelledby="dept-heading">
+  <div class="section-head"><h2 id="dept-heading">Capacity today by department</h2><span class="section-note">At each work centre's target efficiency</span></div>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th scope="col">Department</th><th scope="col" class="num">Can produce today</th></tr></thead>
+    <tbody>{% for department, per_unit in departments %}<tr><td>{{ human(department) }}{% if department == 'sewing' %}<div class="fine-print">Standard minutes of work. A basic T-shirt takes about {{ reference_sam|cap }} minutes, so this is roughly {{ ((per_unit.get('SAM min', 0)) / reference_sam)|cap }} T-shirts.</div>{% endif %}</td><td class="num">{{ per_unit|caps }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% for site, centers in sites %}
+<section class="section" aria-labelledby="site-{{ loop.index }}">
+  <div class="section-head"><h2 id="site-{{ loop.index }}">{{ site.name }}</h2><span class="section-note">{{ site.address_text|truncate(70) }}</span></div>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th scope="col">Work centre</th><th scope="col">Department</th><th scope="col" class="num">Machines ready</th><th scope="col" class="num">Hours today</th><th scope="col" class="num">Can produce today</th></tr></thead>
+    <tbody>{% for row in centers %}
+      <tr>
+        <td>{% if row.center %}<a href="{{ url_for('factory.detail', company_id=company_id, resource='work-centers', record_id=row.center.id) }}">{{ row.name }}</a><div class="fine-print">{{ row.code }}</div>{% else %}<a href="{{ url_for('factory.listing', company_id=company_id, resource='work-centers') }}">{{ row.name }}</a><div class="fine-print">Open a line in Work centres</div>{% endif %}</td>
+        <td>{{ human(row.department) }}</td>
+        <td class="num">{{ row.available }} / {{ row.total }}</td>
+        <td class="num">{{ row.hours|cap }}{% if row.reason != 'normal day' %}<div class="fine-print">{{ row.reason }}</div>{% endif %}</td>
+        <td class="num">{{ row.per_day|caps }}</td>
+      </tr>
+    {% else %}<tr><td colspan="5" class="empty">No work centres at this site yet.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% else %}
+<p class="empty">No sites yet. Add sites under <a href="{{ url_for('master.listing', company_id=company_id, resource='sites') }}">Master data → Sites</a>.</p>
+{% endfor %}
+{% endblock %}

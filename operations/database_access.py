@@ -32,6 +32,8 @@ FUNCTIONS = (
 )
 # Column UPDATE(id) permits existing row-locking workflows; the unconditional
 # immutable-history trigger still rejects every actual UPDATE on these tables.
+# 72 Core tables plus the 7 Factory Suite tables added by migration f01a01.
+APPLICATION_TABLES = 79
 ROW_LOCK_TABLES = frozenset({"stock_transactions", "trace_runs", "case_comments"})
 IMMUTABLE = frozenset(
     {
@@ -45,6 +47,7 @@ IMMUTABLE = frozenset(
         "case_comments",
         "trace_runs",
         "trace_results",
+        "machine_status_events",
     }
 )
 
@@ -58,8 +61,10 @@ def table_names():
     from app.extensions import db
 
     tables = sorted(db.metadata.tables)
-    if len(tables) != 72 or not IMMUTABLE.issubset(tables):
-        raise AccessError("Review the access policy against the current 72-model inventory.")
+    if len(tables) != APPLICATION_TABLES or not IMMUTABLE.issubset(tables):
+        raise AccessError(
+            f"Review the access policy against the current {APPLICATION_TABLES}-model inventory."
+        )
     return tables + ["alembic_version"]
 
 
@@ -184,7 +189,9 @@ def _inventory(connection, migration_oid, *, allow_supabase_auto_rls=False):
         (names,),
     ).fetchall()
     if set(row[0] for row in rows) != set(names):
-        raise AccessError("Migrate all 72 Core tables and Alembic metadata before provisioning.")
+        raise AccessError(
+            "Migrate all application tables and Alembic metadata before provisioning."
+        )
     if any(row[2] != migration_oid or row[3] != "r" or row[4] for row in rows):
         raise AccessError(
             "Core tables must be ordinary tables owned by the named migration role; "
@@ -452,7 +459,7 @@ def check_access(connection, runtime, migration, *, allow_supabase_auto_rls=Fals
         "status": "verified" if not findings else "blocked",
         "database": database[1],
         "runtime_role": runtime,
-        "core_tables": 72,
+        "core_tables": APPLICATION_TABLES,
         "findings": findings,
     }
 

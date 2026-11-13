@@ -613,6 +613,25 @@ details > form { padding: 1rem; border: 1px solid var(--line); border-radius: va
 .signin .form-panel { padding: 2.25rem; border-radius: 20px; }
 .signin .form-panel .btn-primary { width: 100%; min-height: 42px; }
 
+/* Native select arrows and checkboxes: Bootstrap's data-URI icons are blocked by the CSP. */
+.form-select { background-image: none !important; appearance: auto; -webkit-appearance: auto; padding-right: .75rem; }
+.form-check-input, .form-check-input:checked, .form-check-input:indeterminate { appearance: auto; -webkit-appearance: auto; background-image: none !important; accent-color: var(--accent); width: 1rem; height: 1rem; border: 0; }
+
+/* ---------- Factory ---------- */
+.record-head + .split, .record-head + .record-reason + .split { margin-top: 1.5rem; }
+.next-step .form-label { color: var(--on-navy); }
+.next-step .form-control, .next-step .form-select { border-color: transparent; }
+.factory-tag, .table td a[href*="/factory/machines/"] { white-space: nowrap; }
+.not-counted { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.day-picker { display: flex; flex-wrap: wrap; gap: .5rem; }
+.day-option { display: inline-flex; align-items: center; gap: .375rem; padding: .375rem .75rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); cursor: pointer; font-size: .875rem; transition: border-color .2s var(--out), background-color .2s var(--out); }
+.day-option:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); }
+.day-option .form-check-input { margin: 0; }
+fieldset { border: 0; padding: 0; margin: 0; }
+.working { margin: 0 0 .75rem; padding-left: 1.25rem; font-variant-numeric: tabular-nums; }
+.working li { padding: .25rem 0; }
+.facts small.fine-print { font-family: var(--font); font-size: .8125rem; letter-spacing: 0; }
+
 /* ---------- Motion and interaction ---------- */
 html { scroll-behavior: smooth; interpolate-size: allow-keywords; }
 

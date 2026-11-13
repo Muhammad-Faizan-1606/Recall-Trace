@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }} · {{ company.name }}{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('factory.overview' if resource in ('machines', 'work-centers') else 'factory.setup', company_id=company_id) }}">{{ 'Factory floor' if resource in ('machines', 'work-centers') else 'Factory setup' }}</a></p>
+<div class="page-head">
+  <div><h1>{{ title }}</h1></div>
+  {% if can_manage %}<div class="page-actions"><a class="btn btn-primary" href="{{ url_for('factory.create', company_id=company_id, resource=resource) }}">{{ icon('plus') }}New</a></div>{% endif %}
+</div>
+<div class="table-responsive"><table class="table">
+  <thead><tr>{% for header in headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for row, cells in rows %}
+    <tr>{% for cell in cells %}<td>{% if loop.first %}<a href="{{ url_for('factory.detail', company_id=company_id, resource=resource, record_id=row.id) }}">{{ cell }}</a>{% if row.archived_at is defined and row.archived_at %} <span class="tag">archived</span>{% endif %}{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>
+  {% else %}<tr><td colspan="{{ headers|length }}" class="empty">Nothing here yet.{% if can_manage %} Use “New” to add the first one.{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+<nav class="pager" aria-label="Pages">{% if page.has_prev %}<a href="{{ url_for('factory.listing', company_id=company_id, resource=resource, page=page.prev_num) }}">Previous</a>{% endif %}{% if page.pages > 1 %}<span>Page {{ page.page }} of {{ page.pages }} · {{ page.total }} records</span>{% endif %}{% if page.has_next %}<a href="{{ url_for('factory.listing', company_id=company_id, resource=resource, page=page.next_num) }}">Next</a>{% endif %}</nav>
+{% endblock %}

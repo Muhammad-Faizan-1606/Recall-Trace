@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}{{ label(record) }} · {{ title }}{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('factory.listing', company_id=company_id, resource=resource) }}">{{ title }}</a></p>
+<div class="record-head">
+  <div>
+    <h1>{{ label(record) }}</h1>
+    <p class="record-meta">{% if record.status is defined %}{{ record.status|tag }}{% endif %}{% if record.archived_at is defined and record.archived_at %} <span class="tag">archived</span>{% endif %}</p>
+  </div>
+  {% if can_manage and not (record.archived_at is defined and record.archived_at) %}
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('factory.edit', company_id=company_id, resource=resource, record_id=record.id) }}">Edit</a>
+    <form class="m-0" method="post" action="{{ url_for('factory.delete', company_id=company_id, resource=resource, record_id=record.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-danger" type="submit">Delete or archive</button></form>
+  </div>
+  {% endif %}
+</div>
+
+<div class="split{{ ' rail-first' if resource == 'machines' }}">
+  <div>
+    {% if resource == 'work-centers' %}
+    <section class="section" aria-labelledby="machines-heading">
+      <div class="section-head"><h2 id="machines-heading">Machines</h2><span class="section-note">{{ result.available }} of {{ result.total }} ready</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Machine</th><th scope="col">Status</th><th scope="col" class="num">Output per hour</th></tr></thead>
+        <tbody>{% for machine, machine_class, rate in rates %}
+          <tr><td><a href="{{ url_for('factory.detail', company_id=company_id, resource='machines', record_id=machine.id) }}">{{ machine.asset_tag }}</a><div class="fine-print">{{ machine.make_model }}</div></td>
+            <td>{{ machine.status|tag }}</td>
+            <td class="num">{% if rate.problem %}<span class="fine-print">{{ rate.problem }}</span>{% elif machine.status in ('active', 'idle') %}{{ rate.per_hour|cap }} {{ rate.unit }}{% else %}<span class="not-counted">{{ rate.per_hour|cap }} {{ rate.unit }}</span><div class="fine-print">not counted while {{ 'in maintenance' if machine.status == 'maintenance' else machine.status }}</div>{% endif %}</td></tr>
+        {% else %}<tr><td colspan="3" class="empty">No machines registered here yet.{% if can_manage %} <a href="{{ url_for('factory.create', company_id=company_id, resource='machines') }}">Register one</a>.{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+
+    <section class="section" aria-labelledby="calendar-heading">
+      <div class="section-head"><h2 id="calendar-heading">Next {{ days|length }} days</h2><span class="section-note">{{ pattern.name }} · {{ site.name }}</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Day</th><th scope="col" class="num">Productive hours</th>{% for unit in units %}<th scope="col" class="num">{{ unit }}</th>{% endfor %}<th scope="col">Note</th></tr></thead>
+        <tbody>{% for day, hours, reason, per_day in days %}
+          <tr><td>{{ day.strftime('%a %d %b') }}</td><td class="num">{{ hours|cap }}</td>{% for unit in units %}<td class="num">{{ per_day.get(unit)|cap }}</td>{% endfor %}<td class="fine-print">{{ '' if reason == 'normal day' else reason }}</td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+      {% if result.problems %}<div class="alert alert-warning">Some machines are left out of capacity: {{ result.problems|join('; ') }}</div>{% endif %}
+    </section>
+    {% endif %}
+
+    {% if resource == 'machines' %}
+    <section class="section" aria-labelledby="working-heading">
+      <div class="section-head"><h2 id="working-heading">How its capacity is calculated</h2><span class="section-note">{{ human(machine_class.capacity_basis) }} formula</span></div>
+      <div class="panel">
+        {% if rate.problem %}<p>{{ rate.problem }}</p>
+        {% else %}
+        <ol class="working">{% for step in rate.steps %}<li>{{ step }}</li>{% endfor %}</ol>
+        <p class="fine-print mb-0">Efficiency {{ (rate.efficiency * 100)|cap }}% is {{ 'this machine’s own figure' if record.efficiency is not none else 'the target of ' ~ center.name }}. {% if not available %}<strong>This machine is {{ 'under maintenance' if record.status == 'maintenance' else record.status }}, so it adds nothing to capacity right now.</strong>{% endif %}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="history-heading">
+      <div class="section-head"><h2 id="history-heading">Status history</h2><span class="section-note">Kept permanently</span></div>
+      <ul class="stack-list">{% for event in history %}
+        <li class="d-flex flex-wrap justify-content-between gap-2"><span>{% if event.from_status %}{{ event.from_status|tag }} → {% endif %}{{ event.to_status|tag }} <span class="ms-1">{{ event.reason }}</span></span><span class="fine-print">{{ event.occurred_at|when }}</span></li>
+      {% else %}<li class="empty">No status changes recorded.</li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+
+    {% if resource == 'machine-classes' %}
+    <section class="section"><p>{{ machine_count }} machine{{ 's' if machine_count != 1 }} use this class. <a href="{{ url_for('factory.listing', company_id=company_id, resource='machines') }}">See machines</a>.</p></section>
+    {% endif %}
+  </div>
+
+  <aside class="rail" aria-label="Details">
+    {% if resource == 'machines' and can_manage and record.status != 'decommissioned' and not record.archived_at %}
+    <section class="panel next-step" aria-labelledby="status-title">
+      <h2 id="status-title">Change status</h2>
+      <p>Machines under maintenance or decommissioned drop out of capacity at once. Give a reason; it is kept in the history.</p>
+      <form method="post" action="{{ url_for('factory.machine_status', company_id=company_id, record_id=record.id) }}">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="to_status">New status</label>
+        <select class="form-select mb-2" id="to_status" name="to_status">{% for status in statuses %}<option value="{{ status }}">{{ human(status) }}</option>{% endfor %}</select>
+        <label class="form-label" for="reason">Reason</label>
+        <input class="form-control mb-3" id="reason" name="reason" maxlength="500" required placeholder="e.g. Needle bed replacement">
+        <button class="btn btn-primary" type="submit">Update status</button>
+      </form>
+    </section>
+    {% endif %}
+    {% if resource == 'work-centers' %}
+    <section class="panel" aria-labelledby="cap-title">
+      <h2 id="cap-title" class="mb-2">Capacity</h2>
+      <dl class="kv">
+        <dt>Per hour</dt><dd>{{ result.per_hour|caps }}</dd>
+        <dt>Next 7 days</dt><dd>{{ week_total|caps }}</dd>
+        <dt>Machines ready</dt><dd>{{ result.available }} / {{ result.total }}</dd>
+      </dl>
+    </section>
+    {% endif %}
+    <section class="panel" aria-labelledby="facts-title">
+      <h2 id="facts-title" class="mb-2">Details</h2>
+      <dl class="kv">{% for name, value in fields %}<dt>{{ name }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+    </section>
+  </aside>
+</div>
+{% endblock %}

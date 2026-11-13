@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Factory setup · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Factory setup</h1><p>The building blocks the capacity engine uses. Set them up roughly in this order; each one is used by the next.</p></div></div>
+{% set steps = [
+  ('sites', 'Sites', 'Your campuses and factories (kept in master data).', site_count, url_for('master.listing', company_id=company_id, resource='sites')),
+  ('shift-patterns', 'Shift patterns', 'Shifts per day, hours per shift, breaks and working days.', counts['shift-patterns'], url_for('factory.listing', company_id=company_id, resource='shift-patterns')),
+  ('machine-classes', 'Machine classes', 'Kinds of machine and the formula that gives their capacity.', counts['machine-classes'], url_for('factory.listing', company_id=company_id, resource='machine-classes')),
+  ('work-centers', 'Work centres', 'Each department at each site, with its shift pattern and target efficiency.', counts['work-centers'], url_for('factory.listing', company_id=company_id, resource='work-centers')),
+  ('machines', 'Machines', 'Every physical machine with its rating and status.', counts['machines'], url_for('factory.listing', company_id=company_id, resource='machines')),
+  ('calendar', 'Holidays and shutdowns', 'Days a site works differently from its shift pattern.', counts['calendar'], url_for('factory.listing', company_id=company_id, resource='calendar')),
+  ('transit', 'Transit times', 'Hours to move material between sites, used when scheduling.', counts['transit'], url_for('factory.listing', company_id=company_id, resource='transit')),
+] %}
+<div class="directory"><section aria-label="Setup steps"><ul>
+{% for key, name, blurb, count, href in steps %}
+  <li><a href="{{ href }}"><span><strong>{{ loop.index }}. {{ name }} <small class="count-pill">{{ count }}</small></strong><span>{{ blurb }}</span></span>{{ icon('chevron-right') }}</a></li>
+{% endfor %}
+</ul></section></div>
+{% endblock %}

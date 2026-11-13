@@ -15,7 +15,7 @@
 {% set sprite = url_for('static', filename='vendor/icons/sprite.svg') %}
 {% macro brand_logo(on_navy=False) %}<a class="brand" href="{{ url_for('catalog.companies') }}">{% if on_navy %}<img class="logo" src="{{ url_for('static', filename='brand/recalltrace-logo-dark.webp') }}" width="520" height="156" alt="RecallTrace">{% else %}<img class="logo logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-logo.webp') }}" width="520" height="156" alt="RecallTrace"><img class="logo logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-logo-dark.webp') }}" width="520" height="156" alt="RecallTrace">{% endif %}</a>{% endmacro %}
 {% macro icon(name) %}<svg class="icon" aria-hidden="true" focusable="false"><use href="{{ sprite }}#i-{{ name }}"></use></svg>{% endmacro %}
-{% macro nav_link(href, text, glyph, match=None) %}{% set prefix = match or href %}{% set current = request.path == href or request.path.startswith(prefix ~ '/') %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
+{% macro nav_link(href, text, glyph, match=None) %}{% set prefixes = match if (match is sequence and match is not string) else [match or href] %}{% set ns = namespace(current=request.path == href) %}{% for prefix in prefixes %}{% if request.path.startswith(prefix ~ '/') %}{% set ns.current = true %}{% endif %}{% endfor %}{% set current = ns.current %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
 {% macro brand_mark(href) %}<a class="topbar-mark" href="{{ href }}" aria-label="RecallTrace home"><img class="logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-mark.webp') }}" width="192" height="170" alt=""><img class="logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-mark-dark.webp') }}" width="192" height="170" alt=""></a>{% endmacro %}
 <body class="{{ 'has-sidebar' if company is defined else 'no-sidebar' }}{{ ' is-signin' if request and request.endpoint == 'auth.login' }}">
 <a class="visually-hidden-focusable skip-link" href="#main">Skip to content</a>
@@ -35,6 +35,15 @@
       {{ nav_link(url_for('recall.dashboard', company_id=company_id), 'Investigations', 'scan-search') }}
       {{ nav_link(url_for('notices.listing', company_id=company_id), 'Notices', 'megaphone') }}
     </div>
+    {% if can_use_factory(company_id) %}
+    <div class="side-group">
+      <p class="side-heading">Factory</p>
+      {{ nav_link(url_for('factory.overview', company_id=company_id), 'Factory floor', 'activity', '/companies/' ~ company_id ~ '/factory/__none__') }}
+      {{ nav_link(url_for('factory.listing', company_id=company_id, resource='machines'), 'Machines', 'boxes') }}
+      {{ nav_link(url_for('factory.listing', company_id=company_id, resource='work-centers'), 'Work centres', 'layers') }}
+      {% set fbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('factory.setup', company_id=company_id), 'Factory setup', 'calendar', [fbase ~ 'setup', fbase ~ 'machine-classes', fbase ~ 'shift-patterns', fbase ~ 'calendar', fbase ~ 'transit']) }}
+    </div>
+    {% endif %}
     <div class="side-group">
       <p class="side-heading">Stock and quality</p>
       {{ nav_link(url_for('operations.dashboard', company_id=company_id), 'Operations', 'boxes') }}
@@ -67,7 +76,7 @@
     {% if company is defined %}
     <button class="icon-button menu-button" type="button" data-sidebar-open aria-controls="sidebar" aria-label="Open menu">{{ icon('menu') }}</button>
     {{ brand_mark(url_for('overview.overview', company_id=company_id)) }}
-    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
+    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
     <ol class="crumbs" aria-label="You are here">
       <li><a href="{{ url_for('overview.overview', company_id=company_id) }}">{{ company.name }}</a></li>
       <li><span aria-current="location">{{ 'Search' if request.endpoint == 'overview.search' else sections.get(request.blueprint, 'Workspace') }}</span></li>

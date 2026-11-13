@@ -16,6 +16,16 @@ from app.models.master import Partner
 from app.models.operations import StockTransactionLine
 from app.services.trace_fixture import seed_c10
 
+FACTORY_TABLES = {
+    "shift_patterns",
+    "work_centers",
+    "machine_classes",
+    "machines",
+    "machine_status_events",
+    "calendar_exceptions",
+    "site_transit_times",
+}
+
 
 def test_schema_matches_selected_72_core_models():
     schema = json.loads(
@@ -23,7 +33,8 @@ def test_schema_matches_selected_72_core_models():
     )
     expected = {m["table"] for m in schema["models"] if m["phase"] == "Core"}
     assert len(expected) == 72
-    assert set(db.metadata.tables) == expected
+    # The 72 Core models plus exactly the Factory Suite step 1 tables (migration f01a01).
+    assert set(db.metadata.tables) == expected | FACTORY_TABLES
 
 
 def test_limited_operational_roles_and_partner_invitation_ui(

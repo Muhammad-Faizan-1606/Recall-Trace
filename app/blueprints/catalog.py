@@ -158,6 +158,7 @@ def shared_forms():
     return {
         "logout_form": FlaskForm(),
         "can_access_company": lambda company_id: allowed(company_id, "access.manage"),
+        "can_use_factory": lambda company_id: allowed(company_id, "factory.read"),
         "lot_name": lot_name,
     }
 

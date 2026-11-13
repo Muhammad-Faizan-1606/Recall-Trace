@@ -1,5 +1,22 @@
 # RecallTrace implementation status
 
+## Factory Suite step 1: factory model and machine register — 13 November 2026
+
+First slice of the approved Factory Suite (Machine Capacity Management) plan in documentation/docs/14_Factory_Suite_MCM_Plan.md.
+
+- **Data:** migration `f01a01` adds 7 company-owned tables, all with same-company composite keys: `shift_patterns`, `work_centers`, `machine_classes`, `machines`, `machine_status_events` (immutable history trigger), `calendar_exceptions` and `site_transit_times`. The schema is now 79 tables: 72 Core plus 7 Factory.
+- **Production access:** the migration copies the runtime grants of `items` to the new tables (read and add only on the status history). It also revokes PUBLIC and Supabase API roles and disables automatic RLS on its own tables. A local check used a temporary stand-in runtime role, which got full DML on the new tables and SELECT/INSERT only on the history. `operations/database_access.py` now expects 79 tables, with the status history treated as immutable.
+- **Capacity engine:** `app/services/capacity.py` implements the blueprint formulas for knitting, dye batches, stenters, rate machines and sewing stations, plus a shift-hour calendar. Every number carries its written working.
+- **Screens:** Factory floor (capacity today by department and site; sewing lines grouped), a setup hub, list, detail and form pages for all six registers, and machine detail with the capacity working, status change and permanent history. Work-centre detail shows its machines and a 14-day capacity calendar.
+- **Permissions:** new `factory.read` and `factory.manage`. These are in the Core catalogue, so `init-business` grants them to owners.
+- **Demo:** `flask seed-factory-demo --owner-email …` (development mode) creates the fictional Lahore Knit Mills (demo): 6 sites, 47 work centres and 1,156 machines, with 7 down or idle. It takes about 2 seconds locally and is idempotent. The deploy workflow has a new `factory_demo` input.
+
+Verification (local PostgreSQL 16, Redis 7):
+- `tests/test_factory.py` passes 13 tests: formula examples (knitting, dyeing, 840 pieces per shift), shift and holiday hours, register rules, status history immutability, cross-company rejection, 403/404 access, the demo seed, and every factory screen.
+- The table-count contracts were updated to the 72 Core tables plus exactly these 7.
+- Upgrade, downgrade and re-upgrade succeeded, and the offline SQL contains no percent signs.
+- Browser pass at 1440 px: no overflow, console errors or 5xx responses after replacing Bootstrap's blocked data-URI select and checkbox icons with native controls.
+
 ## Live malware scanning — 11 November 2026
 
 Azure VM `recalltrace-scan` (Ubuntu 24.04, Standard_B1ms, 2 GB) in India South Central, created after Central India and UAE North had no B1ms capacity for this subscription. Only ports 22, 80 and 443 are open; SSH is key-only. `operations/scanner/setup.sh` installed ClamAV, the token-protected service and Caddy HTTPS. Verified on the VM over HTTPS: clean file `clean`, EICAR test string `infected`, wrong token HTTP 401, about 1.45 GB of 1.9 GB memory used. Deploy run 43003273817 reported "Malware scanning: enabled" and readiness HTTP 200; the quarantine banner is gone from the live site. The owner starts and stops the VM in the Azure portal; while it is stopped, uploads stay quarantined. Azure's built-in auto-shutdown is not offered in this region, and the self-deallocation alternative (VM-scoped role assignment) awaits the owner's approval.

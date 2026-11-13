@@ -44,6 +44,8 @@ CORE_PERMISSIONS = {
     "evidence.upload": "Upload quarantined evidence",
     "reports.export": "Create scoped private exports",
     "audit.read": "Read company audit metadata",
+    "factory.read": "Read the factory model, machines and capacity",
+    "factory.manage": "Maintain work centres, machines, shifts, calendar and transit times",
 }
 
 
@@ -96,6 +98,7 @@ def register(app):
     app.cli.add_command(init_business)
     app.cli.add_command(seed_investigation_demo)
     app.cli.add_command(seed_demo_extras)
+    app.cli.add_command(seed_factory_demo)
 
 
 @click.command("create-company")
@@ -230,4 +233,31 @@ def seed_demo_extras(company, owner_email):
         except (DomainError, ValueError) as exc:
             raise click.ClickException(str(exc)) from exc
     for line in report or ["Nothing to add; demonstration records already present."]:
+        click.echo(line)
+
+
+@click.command("seed-factory-demo")
+@click.option("--owner-email", required=True, help="Existing active account to own the demo.")
+@with_appcontext
+def seed_factory_demo(owner_email):
+    """Create the fictional Lahore Knit Mills (demo) factory, owned by an existing account."""
+    if current_app.config["APP_ENV"] != "development":
+        raise click.ClickException("Fictional factory fixtures require development mode.")
+    user = db.session.scalar(
+        select(User).where(db.func.lower(User.email) == owner_email.strip().lower())
+    )
+    if user is None or not user.is_active or user.archived_at is not None:
+        raise click.ClickException("Choose an existing active account.")
+    from app.policies import forget_authorization
+    from app.services.factory_demo import NAME, ensure_company, seed
+
+    with current_app.test_request_context():
+        login_user(user)
+        organization, member, created = ensure_company(user)
+        initialize(organization)
+        forget_authorization()
+        report = seed(organization, member)
+        db.session.commit()
+    click.echo(f"{NAME}: {'created' if created else 'already present'}; owner access confirmed.")
+    for line in report or ["Factory register already present; nothing changed."]:
         click.echo(line)

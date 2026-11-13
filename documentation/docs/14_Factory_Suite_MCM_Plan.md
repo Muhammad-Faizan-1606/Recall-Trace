@@ -1,6 +1,6 @@
 # Factory Suite (MCM) — module plan
 
-Status: proposed on 13 November 2026, awaiting owner approval. Nothing in this document is implemented yet.
+Status: approved by the owner on 13 November 2026. Step 1 (factory model and machine register) is implemented; see STATUS.md. Later steps are not started.
 
 ## 1. Purpose and decisions
 

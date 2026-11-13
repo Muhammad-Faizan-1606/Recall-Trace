@@ -188,6 +188,6 @@ class ItemVariant(Owned, db.Model):
 
 
 # Import implemented extensions after the common model base is defined.
-from app.models import evidence, master, operations, quality, recall, security  # noqa: E402,F401
+from app.models import evidence, factory, master, operations, quality, recall, security  # noqa: E402,F401
 from app.models.account_tokens import EmailVerificationToken, PasswordResetToken  # noqa: E402,F401
 from app.models.invitations import Invitation  # noqa: E402,F401
