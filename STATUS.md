@@ -17,6 +17,12 @@ Verification (local PostgreSQL 16, Redis 7):
 - Upgrade, downgrade and re-upgrade succeeded, and the offline SQL contains no percent signs.
 - Browser pass at 1440 px: no overflow, console errors or 5xx responses after replacing Bootstrap's blocked data-URI select and checkbox icons with native controls.
 
+Live deployment:
+- Deploy run 43439399109 applied migration `f01a01` to Supabase. Its seed step stopped because the deploy's owner email did not match the stored account exactly.
+- Deploy run 43441136204 seeded the demo with `--owner-of recalltrace-demo`: "6 sites, 47 work centres and 1156 machines created". Health `/health/ready` returned `ready` and the factory CSS is served.
+- CI on PostgreSQL 17 (run 43441131396) passed 526 of 527 tests, including every database-access test with the 79 tables. The single failure was the demo test refusing fixtures under `APP_ENV=testing`; fixed in the next commit.
+- **Not verified here:** signed-in live factory pages. There are no owner credentials in this session, so the runtime role's access to the new tables has only been verified locally with a stand-in role.
+
 ## Live malware scanning — 11 November 2026
 
 Azure VM `recalltrace-scan` (Ubuntu 24.04, Standard_B1ms, 2 GB) in India South Central, created after Central India and UAE North had no B1ms capacity for this subscription. Only ports 22, 80 and 443 are open; SSH is key-only. `operations/scanner/setup.sh` installed ClamAV, the token-protected service and Caddy HTTPS. Verified on the VM over HTTPS: clean file `clean`, EICAR test string `infected`, wrong token HTTP 401, about 1.45 GB of 1.9 GB memory used. Deploy run 43003273817 reported "Malware scanning: enabled" and readiness HTTP 200; the quarantine banner is gone from the live site. The owner starts and stops the VM in the Azure portal; while it is stopped, uploads stay quarantined. Azure's built-in auto-shutdown is not offered in this region, and the self-deallocation alternative (VM-scoped role assignment) awaits the owner's approval.
