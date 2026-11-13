@@ -359,7 +359,9 @@ def test_factory_pages_need_permission(app, records, client):
     assert client.get(f"/companies/{other}/factory").status_code == 404
 
 
-def test_demo_factory_seeds_once_and_every_screen_renders(app, records, client):
+def test_demo_factory_seeds_once_and_every_screen_renders(app, records, client, monkeypatch):
+    # Fictional fixtures are development-only; CI runs with APP_ENV=testing.
+    monkeypatch.setitem(app.config, "APP_ENV", "development")
     runner = app.test_cli_runner()
     result = runner.invoke(
         args=["seed-factory-demo", "--owner-email", "catalog-editor@aurora.test"]

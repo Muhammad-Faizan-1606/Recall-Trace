@@ -54,7 +54,7 @@ jobs:
           docker run --rm --env SECRET_KEY --env DATABASE_URL --env SESSION_REDIS_URL
           --env RATELIMIT_STORAGE_URI --env APP_ENV recalltrace-ci python -c
           'import os, importlib.util; from app import create_app; from app.extensions import db;
-          create_app(); assert len(db.metadata.tables) == 72; assert os.getuid() == 10001;
+          create_app(); assert len(db.metadata.tables) == 79; assert os.getuid() == 10001;
           assert not os.access("/app/app/__init__.py", os.W_OK);
           assert importlib.util.find_spec("pip") is None;
           assert importlib.util.find_spec("ensurepip") is None'
