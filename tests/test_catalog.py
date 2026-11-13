@@ -275,7 +275,7 @@ def test_association_company_constraint(records):
 
 
 def test_migration_inventory_and_clean_drift(app):
-    assert len(db.metadata.tables) == 79  # 72 Core + 7 Factory Suite
+    assert len(db.metadata.tables) == 83  # 72 Core + 11 Factory Suite
     assert set(inspect(db.engine).get_table_names()) == set(db.metadata.tables) | {
         "alembic_version"
     }

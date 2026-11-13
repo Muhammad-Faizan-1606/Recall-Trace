@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}{{ style.code }} rev {{ bulletin.revision }} · Operation bulletin{% endblock %}
+{% block content %}
+{% set draft = bulletin.status == 'draft' %}
+<p class="back-link"><a href="{{ url_for('factory.detail', company_id=company_id, resource='styles', record_id=style.id) }}">{{ style.code }} — {{ style.name }}</a></p>
+<div class="record-head">
+  <div>
+    <h1>Operation bulletin · revision {{ bulletin.revision }}</h1>
+    <p class="record-meta">{{ bulletin.status|tag }}<span>{{ bulletin.source }}</span>{% if bulletin.published_at %}<span>Published {{ bulletin.published_at|when }}</span>{% endif %}</p>
+  </div>
+  {% if can_manage %}
+  <div class="page-actions">
+    {% if draft %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('factory.bulletin_import', company_id=company_id, bulletin_id=bulletin.id) }}">Import from CSV</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('factory.operation_new', company_id=company_id, bulletin_id=bulletin.id) }}">{{ icon('plus') }}Add operation</a>
+    {% else %}
+      <form class="m-0" method="post" action="{{ url_for('factory.start_revision', company_id=company_id, style_id=style.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-secondary" type="submit">Start new revision</button></form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="split rail-first">
+  <div>
+    <section class="section" aria-labelledby="ops-heading">
+      <div class="section-head"><h2 id="ops-heading">Operations</h2><span class="section-note">SAM = basic minutes × (1 + allowance)</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col" class="num">Seq</th><th scope="col">Operation</th><th scope="col">Machine</th><th scope="col" class="num">Basic min</th><th scope="col" class="num">Allowance</th><th scope="col" class="num">SAM</th>{% if draft and can_manage %}<th scope="col"><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
+        <tbody>{% for operation, machine_class in rows %}
+          <tr>
+            <td class="num">{{ operation.sequence }}</td>
+            <td>{{ operation.name }}</td>
+            <td>{{ machine_class.name if machine_class else 'Manual work' }}</td>
+            <td class="num">{{ operation.basic_minutes|qty }}</td>
+            <td class="num">{{ (operation.allowance_factor * 100)|qty }}%</td>
+            <td class="num"><strong>{{ operation.sam|qty }}</strong></td>
+            {% if draft and can_manage %}<td class="text-end"><span class="row-actions"><a href="{{ url_for('factory.operation_edit', company_id=company_id, bulletin_id=bulletin.id, operation_id=operation.id) }}">Edit</a><form class="d-inline m-0" method="post" action="{{ url_for('factory.operation_delete', company_id=company_id, bulletin_id=bulletin.id, operation_id=operation.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version" value="{{ operation.version }}"><button class="btn btn-sm btn-outline-danger" type="submit">Remove</button></form></span></td>{% endif %}
+          </tr>
+        {% else %}<tr><td colspan="7" class="empty">No operations yet. Add them one by one, or paste the rows exported from GSD with “Import from CSV”.</td></tr>{% endfor %}</tbody>
+        {% if rows %}<tfoot><tr><th scope="row" colspan="3">Garment total ({{ summary.operations }} operations)</th><td class="num">{{ summary.basic|two }}</td><td></td><td class="num"><strong>{{ summary.sam|two }}</strong></td>{% if draft and can_manage %}<td></td>{% endif %}</tr></tfoot>{% endif %}
+      </table></div>
+    </section>
+
+    {% if rows %}
+    <section class="section" aria-labelledby="mix-heading">
+      <div class="section-head"><h2 id="mix-heading">Work content by machine</h2><span class="section-note">Operators suggested for a {{ inputs.operators }}-operator line</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Machine</th><th scope="col" class="num">SAM</th><th scope="col" class="num">Share</th><th scope="col" class="num">Operators</th></tr></thead>
+        <tbody>{% for name, sam, count in stations %}<tr><td>{{ name }}</td><td class="num">{{ sam|two }}</td><td class="num">{{ (sam / summary.sam * 100)|cap }}%</td><td class="num">{{ count }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="rail" aria-label="Line preview">
+    {% if draft and can_manage %}
+    <section class="panel next-step" aria-labelledby="publish-title">
+      <h2 id="publish-title">Publish this revision</h2>
+      <p>Publishing freezes the operations, so orders planned with this SAM keep it. Later changes need a new revision.</p>
+      <form method="post" action="{{ url_for('factory.bulletin_publish', company_id=company_id, bulletin_id=bulletin.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Publish revision {{ bulletin.revision }}</button></form>
+      <form class="mt-2" method="post" action="{{ url_for('factory.bulletin_discard', company_id=company_id, bulletin_id=bulletin.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-sm btn-outline-danger w-100" type="submit">Discard draft</button></form>
+    </section>
+    {% endif %}
+    <section class="panel" aria-labelledby="preview-title">
+      <h2 id="preview-title" class="mb-2">Line preview</h2>
+      <dl class="kv mb-3">
+        <dt>Garment SAM</dt><dd>{{ summary.sam|two }} min</dd>
+        <dt>Target per shift</dt><dd>{{ target|cap }} pcs</dd>
+        <dt>Per hour</dt><dd>{{ (target / inputs.minutes * 60)|cap if inputs.minutes else '—' }} pcs</dd>
+        <dt>Pitch time</dt><dd>{{ pitch|two }} min</dd>
+      </dl>
+      <p class="fine-print">{{ inputs.operators }} operators × {{ inputs.minutes|qty }} min × {{ inputs.efficiency|qty }}% ÷ {{ summary.sam|two }} SAM.</p>
+      <form method="get" class="preview-form">
+        <label class="form-label" for="operators">Operators</label><input class="form-control" id="operators" name="operators" type="number" min="1" max="200" value="{{ inputs.operators }}">
+        <label class="form-label" for="minutes">Shift minutes</label><input class="form-control" id="minutes" name="minutes" type="number" min="30" max="1440" value="{{ inputs.minutes|qty }}">
+        <label class="form-label" for="efficiency">Efficiency %</label><input class="form-control" id="efficiency" name="efficiency" type="number" min="1" max="100" value="{{ inputs.efficiency|qty }}">
+        <button class="btn btn-sm btn-outline-secondary mt-2" type="submit">Recalculate</button>
+      </form>
+    </section>
+  </aside>
+</div>
+{% endblock %}

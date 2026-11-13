@@ -237,3 +237,10 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Production database access is applied by the migration.** Production uses a restricted runtime role and Supabase may auto-enable RLS on new tables. The migration therefore copies the runtime grants of an existing mutable Core table (`items`) instead of hard-coding a role name, revokes PUBLIC and the provider API roles, and disables RLS only on its own tables. This mirrors the original Core provisioning; authorization stays in the Flask policies.
 - **The demo seed is bulk.** The fictional factory has about a thousand machines, so it is inserted in one transaction with one summary audit event. Running the per-record service over a remote database would take many minutes. The company is new and owned only by the seeding account, and real records still go through the locked, audited service.
 - **Native form controls.** Bootstrap's select arrows and checkbox ticks are data-URI images that the strict CSP blocks. Native controls (with the accent colour) are used instead of weakening the CSP.
+
+## 13 November 2026 — Factory Suite step 2: work content
+
+- **SAM is stored and checked.** Operation SAM is stored rounded to 4 places, and the database checks it against basic × (1 + allowance), so reports and plans never recompute a different figure.
+- **Published bulletins are immutable.** They reuse the existing draft-document and draft-line triggers instead of new mechanisms. Planning will always use the latest published revision, and orders will record the revision they were planned with (step 3).
+- **CSV import is pasted, not uploaded.** The rows are parsed in memory, validated in full, then applied in one transaction; nothing is stored as a file. Evidence-file rules (private storage, malware scan) therefore do not apply, and the import is bounded by size and row count.
+- **Manual work is first-class.** An operation without a machine class counts toward garment SAM and line operators but not toward any machine type.

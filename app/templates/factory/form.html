@@ -4,6 +4,7 @@
 <p class="back-link"><a href="{{ back }}">Back to the list</a></p>
 <div class="form-panel">
   <h1>{{ title }}</h1>
+  {% if extra_link %}<p class="fine-print"><a href="{{ extra_link[0] }}">{{ extra_link[1] }}</a></p>{% endif %}
   {% if form.errors %}<div class="alert alert-danger" role="alert">Please correct the fields below.</div>{% endif %}
   <form method="post" novalidate>
     {{ form.hidden_tag() }}

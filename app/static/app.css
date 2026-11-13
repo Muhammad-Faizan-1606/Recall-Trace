@@ -285,7 +285,7 @@ td.empty { padding: 1.5rem .875rem !important; text-align: left; }
 
 /* Definition list used in rails and record pages. */
 .kv { display: grid; grid-template-columns: auto 1fr; gap: .375rem 1rem; margin: 0; font-size: .875rem; }
-.kv dt { color: var(--muted); font-weight: 400; }
+.kv dt { color: var(--muted); font-weight: 400; white-space: nowrap; }
 .kv dd { margin: 0; text-align: right; font-weight: 600; }
 dl.row { --bs-gutter-x: 1rem; max-width: 52rem; margin: 0 0 1.5rem; padding: .25rem 0; border-top: 1px solid var(--line); }
 dl.row > dt, dl.row > dd { padding-top: .625rem; padding-bottom: .625rem; margin: 0; border-bottom: 1px solid var(--line); }
@@ -622,6 +622,9 @@ details > form { padding: 1rem; border: 1px solid var(--line); border-radius: va
 .next-step .form-label { color: var(--on-navy); }
 .next-step .form-control, .next-step .form-select { border-color: transparent; }
 .factory-tag, .table td a[href*="/factory/machines/"] { white-space: nowrap; }
+.row-actions { display: inline-flex; align-items: center; gap: .75rem; }
+.preview-form .form-control { min-height: 36px; margin-bottom: .5rem; }
+.table tfoot th, .table tfoot td { background: var(--sunken); font-weight: 600; border-top: 1px solid var(--line); }
 .not-counted { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
 .day-picker { display: flex; flex-wrap: wrap; gap: .5rem; }
 .day-option { display: inline-flex; align-items: center; gap: .375rem; padding: .375rem .75rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); cursor: pointer; font-size: .875rem; transition: border-color .2s var(--out), background-color .2s var(--out); }

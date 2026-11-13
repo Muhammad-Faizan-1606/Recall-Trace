@@ -214,3 +214,116 @@ class SiteTransitTime(Owned, db.Model):
         CheckConstraint("from_site_id <> to_site_id", name="different_sites"),
         CheckConstraint("hours >= 0 AND hours <= 240", name="hours"),
     )
+
+
+# ---------- Step 2: styles and work content ----------
+
+PRODUCT_TYPES = (
+    "tee",
+    "polo",
+    "tank",
+    "long_sleeve",
+    "hoodie",
+    "sweatshirt",
+    "jogger",
+    "shorts",
+    "leggings",
+    "other",
+)
+FABRIC_TYPES = ("single_jersey", "interlock", "pique", "rib", "fleece", "french_terry", "other")
+STYLE_STATUSES = ("active", "archived")
+BULLETIN_STATUSES = ("draft", "published")
+
+
+class Style(Owned, db.Model):
+    """A buyer's garment style: the unit that orders, fabric and work content refer to."""
+
+    __tablename__ = "styles"
+    code: Mapped[str] = mapped_column(db.String(40))
+    name: Mapped[str] = mapped_column(db.String(160))
+    product_type: Mapped[str] = mapped_column(db.String(20))
+    season: Mapped[str | None] = mapped_column(db.String(20))
+    buyer_id: Mapped[uuid.UUID | None] = mapped_column()
+    item_id: Mapped[uuid.UUID | None] = mapped_column()
+    archived_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    __table_args__ = (
+        *identity("code"),
+        tenant_fk("buyer_id", "partners"),
+        tenant_fk("item_id", "items"),
+        _in("product_type", PRODUCT_TYPES),
+    )
+
+
+class FabricSpec(Owned, db.Model):
+    """One fabric used by a style (body, rib or trim) and how much a garment consumes."""
+
+    __tablename__ = "fabric_specs"
+    style_id: Mapped[uuid.UUID] = mapped_column()
+    component: Mapped[str] = mapped_column(db.String(40))
+    fabric_type: Mapped[str] = mapped_column(db.String(20))
+    composition: Mapped[str] = mapped_column(db.String(120))
+    gsm: Mapped[Decimal] = mapped_column(db.Numeric(6, 1))
+    width_m: Mapped[Decimal] = mapped_column(db.Numeric(5, 2))
+    courses_per_cm: Mapped[Decimal | None] = mapped_column(db.Numeric(6, 2))
+    # Finished fabric per garment including cutting waste, in kilograms.
+    consumption_kg: Mapped[Decimal] = mapped_column(db.Numeric(8, 4))
+    # Hours the rolls must rest flat after finishing before they may be cut.
+    relaxation_hours: Mapped[int] = mapped_column(default=24, server_default="24")
+    __table_args__ = (
+        *identity("style_id", "component"),
+        tenant_fk("style_id", "styles"),
+        _in("fabric_type", FABRIC_TYPES),
+        CheckConstraint("gsm > 0", name="gsm"),
+        CheckConstraint("width_m > 0", name="width_m"),
+        CheckConstraint("courses_per_cm IS NULL OR courses_per_cm > 0", name="courses_per_cm"),
+        CheckConstraint("consumption_kg > 0", name="consumption_kg"),
+        CheckConstraint("relaxation_hours BETWEEN 0 AND 168", name="relaxation_hours"),
+    )
+
+
+class OperationBulletin(Owned, db.Model):
+    """A revision of a style's operation breakdown. Published revisions are frozen."""
+
+    __tablename__ = "operation_bulletins"
+    style_id: Mapped[uuid.UUID] = mapped_column()
+    revision: Mapped[int] = mapped_column()
+    status: Mapped[str] = mapped_column(db.String(20), default="draft", server_default="draft")
+    # Default allowance for new operations (0.250 means 25%).
+    allowance_factor: Mapped[Decimal] = mapped_column(
+        db.Numeric(4, 3), default=Decimal("0.250"), server_default="0.250"
+    )
+    source: Mapped[str] = mapped_column(db.String(120), default="Manual", server_default="Manual")
+    published_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    __table_args__ = (
+        *identity("style_id", "revision"),
+        tenant_fk("style_id", "styles"),
+        _in("status", BULLETIN_STATUSES),
+        CheckConstraint("revision > 0", name="revision"),
+        CheckConstraint("allowance_factor >= 0 AND allowance_factor <= 1", name="allowance"),
+        CheckConstraint("(status = 'published') = (published_at IS NOT NULL)", name="published_at"),
+    )
+
+
+class BulletinOperation(Owned, db.Model):
+    """One sewing or manual operation: SAM = basic minutes × (1 + allowance)."""
+
+    __tablename__ = "bulletin_operations"
+    bulletin_id: Mapped[uuid.UUID] = mapped_column()
+    sequence: Mapped[int] = mapped_column()
+    name: Mapped[str] = mapped_column(db.String(120))
+    # Empty for manual work (trimming, folding, inspection by hand).
+    machine_class_id: Mapped[uuid.UUID | None] = mapped_column()
+    basic_minutes: Mapped[Decimal] = mapped_column(db.Numeric(8, 4))
+    allowance_factor: Mapped[Decimal] = mapped_column(db.Numeric(4, 3))
+    sam: Mapped[Decimal] = mapped_column(db.Numeric(8, 4))
+    __table_args__ = (
+        *identity("bulletin_id", "sequence"),
+        tenant_fk("bulletin_id", "operation_bulletins"),
+        tenant_fk("machine_class_id", "machine_classes"),
+        CheckConstraint("sequence > 0", name="sequence"),
+        CheckConstraint("basic_minutes > 0 AND basic_minutes <= 120", name="basic_minutes"),
+        CheckConstraint("allowance_factor >= 0 AND allowance_factor <= 1", name="allowance"),
+        CheckConstraint(
+            "sam = round(basic_minutes * (1 + allowance_factor), 4)", name="sam_formula"
+        ),
+    )

@@ -278,7 +278,7 @@ def seed_factory_demo(owner_email, owner_of):
     if user is None or not user.is_active:
         raise click.ClickException("Choose an existing active account.")
     from app.policies import forget_authorization
-    from app.services.factory_demo import NAME, ensure_company, seed
+    from app.services.factory_demo import NAME, ensure_company, seed, seed_styles
 
     with current_app.test_request_context():
         login_user(user)
@@ -286,6 +286,7 @@ def seed_factory_demo(owner_email, owner_of):
         initialize(organization)
         forget_authorization()
         report = seed(organization, member)
+        report += seed_styles(organization, member)
         db.session.commit()
     click.echo(f"{NAME}: {'created' if created else 'already present'}; owner access confirmed.")
     for line in report or ["Factory register already present; nothing changed."]:

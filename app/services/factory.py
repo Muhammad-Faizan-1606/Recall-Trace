@@ -17,21 +17,25 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
 
 from app.extensions import db
-from app.models import now
+from app.models import Item, now
 from app.models.factory import (
     CALENDAR_KINDS,
     CAPACITY_BASES,
     DEPARTMENTS,
+    FABRIC_TYPES,
     MACHINE_STATUSES,
+    PRODUCT_TYPES,
     CalendarException,
+    FabricSpec,
     Machine,
     MachineClass,
     MachineStatusEvent,
     ShiftPattern,
     SiteTransitTime,
+    Style,
     WorkCenter,
 )
-from app.models.master import Site
+from app.models.master import Partner, PartnerRoleAssignment, Site
 from app.policies import membership_for, require
 from app.services.audit import record as audit
 from app.services.business import DomainError, company_lock, scoped
@@ -255,6 +259,69 @@ RESOURCES = {
             Field("note", "Note", required=False),
         ),
     ),
+    "styles": (
+        Style,
+        "Styles",
+        (
+            Field("code", "Style number", help="The buyer's style number, e.g. NP-TEE-101."),
+            Field("name", "Name"),
+            Field("product_type", "Product type", "choice", choices=PRODUCT_TYPES),
+            Field("season", "Season", required=False, help="e.g. SS27 or FW26."),
+            Field(
+                "buyer_id",
+                "Buyer",
+                "parent",
+                False,
+                parent=Partner,
+                help="A partner with the customer role.",
+            ),
+            Field(
+                "item_id",
+                "Catalog item",
+                "parent",
+                False,
+                parent=Item,
+                help="Links the style to the finished-goods item used in stock and trace.",
+            ),
+        ),
+    ),
+    "fabric-specs": (
+        FabricSpec,
+        "Fabric specs",
+        (
+            Field("style_id", "Style", "parent", parent=Style),
+            Field("component", "Component", help="Body, rib, hood lining…"),
+            Field("fabric_type", "Fabric type", "choice", choices=FABRIC_TYPES),
+            Field("composition", "Composition", help="e.g. 100% cotton or 88% PES 12% EA."),
+            Field("gsm", "GSM (g/m²)", "decimal", minimum=dec(20), maximum=dec(1000)),
+            Field("width_m", "Finished width (m)", "decimal", minimum=dec("0.1"), maximum=dec(10)),
+            Field(
+                "courses_per_cm",
+                "Courses per cm",
+                "decimal",
+                False,
+                minimum=dec("0.1"),
+                maximum=dec(100),
+                help="Used for knitting time; optional.",
+            ),
+            Field(
+                "consumption_kg",
+                "Fabric per garment (kg)",
+                "decimal",
+                minimum=dec("0.001"),
+                maximum=dec(10),
+                help="Finished fabric per piece including cutting waste.",
+            ),
+            Field(
+                "relaxation_hours",
+                "Relaxation before cutting (hours)",
+                "int",
+                minimum=dec(0),
+                maximum=dec(168),
+                help="24 for cotton; up to 48 for high-spandex fabric.",
+            ),
+        ),
+    ),
 }
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 # Identity that history depends on cannot change once something refers to the record.
@@ -262,6 +329,7 @@ FROZEN = {
     "machines": ("machine_class_id", "work_center_id"),
     "machine-classes": ("capacity_basis", "department"),
     "work-centers": ("site_id", "department"),
+    "fabric-specs": ("style_id",),
 }
 
 
@@ -275,6 +343,8 @@ def label(row):
         return "—"
     if isinstance(row, Machine):
         return f"{row.asset_tag} — {row.make_model}"
+    if isinstance(row, FabricSpec):
+        return f"{row.component} — {row.fabric_type.replace('_', ' ')} {row.gsm} g/m²"
     if isinstance(row, CalendarException):
         return f"{row.day:%d %b %Y} — {row.note}"
     if isinstance(row, SiteTransitTime):
@@ -400,6 +470,15 @@ def _rules(company_id, resource, clean):
                 raise DomainError("Knitting machines need their number of feeders.")
         else:
             clean.update(feeders=None, gauge=None, diameter_in=None)
+    if resource == "styles" and clean["buyer_id"]:
+        if not db.session.scalar(
+            select(PartnerRoleAssignment.id).where(
+                PartnerRoleAssignment.organization_id == company_id,
+                PartnerRoleAssignment.partner_id == clean["buyer_id"],
+                PartnerRoleAssignment.role_code == "customer",
+            )
+        ):
+            raise DomainError("The buyer must be a partner with the customer role.")
     if resource == "transit" and clean["from_site_id"] == clean["to_site_id"]:
         raise DomainError("Choose two different sites.")
 

@@ -6,7 +6,14 @@ from decimal import Decimal
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 from sqlalchemy import func, select
-from wtforms import DecimalField, IntegerField, SelectField, SelectMultipleField, StringField
+from wtforms import (
+    DecimalField,
+    IntegerField,
+    SelectField,
+    SelectMultipleField,
+    StringField,
+    TextAreaField,
+)
 from wtforms.fields import DateField
 from wtforms.fields.choices import SelectChoice
 from wtforms.validators import DataRequired, InputRequired, Length, NumberRange, Optional
@@ -18,17 +25,21 @@ from app.models import Organization
 from app.models.factory import (
     DEPARTMENTS,
     MACHINE_STATUSES,
+    BulletinOperation,
+    FabricSpec,
     Machine,
     MachineClass,
     MachineStatusEvent,
+    OperationBulletin,
     ShiftPattern,
+    Style,
     WorkCenter,
 )
-from app.models.master import Site
+from app.models.master import Partner, PartnerRoleAssignment, Site
 from app.policies import allowed, require
 from app.presentation import quantity_text, status_tag
-from app.services import capacity
-from app.services.business import DomainError
+from app.services import capacity, engineering
+from app.services.business import DomainError, scoped
 from app.services.factory import (
     DAY_NAMES,
     RESOURCES,
@@ -59,6 +70,14 @@ def capacity_text(value):
         return "0"
     places = "1" if abs(value) >= 100 else "0.1"
     return f"{capacity.q(value, places):,}"
+
+
+@bp.app_template_filter("two")
+def two_places(value):
+    """SAM totals and pitch time: 19.2125 -> '19.21'."""
+    if value is None:
+        return "—"
+    return f"{capacity.q(Decimal(value), '0.01'):,}"
 
 
 @bp.app_template_filter("caps")
@@ -168,6 +187,15 @@ def parent_choices(company_id, item, required):
             break
     else:
         order = model.created_at
+    if item.name == "buyer_id":
+        query = query.where(
+            model.id.in_(
+                select(PartnerRoleAssignment.partner_id).where(
+                    PartnerRoleAssignment.organization_id == company_id,
+                    PartnerRoleAssignment.role_code == "customer",
+                )
+            )
+        )
     rows = db.session.scalars(query.order_by(order)).all()
     choices = [SelectChoice(str(row.id), label(row)) for row in rows]
     if not required:
@@ -208,6 +236,18 @@ COLUMNS = {
         ("Kind", lambda r, x: human(r.kind)),
         ("Hours per shift", lambda r, x: r.hours_per_shift),
         ("Note", lambda r, x: r.note),
+    ),
+    "styles": (
+        ("Style", lambda r, x: label(r)),
+        ("Product", lambda r, x: human(r.product_type)),
+        ("Buyer", lambda r, x: x["partners"].get(r.buyer_id, "—")),
+        ("Current SAM", lambda r, x: x["sams"].get(r.id, "Not published")),
+    ),
+    "fabric-specs": (
+        ("Fabric", lambda r, x: label(r)),
+        ("Style", lambda r, x: x["styles"].get(r.style_id, "—")),
+        ("Composition", lambda r, x: r.composition),
+        ("Per garment", lambda r, x: f"{quantity_text(r.consumption_kg)} kg"),
     ),
     "transit": (
         ("Route", lambda r, x: label(r)),
@@ -359,6 +399,16 @@ def setup(company_id):
 # ---------- Generic register pages ----------
 
 
+def style_sams(company_id):
+    """{style_id: 'SAM 8.4 (rev 2)'} for the latest published bulletin of each style."""
+    current = engineering.current_bulletins(company_id)
+    totals = engineering.bulletin_sams(company_id, [b.id for b in current.values()])
+    return {
+        style_id: f"{two_places(totals.get(bulletin.id, 0))} min (rev {bulletin.revision})"
+        for style_id, bulletin in current.items()
+    }
+
+
 @login_required
 def listing(company_id, resource):
     ctx = context(company_id, resource)
@@ -366,7 +416,12 @@ def listing(company_id, resource):
     query = select(model).where(model.organization_id == company_id)
     if hasattr(model, "archived_at"):
         query = query.order_by(model.archived_at.is_not(None))
-    sort = {"calendar": "day", "transit": "created_at", "machines": "asset_tag"}
+    sort = {
+        "calendar": "day",
+        "transit": "created_at",
+        "machines": "asset_tag",
+        "fabric-specs": "created_at",
+    }
     order = (getattr(model, sort.get(resource, "code")),)
     page = db.paginate(query.order_by(*order), per_page=50, max_per_page=50, error_out=False)
     extra = {
@@ -374,6 +429,9 @@ def listing(company_id, resource):
         "classes": names(company_id, MachineClass),
         "centers": names(company_id, WorkCenter),
         "tag": render_tag,
+        "partners": names(company_id, Partner) if resource == "styles" else {},
+        "styles": names(company_id, Style) if resource == "fabric-specs" else {},
+        "sams": style_sams(company_id) if resource == "styles" else {},
     }
     rows = [(row, [render(row, extra) for _, render in COLUMNS[resource]]) for row in page.items]
     return render_template(
@@ -399,6 +457,8 @@ def detail(company_id, resource, record_id):
         extra = machine_extra(company_id, row)
     elif resource == "work-centers":
         extra = center_extra(company_id, row)
+    elif resource == "styles":
+        extra = style_extra(company_id, row)
     elif resource == "machine-classes":
         extra["machine_count"] = db.session.scalar(
             select(func.count())
@@ -418,6 +478,32 @@ def detail(company_id, resource, record_id):
         **extra,
         **ctx,
     )
+
+
+def style_extra(company_id, style):
+    fabrics = db.session.scalars(
+        select(FabricSpec)
+        .where(FabricSpec.organization_id == company_id, FabricSpec.style_id == style.id)
+        .order_by(FabricSpec.component)
+    ).all()
+    bulletins = db.session.scalars(
+        select(OperationBulletin)
+        .where(
+            OperationBulletin.organization_id == company_id,
+            OperationBulletin.style_id == style.id,
+        )
+        .order_by(OperationBulletin.revision.desc())
+    ).all()
+    current = engineering.current_bulletins(company_id, [style.id]).get(style.id)
+    return {
+        "fabrics": fabrics,
+        "bulletins": bulletins,
+        "bulletin_sams": engineering.bulletin_sams(company_id, [b.id for b in bulletins]),
+        "current_bulletin": current,
+        "has_draft": any(b.status == "draft" for b in bulletins),
+        "kg_per_garment": sum((f.consumption_kg for f in fabrics), Decimal(0)),
+        "relaxation": max((f.relaxation_hours for f in fabrics), default=0),
+    }
 
 
 def machine_extra(company_id, machine):
@@ -488,6 +574,8 @@ def editor(company_id, resource, record_id=None):
             getattr(form, item.name).data = [str(i) for i, flag in enumerate(mask) if flag == "1"]
     if request.method == "GET":
         form.version.data = str(row.version if row else 0)
+        if row is None and resource == "fabric-specs" and request.args.get("style_id"):
+            form.style_id.data = request.args["style_id"]
     status = 200
     if form.validate_on_submit():
         try:
@@ -583,3 +671,311 @@ for resource_name in RESOURCES:
             defaults={"resource": resource_name},
             methods=methods,
         )
+
+
+# ---------- Step 2: operation bulletins ----------
+
+
+class OperationForm(ActionForm):
+    sequence = IntegerField(
+        "Sequence",
+        validators=[InputRequired(), NumberRange(min=1, max=9999)],
+        description="Order on the line, usually in steps of 10.",
+    )
+    name = StringField(
+        "Operation",
+        validators=[DataRequired(), Length(max=120)],
+        filters=[lambda value: trimmed(str(value)) if value is not None else value],
+        description="e.g. Shoulder join, Neck rib attach, Bottom hem.",
+    )
+    machine_class_id = SelectField("Machine", description="Leave as manual for hand work.")
+    basic_minutes = DecimalField(
+        "Basic minutes",
+        places=None,
+        validators=[InputRequired(), NumberRange(min=Decimal("0.0001"), max=120)],
+        description="Observed cycle time × performance rating ÷ 100, in decimal minutes.",
+    )
+    allowance_factor = DecimalField(
+        "Allowance (%)",
+        places=None,
+        validators=[Optional(), NumberRange(min=0, max=100)],
+        description="Personal, fatigue, machine delay and bundle handling. Empty uses the "
+        "bulletin default.",
+    )
+
+
+class ImportForm(ActionForm):
+    rows = TextAreaField(
+        "Rows to import",
+        validators=[DataRequired(), Length(max=engineering.MAX_IMPORT_BYTES)],
+        description="One operation per line: sequence, operation, machine, basic minutes, "
+        "allowance (optional). Machine is a sewing class code or name, or “manual”.",
+    )
+    mode = SelectField(
+        "Existing operations",
+        choices=[
+            SelectChoice("replace", "Replace them with these rows"),
+            SelectChoice("append", "Keep them and add these rows"),
+        ],
+    )
+
+
+def sewing_class_choices(company_id):
+    rows = db.session.scalars(
+        select(MachineClass)
+        .where(
+            MachineClass.organization_id == company_id,
+            MachineClass.capacity_basis == "sewing",
+            MachineClass.archived_at.is_(None),
+        )
+        .order_by(MachineClass.code)
+    ).all()
+    return [SelectChoice("", "Manual work")] + [
+        SelectChoice(str(row.id), label(row)) for row in rows
+    ]
+
+
+def bulletin_context(company_id, bulletin_id):
+    ctx = context(company_id, "styles")
+    bulletin = scoped(OperationBulletin, company_id, bulletin_id)
+    style = scoped(Style, company_id, bulletin.style_id)
+    return ctx, bulletin, style
+
+
+def preview_inputs():
+    def read(name, default, low, high):
+        try:
+            value = Decimal(request.args.get(name, default))
+        except (ArithmeticError, ValueError):
+            return Decimal(default)
+        return (
+            min(max(value, Decimal(low)), Decimal(high)) if value.is_finite() else Decimal(default)
+        )
+
+    return {
+        "operators": int(read("operators", "28", 1, 200)),
+        "minutes": read("minutes", "540", 30, 1440),
+        "efficiency": read("efficiency", "70", 1, 100),
+    }
+
+
+@bp.get("/bulletins/<uuid:bulletin_id>")
+@login_required
+def bulletin(company_id, bulletin_id):
+    ctx, row, style = bulletin_context(company_id, bulletin_id)
+    rows = engineering.operations(company_id, row.id)
+    summary = engineering.summarize(rows)
+    inputs = preview_inputs()
+    return render_template(
+        "factory/bulletin.html",
+        bulletin=row,
+        style=style,
+        rows=rows,
+        summary=summary,
+        inputs=inputs,
+        target=summary.target(inputs["operators"], inputs["minutes"], inputs["efficiency"]),
+        pitch=summary.pitch(inputs["operators"]),
+        stations=summary.stations(inputs["operators"]),
+        action_form=ActionForm(version=str(row.version)),
+        **ctx,
+    )
+
+
+def back_to_bulletin(company_id, bulletin_id):
+    return redirect(
+        url_for("factory.bulletin", company_id=company_id, bulletin_id=bulletin_id), code=303
+    )
+
+
+@bp.post("/styles/<uuid:style_id>/revisions")
+@login_required
+def start_revision(company_id, style_id):
+    context(company_id, "styles")
+    require(company_id, "factory.manage")
+    if not ActionForm().validate_on_submit():
+        abort(400)
+    try:
+        row = engineering.start_revision(company_id, style_id)
+    except DomainError as exc:
+        flash(str(exc), "danger")
+        return redirect(
+            url_for("factory.detail", company_id=company_id, resource="styles", record_id=style_id),
+            code=303,
+        )
+    flash(f"Revision {row.revision} is open as a draft.", "success")
+    return back_to_bulletin(company_id, row.id)
+
+
+def operation_editor(company_id, bulletin_id, operation_id=None):
+    ctx, row, style = bulletin_context(company_id, bulletin_id)
+    require(company_id, "factory.manage")
+    operation = scoped(BulletinOperation, company_id, operation_id) if operation_id else None
+    if operation is not None and operation.bulletin_id != row.id:
+        abort(404)
+    form = OperationForm(obj=operation)
+    form.machine_class_id.choices = sewing_class_choices(company_id)
+    if request.method == "GET":
+        form.version.data = str(operation.version if operation else 0)
+        if operation is not None:
+            form.machine_class_id.data = str(operation.machine_class_id or "")
+            form.allowance_factor.data = operation.allowance_factor * 100
+        else:
+            last = max(
+                (op.sequence for op, _ in engineering.operations(company_id, row.id)), default=0
+            )
+            form.sequence.data = last + 10
+            form.allowance_factor.data = row.allowance_factor * 100
+    status = 200
+    if form.validate_on_submit():
+        values = dict(form.data)
+        if values.get("allowance_factor") is not None:
+            values["allowance_factor"] = Decimal(values["allowance_factor"]) / 100
+        try:
+            engineering.save_operation(
+                company_id,
+                row.id,
+                values,
+                operation_id,
+                int(form.version.data) if operation_id else None,
+            )
+        except DomainError as exc:
+            flash(str(exc), "danger")
+            status = 409
+        else:
+            flash("Operation saved.", "success")
+            return back_to_bulletin(company_id, row.id)
+    elif request.method == "POST":
+        status = 422
+    return render_template(
+        "factory/form.html",
+        title=f"{'Edit' if operation else 'Add'} operation · {style.code} rev {row.revision}",
+        form=form,
+        submit="Save operation",
+        back=url_for("factory.bulletin", company_id=company_id, bulletin_id=row.id),
+        **ctx,
+    ), status
+
+
+@bp.route("/bulletins/<uuid:bulletin_id>/operations/new", methods=["GET", "POST"])
+@login_required
+def operation_new(company_id, bulletin_id):
+    return operation_editor(company_id, bulletin_id)
+
+
+@bp.route(
+    "/bulletins/<uuid:bulletin_id>/operations/<uuid:operation_id>/edit", methods=["GET", "POST"]
+)
+@login_required
+def operation_edit(company_id, bulletin_id, operation_id):
+    return operation_editor(company_id, bulletin_id, operation_id)
+
+
+@bp.post("/bulletins/<uuid:bulletin_id>/operations/<uuid:operation_id>/delete")
+@login_required
+def operation_delete(company_id, bulletin_id, operation_id):
+    context(company_id, "styles")
+    require(company_id, "factory.manage")
+    form = ActionForm()
+    if not form.validate_on_submit():
+        abort(400)
+    try:
+        engineering.delete_operation(company_id, bulletin_id, operation_id, int(form.version.data))
+    except DomainError as exc:
+        flash(str(exc), "danger")
+    else:
+        flash("Operation removed.", "success")
+    return back_to_bulletin(company_id, bulletin_id)
+
+
+@bp.route("/bulletins/<uuid:bulletin_id>/import", methods=["GET", "POST"])
+@login_required
+def bulletin_import(company_id, bulletin_id):
+    ctx, row, style = bulletin_context(company_id, bulletin_id)
+    require(company_id, "factory.manage")
+    form = ImportForm()
+    if request.method == "GET":
+        form.version.data = str(row.version)
+    status = 200
+    if form.validate_on_submit():
+        try:
+            count = engineering.import_operations(
+                company_id, row.id, form.rows.data, replace=form.mode.data == "replace"
+            )
+        except DomainError as exc:
+            flash(str(exc), "danger")
+            status = 409
+        else:
+            flash(f"{count} operations imported.", "success")
+            return back_to_bulletin(company_id, row.id)
+    elif request.method == "POST":
+        status = 422
+    return render_template(
+        "factory/form.html",
+        title=f"Import operations · {style.code} rev {row.revision}",
+        form=form,
+        submit="Check and import",
+        back=url_for("factory.bulletin", company_id=company_id, bulletin_id=row.id),
+        extra_link=(
+            url_for("factory.bulletin_template", company_id=company_id),
+            "Download a template CSV with the expected columns",
+        ),
+        **ctx,
+    ), status
+
+
+@bp.get("/bulletins/template.csv")
+@login_required
+def bulletin_template(company_id):
+    context(company_id, "styles")
+    body = (
+        "sequence,operation,machine,basic_minutes,allowance\n"
+        "10,Shoulder join,SEW-OL,0.35,25\n"
+        "20,Neck rib attach,SEW-OL,0.45,25\n"
+        "30,Label attach,SEW-LS,0.30,25\n"
+        "40,Trim threads and fold,manual,0.40,20\n"
+    )
+    return (
+        body,
+        200,
+        {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": "attachment; filename=operation-bulletin-template.csv",
+        },
+    )
+
+
+@bp.post("/bulletins/<uuid:bulletin_id>/publish")
+@login_required
+def bulletin_publish(company_id, bulletin_id):
+    context(company_id, "styles")
+    require(company_id, "factory.manage")
+    form = ActionForm()
+    if not form.validate_on_submit():
+        abort(400)
+    try:
+        engineering.publish(company_id, bulletin_id, int(form.version.data))
+    except DomainError as exc:
+        flash(str(exc), "danger")
+    else:
+        flash("Revision published and frozen. Planning now uses this SAM.", "success")
+    return back_to_bulletin(company_id, bulletin_id)
+
+
+@bp.post("/bulletins/<uuid:bulletin_id>/discard")
+@login_required
+def bulletin_discard(company_id, bulletin_id):
+    context(company_id, "styles")
+    require(company_id, "factory.manage")
+    form = ActionForm()
+    if not form.validate_on_submit():
+        abort(400)
+    try:
+        style_id = engineering.discard_draft(company_id, bulletin_id, int(form.version.data))
+    except DomainError as exc:
+        flash(str(exc), "danger")
+        return back_to_bulletin(company_id, bulletin_id)
+    flash("Draft revision discarded.", "success")
+    return redirect(
+        url_for("factory.detail", company_id=company_id, resource="styles", record_id=style_id),
+        code=303,
+    )

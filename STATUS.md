@@ -1,5 +1,15 @@
 # RecallTrace implementation status
 
+## Factory Suite step 2: styles and work content — 13 November 2026
+
+- **Data:** migration `f02a01` adds `styles`, `fabric_specs`, `operation_bulletins` and `bulletin_operations`. The schema is now 83 tables: 72 Core plus 11 Factory. Published bulletins are frozen in the database by the existing draft-document and draft-line triggers. Runtime grants and RLS are handled exactly as in `f01a01`.
+- **SAM:** `app/services/engineering.py` calculates operation SAM as basic × (1 + allowance), rounded half-up to 4 places; a database check enforces the same formula. It also gives garment SAM, the blueprint's target output and pitch time, and an operator split by machine type.
+- **Revisions:** revision 1 starts empty. Each later revision copies the previous one, and only one draft can be open per style. Publishing needs at least one operation. A draft can be discarded.
+- **CSV import:** operations can be pasted in a GSD-style CSV (sequence, operation, machine class code or name or "manual", basic minutes, optional allowance as 25 or 0.25). Every row is checked first and errors name the line. The import replaces or appends all-or-nothing, with at most 300 rows or 64 KB, and nothing is stored as a file. A downloadable template shows the columns.
+- **Screens:** a styles list with current SAM, and a style page with fabric (kg per garment, relaxation hours) and bulletin revisions. The bulletin page has operations, totals, work content by machine, publish and discard, and a line preview with adjustable operators, minutes and efficiency. Operation add/edit forms and the import form complete it. Buyers are limited to customer partners.
+- **Demo:** the seed now adds 3 fictional buyers and 8 styles (tee, long sleeve, polo, tank, leggings, sweatshirt, hoodie, jogger) with fabric specs and published bulletins: 98 operations, SAM 4.94 to 19.21. It also fills in styles for a demo seeded before step 2.
+- **Verification:** `tests/test_engineering.py` passes 8 tests. They cover SAM rounding, targets, pitch and station split; the buyer rule; revision copy, publish freeze (service and database triggers) and discard; the all-or-nothing CSV rules; cross-company 404; the screens and forms through CSRF; and read-only 403. Full local suite: 519 passed. The only failures were the 16 PostgreSQL 16 `MAINTAIN` tests.
+
 ## Factory Suite step 1: factory model and machine register — 13 November 2026
 
 First slice of the approved Factory Suite (Machine Capacity Management) plan in documentation/docs/14_Factory_Suite_MCM_Plan.md.

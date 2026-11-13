@@ -367,7 +367,7 @@ def test_demo_factory_seeds_once_and_every_screen_renders(app, records, client, 
         args=["seed-factory-demo", "--owner-email", "catalog-editor@aurora.test"]
     )
     assert result.exit_code == 0, result.output
-    assert "1156 machines" in result.output
+    assert "1156 machines" in result.output and "8 styles" in result.output
     again = runner.invoke(args=["seed-factory-demo", "--owner-of", SLUG])
     assert again.exit_code == 0, again.output
     assert "nothing changed" in again.output

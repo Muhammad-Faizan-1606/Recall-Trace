@@ -417,3 +417,315 @@ def seed(organization, member, today=None):
         f"for {NAME}.",
         f"{len(down)} machines start in maintenance or idle, so capacity shows real gaps.",
     ]
+
+
+# ---------- Step 2: fictional buyers, styles, fabric and work content ----------
+
+BUYERS = [
+    ("NPA", "Northpeak Athletics (demo)"),
+    ("HPA", "Harbour & Pine Apparel (demo)"),
+    ("VLS", "Velo Sportswear (demo)"),
+]
+OL, FL, LS, MAN = "SEW-OL", "SEW-FL", "SEW-LS", None
+# style code, name, product type, buyer, fabrics [(component, type, composition, gsm, width,
+# c/cm, kg per garment, relax hours)], operations [(name, class, basic minutes)]
+STYLES = [
+    (
+        "NP-TEE-101",
+        "Crew neck essential tee",
+        "tee",
+        "NPA",
+        [
+            ("Body", "single_jersey", "100% combed cotton", "160", "1.80", "16", "0.190", 24),
+            ("Neck rib", "rib", "95% cotton 5% elastane", "220", "0.90", None, "0.012", 24),
+        ],
+        [
+            ("Shoulder join", OL, "0.35"),
+            ("Neck rib close", OL, "0.18"),
+            ("Neck rib attach", OL, "0.45"),
+            ("Back neck tape", LS, "0.40"),
+            ("Care label attach", LS, "0.30"),
+            ("Sleeve attach", OL, "0.70"),
+            ("Side seam and sleeve close", OL, "0.85"),
+            ("Sleeve hem", FL, "0.55"),
+            ("Bottom hem", FL, "0.50"),
+            ("Neck topstitch", FL, "0.45"),
+            ("Trim threads", MAN, "0.40"),
+            ("Inspect and fold", MAN, "0.45"),
+        ],
+    ),
+    (
+        "NP-LS-150",
+        "Long-sleeve base layer",
+        "long_sleeve",
+        "NPA",
+        [
+            ("Body", "single_jersey", "100% combed cotton", "180", "1.80", "17", "0.260", 24),
+            (
+                "Cuff and neck rib",
+                "rib",
+                "95% cotton 5% elastane",
+                "220",
+                "0.90",
+                None,
+                "0.020",
+                24,
+            ),
+        ],
+        [
+            ("Shoulder join", OL, "0.35"),
+            ("Neck rib attach", OL, "0.48"),
+            ("Back neck tape", LS, "0.40"),
+            ("Label attach", LS, "0.30"),
+            ("Sleeve attach", OL, "0.75"),
+            ("Side seam and sleeve close", OL, "1.05"),
+            ("Cuff close", OL, "0.30"),
+            ("Cuff attach", OL, "0.70"),
+            ("Bottom hem", FL, "0.50"),
+            ("Neck topstitch", FL, "0.45"),
+            ("Trim threads", MAN, "0.45"),
+            ("Inspect and fold", MAN, "0.50"),
+        ],
+    ),
+    (
+        "NP-POLO-220",
+        "Piqué polo with placket",
+        "polo",
+        "NPA",
+        [
+            ("Body", "pique", "100% cotton", "210", "1.85", "15", "0.300", 24),
+            ("Collar and cuff", "rib", "100% cotton flat knit", "250", "0.80", None, "0.030", 24),
+        ],
+        [
+            ("Placket fuse and fold", LS, "0.80"),
+            ("Placket attach", LS, "1.40"),
+            ("Placket box stitch", LS, "0.90"),
+            ("Shoulder join", OL, "0.38"),
+            ("Collar attach", LS, "1.20"),
+            ("Neck tape and topstitch", LS, "0.90"),
+            ("Sleeve attach", OL, "0.80"),
+            ("Cuff attach", OL, "0.70"),
+            ("Side seam with vents", OL, "1.10"),
+            ("Bottom hem", FL, "0.55"),
+            ("Buttonhole", LS, "0.60"),
+            ("Button sew", LS, "0.55"),
+            ("Trim threads", MAN, "0.60"),
+            ("Inspect and fold", MAN, "0.65"),
+        ],
+    ),
+    (
+        "VL-TANK-120",
+        "Training tank",
+        "tank",
+        "VLS",
+        [("Body", "single_jersey", "92% polyester 8% elastane", "150", "1.70", "20", "0.140", 48)],
+        [
+            ("Shoulder join", OL, "0.30"),
+            ("Armhole binding", FL, "0.90"),
+            ("Neck binding", FL, "0.70"),
+            ("Side seam", OL, "0.55"),
+            ("Bottom hem", FL, "0.45"),
+            ("Heat transfer logo", MAN, "0.50"),
+            ("Trim and inspect", MAN, "0.55"),
+        ],
+    ),
+    (
+        "VL-LEG-410",
+        "Performance leggings",
+        "leggings",
+        "VLS",
+        [("Body", "interlock", "78% polyester 22% elastane", "260", "1.60", "22", "0.230", 48)],
+        [
+            ("Gusset attach", FL, "0.80"),
+            ("Inseam", FL, "1.10"),
+            ("Crotch seam", FL, "0.90"),
+            ("Waistband close", OL, "0.35"),
+            ("Waistband elastic insert", OL, "0.70"),
+            ("Waistband attach", FL, "1.20"),
+            ("Leg hem", FL, "0.80"),
+            ("Label attach", LS, "0.30"),
+            ("Trim and inspect", MAN, "0.70"),
+        ],
+    ),
+    (
+        "HP-SWT-500",
+        "Crewneck sweatshirt",
+        "sweatshirt",
+        "HPA",
+        [
+            ("Body", "fleece", "80% cotton 20% polyester", "300", "1.90", "14", "0.480", 24),
+            ("Rib", "rib", "95% cotton 5% elastane", "300", "0.90", None, "0.060", 24),
+        ],
+        [
+            ("Shoulder join", OL, "0.40"),
+            ("Neck rib attach", OL, "0.55"),
+            ("Back neck tape", LS, "0.45"),
+            ("Label attach", LS, "0.30"),
+            ("Sleeve attach", OL, "0.90"),
+            ("Side seam and sleeve close", OL, "1.20"),
+            ("Cuff close", OL, "0.30"),
+            ("Cuff attach", OL, "0.80"),
+            ("Waistband close", OL, "0.30"),
+            ("Waistband attach", OL, "0.90"),
+            ("Coverstitch neck and seams", FL, "1.30"),
+            ("Trim threads", MAN, "0.60"),
+            ("Inspect and fold", MAN, "0.70"),
+        ],
+    ),
+    (
+        "NP-HOOD-805",
+        "Fleece pullover hoodie",
+        "hoodie",
+        "NPA",
+        [
+            ("Body", "fleece", "80% cotton 20% polyester", "320", "1.90", "14", "0.620", 24),
+            ("Hood lining", "single_jersey", "100% cotton", "180", "1.80", "16", "0.070", 24),
+            ("Rib", "rib", "95% cotton 5% elastane", "300", "0.90", None, "0.060", 24),
+        ],
+        [
+            ("Hood centre seam", OL, "0.60"),
+            ("Hood lining seam", OL, "0.55"),
+            ("Hood join and topstitch", FL, "1.20"),
+            ("Eyelets", LS, "0.50"),
+            ("Drawcord insert", MAN, "0.60"),
+            ("Kangaroo pocket hem", FL, "0.70"),
+            ("Pocket attach", LS, "1.60"),
+            ("Shoulder join", OL, "0.42"),
+            ("Hood attach", OL, "1.10"),
+            ("Neck tape", LS, "0.70"),
+            ("Sleeve attach", OL, "0.95"),
+            ("Side seam and sleeve close", OL, "1.25"),
+            ("Cuff attach", OL, "0.85"),
+            ("Waistband attach", OL, "0.95"),
+            ("Coverstitch seams", FL, "1.40"),
+            ("Label attach", LS, "0.35"),
+            ("Trim threads", MAN, "0.80"),
+            ("Inspect and fold", MAN, "0.85"),
+        ],
+    ),
+    (
+        "HP-JOG-310",
+        "Fleece jogger",
+        "jogger",
+        "HPA",
+        [
+            ("Body", "fleece", "80% cotton 20% polyester", "300", "1.90", "14", "0.520", 24),
+            ("Rib cuff", "rib", "95% cotton 5% elastane", "300", "0.90", None, "0.040", 24),
+        ],
+        [
+            ("Side pocket bags", OL, "0.90"),
+            ("Pocket attach", LS, "1.30"),
+            ("Back pocket", LS, "1.10"),
+            ("Outseam", OL, "0.80"),
+            ("Inseam", OL, "0.90"),
+            ("Crotch seam", OL, "0.70"),
+            ("Waistband elastic and cord", OL, "1.10"),
+            ("Waistband attach", OL, "0.95"),
+            ("Cuff attach", OL, "0.80"),
+            ("Coverstitch waistband", FL, "0.70"),
+            ("Label attach", LS, "0.30"),
+            ("Trim threads", MAN, "0.70"),
+            ("Inspect and fold", MAN, "0.70"),
+        ],
+    ),
+]
+
+
+def seed_styles(organization, member):
+    """Add the fictional buyers and styles once (also to a demo seeded before step 2)."""
+    from app.models import now as current_time
+    from app.models.factory import (
+        BulletinOperation,
+        FabricSpec,
+        OperationBulletin,
+        Style,
+    )
+    from app.models.master import Partner, PartnerRoleAssignment
+    from app.services.engineering import operation_sam
+
+    company_id = organization.id
+    if db.session.scalar(select(Style.id).where(Style.organization_id == company_id)):
+        return []
+    classes = {
+        row.code: row.id
+        for row in db.session.scalars(
+            select(MachineClass).where(MachineClass.organization_id == company_id)
+        )
+    }
+    if not {OL, FL, LS} <= set(classes):
+        return ["Sewing machine classes missing; styles not added."]
+    buyers = {}
+    for code, name in BUYERS:
+        partner = db.session.scalar(
+            select(Partner).where(Partner.organization_id == company_id, Partner.code == code)
+        )
+        if partner is None:
+            partner = Partner(organization_id=company_id, code=code, name=name)
+            db.session.add(partner)
+            db.session.flush()
+            db.session.add(
+                PartnerRoleAssignment(
+                    organization_id=company_id, partner_id=partner.id, role_code="customer"
+                )
+            )
+        buyers[code] = partner
+    allowance = D("0.250")
+    total_operations = 0
+    for code, name, product_type, buyer, fabrics, steps in STYLES:
+        style = Style(
+            organization_id=company_id,
+            code=code,
+            name=name,
+            product_type=product_type,
+            season="SS27",
+            buyer_id=buyers[buyer].id,
+        )
+        db.session.add(style)
+        db.session.flush()
+        for component, fabric_type, composition, gsm, width, cpc, kg, relax in fabrics:
+            db.session.add(
+                FabricSpec(
+                    organization_id=company_id,
+                    style_id=style.id,
+                    component=component,
+                    fabric_type=fabric_type,
+                    composition=composition,
+                    gsm=D(gsm),
+                    width_m=D(width),
+                    courses_per_cm=D(cpc) if cpc else None,
+                    consumption_kg=D(kg),
+                    relaxation_hours=relax,
+                )
+            )
+        bulletin = OperationBulletin(
+            organization_id=company_id,
+            style_id=style.id,
+            revision=1,
+            allowance_factor=allowance,
+            source="Fictional GSD study",
+        )
+        db.session.add(bulletin)
+        db.session.flush()
+        for index, (operation, class_code, basic) in enumerate(steps, 1):
+            db.session.add(
+                BulletinOperation(
+                    organization_id=company_id,
+                    bulletin_id=bulletin.id,
+                    sequence=index * 10,
+                    name=operation,
+                    machine_class_id=classes[class_code] if class_code else None,
+                    basic_minutes=D(basic),
+                    allowance_factor=allowance,
+                    sam=operation_sam(D(basic), allowance),
+                )
+            )
+            total_operations += 1
+        db.session.flush()
+        bulletin.status = "published"
+        bulletin.published_at = current_time()
+    db.session.flush()
+    audit(company_id, "factory.demo_styles_seeded", "styles", None, {"count": len(STYLES)})
+    return [
+        f"{len(BUYERS)} fictional buyers and {len(STYLES)} styles with published operation "
+        f"bulletins ({total_operations} operations)."
+    ]

@@ -41,6 +41,7 @@
       {{ nav_link(url_for('factory.overview', company_id=company_id), 'Factory floor', 'activity', '/companies/' ~ company_id ~ '/factory/__none__') }}
       {{ nav_link(url_for('factory.listing', company_id=company_id, resource='machines'), 'Machines', 'boxes') }}
       {{ nav_link(url_for('factory.listing', company_id=company_id, resource='work-centers'), 'Work centres', 'layers') }}
+      {% set sbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('factory.listing', company_id=company_id, resource='styles'), 'Styles & SAM', 'list-checks', [sbase ~ 'styles', sbase ~ 'fabric-specs', sbase ~ 'bulletins']) }}
       {% set fbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('factory.setup', company_id=company_id), 'Factory setup', 'calendar', [fbase ~ 'setup', fbase ~ 'machine-classes', fbase ~ 'shift-patterns', fbase ~ 'calendar', fbase ~ 'transit']) }}
     </div>
     {% endif %}
