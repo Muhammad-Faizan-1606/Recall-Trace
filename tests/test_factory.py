@@ -368,6 +368,7 @@ def test_demo_factory_seeds_once_and_every_screen_renders(app, records, client, 
     )
     assert result.exit_code == 0, result.output
     assert "1156 machines" in result.output and "8 styles" in result.output
+    assert "14 fictional production orders planned (3 released" in result.output
     again = runner.invoke(args=["seed-factory-demo", "--owner-of", SLUG])
     assert again.exit_code == 0, again.output
     assert "nothing changed" in again.output
@@ -391,6 +392,8 @@ def test_demo_factory_seeds_once_and_every_screen_renders(app, records, client, 
         assert client.get(f"{base}/{resource}").status_code == 200
         assert client.get(f"{base}/{resource}/new").status_code == 200
     assert client.get(f"{base}/setup").status_code == 200
+    board = client.get(f"{base}/planning")
+    assert board.status_code == 200 and "PO-27001" in board.text
     dye = db.session.scalar(
         select(WorkCenter).where(
             WorkCenter.organization_id == company.id, WorkCenter.code == "MANGA-DYE"

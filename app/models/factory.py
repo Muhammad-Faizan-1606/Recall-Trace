@@ -327,3 +327,64 @@ class BulletinOperation(Owned, db.Model):
             "sam = round(basic_minutes * (1 + allowance_factor), 4)", name="sam_formula"
         ),
     )
+
+
+# ---------- Step 3: production orders and capacity bookings ----------
+
+ORDER_STATUSES = ("draft", "planned", "released", "completed", "cancelled")
+STAGES = ("knitting", "dyeing", "finishing", "cutting", "embellishment", "sewing", "packing")
+
+
+class ProductionOrder(Owned, db.Model):
+    """A quantity of one style to make by an ex-factory date, planned stage by stage."""
+
+    __tablename__ = "production_orders"
+    reference: Mapped[str] = mapped_column(db.String(40))
+    style_id: Mapped[uuid.UUID] = mapped_column()
+    # The published bulletin whose SAM this order is planned with (frozen).
+    bulletin_id: Mapped[uuid.UUID] = mapped_column()
+    quantity: Mapped[int] = mapped_column()
+    colour: Mapped[str] = mapped_column(db.String(60))
+    ex_factory_on: Mapped[date] = mapped_column(db.Date)
+    # 1 is most urgent; orders are scheduled by priority, then ex-factory date.
+    priority: Mapped[int] = mapped_column(default=3, server_default="3")
+    sewing_lines: Mapped[int] = mapped_column(default=2, server_default="2")
+    prints_per_piece: Mapped[int] = mapped_column(default=0, server_default="0")
+    status: Mapped[str] = mapped_column(db.String(20), default="draft", server_default="draft")
+    planned_start_on: Mapped[date | None] = mapped_column(db.Date)
+    planned_finish_on: Mapped[date | None] = mapped_column(db.Date)
+    planned_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    __table_args__ = (
+        *identity("reference"),
+        tenant_fk("style_id", "styles"),
+        tenant_fk("bulletin_id", "operation_bulletins"),
+        _in("status", ORDER_STATUSES),
+        CheckConstraint("quantity BETWEEN 1 AND 10000000", name="quantity"),
+        CheckConstraint("priority BETWEEN 1 AND 5", name="priority"),
+        CheckConstraint("sewing_lines BETWEEN 1 AND 20", name="sewing_lines"),
+        CheckConstraint("prints_per_piece BETWEEN 0 AND 10", name="prints_per_piece"),
+        CheckConstraint(
+            "planned_finish_on IS NULL OR planned_start_on <= planned_finish_on",
+            name="planned_dates",
+        ),
+    )
+
+
+class CapacityBooking(Owned, db.Model):
+    """One day of one stage of an order on one work centre: the finite-capacity ledger."""
+
+    __tablename__ = "capacity_bookings"
+    production_order_id: Mapped[uuid.UUID] = mapped_column()
+    stage: Mapped[str] = mapped_column(db.String(20))
+    work_center_id: Mapped[uuid.UUID] = mapped_column()
+    day: Mapped[date] = mapped_column(db.Date)
+    quantity: Mapped[Decimal] = mapped_column(db.Numeric(16, 3))
+    unit: Mapped[str] = mapped_column(db.String(20))
+    __table_args__ = (
+        *identity("production_order_id", "stage", "work_center_id", "day"),
+        tenant_fk("production_order_id", "production_orders"),
+        tenant_fk("work_center_id", "work_centers"),
+        _in("stage", STAGES),
+        CheckConstraint("quantity > 0", name="quantity"),
+        db.Index("ix_capacity_bookings_center_day", "organization_id", "work_center_id", "day"),
+    )

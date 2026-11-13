@@ -244,3 +244,12 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Published bulletins are immutable.** They reuse the existing draft-document and draft-line triggers instead of new mechanisms. Planning will always use the latest published revision, and orders will record the revision they were planned with (step 3).
 - **CSV import is pasted, not uploaded.** The rows are parsed in memory, validated in full, then applied in one transaction; nothing is stored as a file. Evidence-file rules (private storage, malware scan) therefore do not apply, and the import is bounded by size and row count.
 - **Manual work is first-class.** An operation without a machine class counts toward garment SAM and line operators but not toward any machine type.
+
+## 13 November 2026 — Factory Suite step 3: how planning works
+
+- **Day-level finite capacity.** Each work centre offers its hourly rate × productive hours per day. Bookings consume it in priority order. Waits (transit, relaxation) are rounded up to whole days. This is coarser than shift-level scheduling but explainable and deterministic, which matters more for a planning conversation than minute precision.
+- **Stored ledger, not a stored plan description.** Bookings are stored per order, stage, work centre and day. The board, order timelines and utilisation all read from the same ledger.
+- **Re-planning.** Saving, cancelling or completing an order re-plans every draft and planned order. Released orders are frozen, so the floor's committed work never moves.
+- **Planning factors.** Process-loss factors (1.10 knitting, 1.05 dyeing) and panels per piece by product type are documented constants. They can become per-style settings when a factory supplies real figures.
+- **No scenario table.** The plan doc's `plan_scenarios` table was not created: what-if previews are computed in memory and applied by saving the order, so a scenario table would have been an empty model.
+- **Demo ratings corrected.** The step 1 demo underrated cutters (900 panels/h) and packing tables (180 pieces/h), which made them artificial bottlenecks. They now use 4,000 and 600, and the seed corrects an existing demo in the fictional company only.

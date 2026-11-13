@@ -1,5 +1,32 @@
 # RecallTrace implementation status
 
+## Factory Suite step 3: orders and capacity planning — 13 November 2026
+
+- **Data:** migration `f03a01` adds `production_orders` and `capacity_bookings`, the day-by-day ledger per order, stage and work centre. The schema is now 85 tables: 72 Core plus 13 Factory.
+- **Stage loads:** `app/services/planning.py` turns an order into stage loads from its style:
+  - knitting kg = pieces × fabric kg × 1.10
+  - dyeing kg = pieces × fabric kg × 1.05
+  - finishing metres = Σ pieces × kg × 1000 ÷ (GSM × width)
+  - cutting panels by product type
+  - print impressions
+  - sewing SAM minutes from the frozen bulletin
+  - packing pieces
+- **Booking rules:**
+  - Each stage is booked day by day against real capacity (machine rates × productive shift hours, holidays), after earlier orders.
+  - Orders are placed in priority order, then by ex-factory date.
+  - Transit between sites and fabric relaxation are added, rounded up to whole days.
+  - Sewing is split across the chosen number of lines, using those that finish earliest.
+  - Released orders keep their bookings and later orders plan around them.
+  - The result is deterministic, and late orders are detected.
+  - What-if previews re-plan in memory without writing.
+- **Screens:**
+  - **Planning board:** a 4-week heat map per department (booked ÷ capacity, no-shift days marked) and a Gantt-style order timeline with ex-factory markers, with week paging. Each department drills down to its work centres.
+  - **Orders:** a production order list, and an order page with the plan by stage. Each gap is explained (transit, relaxation, then waiting for capacity), along with the load arithmetic.
+  - **What-if panel:** sewing lines and priority, showing the new finish and any order that would become late, with an apply button.
+  - **Actions:** release, complete and cancel (which frees capacity).
+- **Demo:** 14 fictional orders (18,000 to 90,000 pieces). Three are released and two finish late, so the board shows real pressure. Knitting is at capacity in week 1 and cutting in weeks 2 and 3. Cutter (4,000 panels/h) and packing (600 pieces/h per table) ratings were corrected to realistic values, including in a demo seeded earlier.
+- **Verification:** `tests/test_planning.py` passes 8 tests on a hand-calculable two-site factory: loads, the 29 h transit-plus-relaxation offset, sewing split, carry-over across a holiday, priority order, frozen released plans, late detection, what-if without writes, cancel, the bulletin requirement, screens and actions through CSRF, and read-only 403. Full local suite: 527 passed. The only failures were the 16 PostgreSQL 16 `MAINTAIN` tests.
+
 ## Factory Suite step 2: styles and work content — 13 November 2026
 
 - **Data:** migration `f02a01` adds `styles`, `fabric_specs`, `operation_bulletins` and `bulletin_operations`. The schema is now 83 tables: 72 Core plus 11 Factory. Published bulletins are frozen in the database by the existing draft-document and draft-line triggers. Runtime grants and RLS are handled exactly as in `f01a01`.

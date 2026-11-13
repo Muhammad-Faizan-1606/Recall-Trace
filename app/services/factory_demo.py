@@ -313,9 +313,11 @@ def seed(organization, member, today=None):
     for number in range(1, 3):
         machine(f"CMP-{number:02d}", "Lafer open-width compactor", "COMPACT", fin, 30)
     for number in range(1, 4):
-        machine(f"CUT-PK-{number:02d}", "Lectra Vector iX6 with spreader", "CUT-CNC", cut_park, 900)
+        machine(
+            f"CUT-PK-{number:02d}", "Lectra Vector iX6 with spreader", "CUT-CNC", cut_park, 4000
+        )
     for number in range(1, 3):
-        machine(f"CUT-QE-{number:02d}", "Lectra Vector iX6 with spreader", "CUT-CNC", cut_qie, 800)
+        machine(f"CUT-QE-{number:02d}", "Lectra Vector iX6 with spreader", "CUT-CNC", cut_qie, 3500)
     for number in range(1, 7):
         machine(f"PRT-{number:02d}", "M&R Gauntlet oval screen printer", "PRINT-OVAL", prt, 600)
     for number in range(1, 5):
@@ -323,7 +325,7 @@ def seed(organization, member, today=None):
     for number in range(1, 5):
         machine(f"WSH-{number:02d}", "Stainless steel tumbler 100 kg", "WASH-TMB", wash, 100)
     for number in range(1, 13):
-        machine(f"PCK-{number:02d}", "Packing table with needle detector", "PACK", pack, 180)
+        machine(f"PCK-{number:02d}", "Packing table with needle detector", "PACK", pack, 600)
 
     for site, count in LINES.items():
         pattern = "DAY-2X10" if site in ("PARK", "QIE2") else "DAY-1X10"
@@ -728,4 +730,106 @@ def seed_styles(organization, member):
     return [
         f"{len(BUYERS)} fictional buyers and {len(STYLES)} styles with published operation "
         f"bulletins ({total_operations} operations)."
+    ]
+
+
+# ---------- Step 3: fictional production orders ----------
+
+# reference, style, pieces, colour, ex-factory in days, priority, sewing lines, prints
+ORDERS = [
+    ("PO-27001", "NP-TEE-101", 72000, "Black", 24, 2, 5, 1),
+    ("PO-27002", "NP-HOOD-805", 27000, "Heather grey", 30, 2, 6, 1),
+    ("PO-27003", "VL-LEG-410", 45000, "Navy", 26, 3, 4, 0),
+    ("PO-27004", "HP-SWT-500", 24000, "Oatmeal", 30, 3, 4, 0),
+    ("PO-27005", "NP-POLO-220", 36000, "White", 28, 3, 5, 0),
+    ("PO-27006", "VL-TANK-120", 54000, "Volt green", 20, 2, 4, 1),
+    ("PO-27007", "HP-JOG-310", 30000, "Charcoal", 34, 3, 4, 0),
+    ("PO-27008", "NP-LS-150", 42000, "Bone", 36, 4, 4, 0),
+    ("PO-27009", "NP-TEE-101", 90000, "White", 30, 4, 5, 1),
+    ("PO-27010", "NP-HOOD-805", 18000, "Black", 16, 1, 5, 1),
+    ("PO-27011", "VL-LEG-410", 27000, "Black", 40, 4, 3, 0),
+    ("PO-27012", "HP-SWT-500", 21000, "Forest", 14, 1, 4, 0),
+    ("PO-27013", "NP-POLO-220", 24000, "Navy", 44, 5, 3, 0),
+    ("PO-27014", "HP-JOG-310", 36000, "Heather grey", 31, 5, 4, 0),
+]
+RELEASED = ("PO-27010", "PO-27012", "PO-27006")
+
+
+def seed_orders(organization, member, today=None):
+    """Add fictional orders once, plan them, and release the most urgent three."""
+    from app.models.factory import ProductionOrder, Style
+    from app.services import engineering, planning
+
+    company_id = organization.id
+    if db.session.scalar(
+        select(ProductionOrder.id).where(ProductionOrder.organization_id == company_id)
+    ):
+        return []
+    today = today or date.today()
+    styles = {
+        row.code: row
+        for row in db.session.scalars(select(Style).where(Style.organization_id == company_id))
+    }
+    current = engineering.current_bulletins(company_id)
+    # Demos seeded before step 3 rated the cutters at 900/800 panels an hour, far below a
+    # multi-ply CNC cutter; correct them in this fictional company only.
+    for machine in db.session.scalars(
+        select(Machine).where(
+            Machine.organization_id == company_id,
+            Machine.asset_tag.like("CUT-%"),
+            Machine.rated_value < 1000,
+        )
+    ):
+        machine.rated_value = D(4000) if machine.asset_tag.startswith("CUT-PK") else D(3500)
+    # The same applies to packing tables first rated at 180 pieces an hour (one packer).
+    for machine in db.session.scalars(
+        select(Machine).where(
+            Machine.organization_id == company_id,
+            Machine.asset_tag.like("PCK-%"),
+            Machine.rated_value < 600,
+        )
+    ):
+        machine.rated_value = D(600)
+    added = 0
+    for reference, code, pieces, colour, days, priority, lines, prints in ORDERS:
+        style = styles.get(code)
+        if style is None or style.id not in current:
+            continue
+        db.session.add(
+            ProductionOrder(
+                organization_id=company_id,
+                reference=reference,
+                style_id=style.id,
+                bulletin_id=current[style.id].id,
+                quantity=pieces,
+                colour=colour,
+                ex_factory_on=today + timedelta(days=days),
+                priority=priority,
+                sewing_lines=lines,
+                prints_per_piece=prints,
+            )
+        )
+        added += 1
+    db.session.flush()
+    planning.replan(company_id, today)
+    for order in db.session.scalars(
+        select(ProductionOrder).where(
+            ProductionOrder.organization_id == company_id,
+            ProductionOrder.reference.in_(RELEASED),
+            ProductionOrder.status == "planned",
+        )
+    ):
+        order.status = "released"
+    db.session.flush()
+    plans = planning.replan(company_id, today)
+    late = sum(
+        1
+        for order in db.session.scalars(
+            select(ProductionOrder).where(ProductionOrder.organization_id == company_id)
+        )
+        if order.planned_finish_on and order.planned_finish_on > order.ex_factory_on
+    )
+    return [
+        f"{added} fictional production orders planned ({len(RELEASED)} released, "
+        f"{len(plans)} re-planned); {late} finish after their ex-factory date."
     ]

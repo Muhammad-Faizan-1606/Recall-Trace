@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}{{ order.reference }} · Production order{% endblock %}
+{% block content %}
+{% set editable = order.status in ('draft', 'planned') %}
+<p class="back-link"><a href="{{ url_for('planning.orders', company_id=company_id) }}">Production orders</a></p>
+<div class="record-head">
+  <div>
+    <h1>{{ order.reference }} · {{ style.name }}</h1>
+    <p class="record-meta">{{ order.status|tag }}{% if slack is not none and order.status in ('planned', 'released') %}{% if slack < 0 %}<span class="tag tag-bad">{{ -slack }} day{{ 's' if slack != -1 }} late</span>{% else %}<span class="tag tag-good">{{ slack }} day{{ 's' if slack != 1 }} spare</span>{% endif %}{% endif %}<span>{{ style.code }} · {{ order.colour }} · priority {{ order.priority }}</span></p>
+  </div>
+  {% if can_manage %}
+  <div class="page-actions">
+    {% if editable %}<a class="btn btn-outline-secondary" href="{{ url_for('planning.order_edit', company_id=company_id, order_id=order.id) }}">Edit</a>{% endif %}
+    {% if order.status == 'planned' %}<form class="m-0" method="post" action="{{ url_for('planning.order_action', company_id=company_id, order_id=order.id, action='release') }}">{{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Release to the floor</button></form>{% endif %}
+    {% if order.status == 'released' %}<form class="m-0" method="post" action="{{ url_for('planning.order_action', company_id=company_id, order_id=order.id, action='complete') }}">{{ action_form.hidden_tag() }}<button class="btn btn-success" type="submit">Mark complete</button></form>{% endif %}
+    {% if order.status in ('draft', 'planned', 'released') %}<form class="m-0" method="post" action="{{ url_for('planning.order_action', company_id=company_id, order_id=order.id, action='cancel') }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-danger" type="submit">Cancel order</button></form>{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<dl class="facts">
+  <div><dt>Pieces</dt><dd>{{ '{:,}'.format(order.quantity) }}</dd></div>
+  <div><dt>Garment SAM</dt><dd>{{ sam|two }}<small class="fine-print"> min</small></dd></div>
+  <div><dt>Fabric to dye</dt><dd>{{ fabric_kg|cap }}<small class="fine-print"> kg</small></dd></div>
+  <div class="{{ 'is-alert' if slack is not none and slack < 0 }}"><dt>Planned finish · ex-factory</dt><dd>{% if order.planned_finish_on %}{{ order.planned_finish_on.strftime('%d %b') }}{% else %}—{% endif %}<small class="fine-print"> · {{ order.ex_factory_on.strftime('%d %b') }}</small></dd></div>
+</dl>
+
+{% for problem in problems %}<div class="alert alert-warning" role="status">{{ problem }}</div>{% endfor %}
+
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="plan-heading">
+      <div class="section-head"><h2 id="plan-heading">Plan by stage</h2><span class="section-note">{% if order.planned_at %}Planned {{ order.planned_at|when }}{% else %}Not planned yet{% endif %}</span></div>
+      <ol class="route">
+      {% for item in timeline %}
+        {% if item[0] == 'wait' %}
+        <li class="route-wait"><span>{{ item[1] }} day{{ 's' if item[1] != 1 }}: {{ item[2] }}</span></li>
+        {% else %}
+        {% set _, stage, first, last, quantity, unit, centers, working = item %}
+        <li class="route-step stage-{{ stage }}">
+          <div class="route-head"><strong>{{ stage_names[stage] }}</strong><span class="row-meta">{{ first.strftime('%a %d %b') }}{% if last != first %} – {{ last.strftime('%a %d %b') }}{% endif %}</span></div>
+          <p class="mb-1">{{ quantity|cap }} {{ unit }} on {% for center in centers %}<a href="{{ url_for('factory.detail', company_id=company_id, resource='work-centers', record_id=center.id) }}">{{ center.name }} ({{ center.code }})</a>{{ ', ' if not loop.last }}{% endfor %}</p>
+          <p class="fine-print mb-0">{{ working }}</p>
+        </li>
+        {% endif %}
+      {% else %}
+        <li class="empty">No bookings. {% if order.status == 'draft' %}The order could not be planned yet; see the note above.{% endif %}</li>
+      {% endfor %}
+      </ol>
+    </section>
+  </div>
+
+  <aside class="rail" aria-label="What if">
+    {% if editable and can_manage %}
+    <section class="panel next-step" aria-labelledby="whatif-title">
+      <h2 id="whatif-title">What if…</h2>
+      <p>Try more sewing lines or a different priority. Nothing is saved until you apply it, and you will see whether other orders would slip.</p>
+      <form method="get">
+        <label class="form-label" for="lines">Sewing lines</label>
+        <input class="form-control mb-2" id="lines" name="lines" type="number" min="1" max="20" value="{{ preview.lines if preview else order.sewing_lines }}">
+        <label class="form-label" for="priority">Priority</label>
+        <select class="form-select mb-3" id="priority" name="priority">{% for choice in priorities %}<option value="{{ choice.value }}"{% if choice.value|int == (preview.priority if preview else order.priority) %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}</select>
+        <button class="btn btn-primary" type="submit">Preview the plan</button>
+      </form>
+      {% if preview %}
+      <div class="preview-result">
+        <p class="mb-1"><strong>Finish {{ preview.finish.strftime('%d %b') if preview.finish else 'not possible' }}</strong>{% if preview.slack is not none %} — {% if preview.slack < 0 %}{{ -preview.slack }} day{{ 's' if preview.slack != -1 }} late{% else %}{{ preview.slack }} day{{ 's' if preview.slack != 1 }} spare{% endif %}{% endif %}</p>
+        <p class="mb-2">{% if preview.newly_late %}Would make late: {{ preview.newly_late|join(', ') }}.{% else %}No other order becomes late.{% endif %}</p>
+        <form method="post" action="{{ url_for('planning.order_apply', company_id=company_id, order_id=order.id) }}">{{ action_form.hidden_tag() }}<input type="hidden" name="lines" value="{{ preview.lines }}"><input type="hidden" name="priority" value="{{ preview.priority }}"><button class="btn btn-success w-100" type="submit">Apply this change</button></form>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+    <section class="panel" aria-labelledby="order-facts">
+      <h2 id="order-facts" class="mb-2">Order</h2>
+      <dl class="kv">
+        <dt>Style</dt><dd><a href="{{ url_for('factory.detail', company_id=company_id, resource='styles', record_id=style.id) }}">{{ style.code }}</a></dd>
+        <dt>Colour</dt><dd>{{ order.colour }}</dd>
+        <dt>Sewing lines</dt><dd>{{ order.sewing_lines }}</dd>
+        <dt>Prints per piece</dt><dd>{{ order.prints_per_piece }}</dd>
+        <dt>Fabric relaxation</dt><dd>{{ relaxation }} h</dd>
+        <dt>Ex-factory</dt><dd>{{ order.ex_factory_on|day }}</dd>
+      </dl>
+    </section>
+  </aside>
+</div>
+{% endblock %}

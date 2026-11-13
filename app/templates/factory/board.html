@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}Planning board · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Planning board</h1>
+    <p>Load booked against each department's real daily capacity for the next four weeks, and when every open order moves through the factory.</p>
+  </div>
+  <div class="page-actions">
+    {% if can_manage %}
+    <form class="m-0" method="post" action="{{ url_for('planning.replan', company_id=company_id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-secondary" type="submit">Replan all</button></form>
+    <a class="btn btn-primary" href="{{ url_for('planning.order_new', company_id=company_id) }}">{{ icon('plus') }}New production order</a>
+    {% endif %}
+  </div>
+</div>
+
+<dl class="facts">
+  <div><dt>Open orders</dt><dd><a href="{{ url_for('planning.orders', company_id=company_id) }}">{{ orders|length }}</a></dd></div>
+  <div class="{{ 'is-alert' if late }}"><dt>Late against ex-factory</dt><dd>{{ late|length }}</dd></div>
+  <div><dt>Released (fixed)</dt><dd>{{ released }}</dd></div>
+  <div><dt>Busiest, next 14 days</dt><dd>{% if busiest %}{{ busiest[1]|cap }}%<small class="fine-print"> {{ stage_names.get(busiest[0], busiest[0]) }}</small>{% else %}—{% endif %}</dd></div>
+</dl>
+
+{% if late %}
+<div class="alert alert-danger" role="alert"><strong>{{ late|length }} order{{ 's' if late|length != 1 }} will miss {{ 'their' if late|length != 1 else 'its' }} ex-factory date:</strong> {% for o in late %}<a href="{{ url_for('planning.order', company_id=company_id, order_id=o.id) }}">{{ o.reference }}</a>{% if not loop.last %}, {% endif %}{% endfor %}. Open an order to try more sewing lines or a higher priority before changing anything.</div>
+{% endif %}
+{% if unplanned %}<div class="alert alert-warning" role="status">{{ unplanned }} order{{ 's' if unplanned != 1 }} could not be fully planned; open {{ 'them' if unplanned != 1 else 'it' }} to see why.</div>{% endif %}
+
+<nav class="pager mb-2" aria-label="Weeks">
+  {% if offset > 0 %}<a href="{{ url_for('planning.board', company_id=company_id, week=offset - 1) }}">← Earlier week</a>{% endif %}
+  <span>{{ span[0].strftime('%d %b') }} – {{ span[-1].strftime('%d %b %Y') }}</span>
+  <a href="{{ url_for('planning.board', company_id=company_id, week=offset + 1) }}">Later week →</a>
+</nav>
+
+<section class="section" aria-labelledby="load-heading">
+  <div class="section-head"><h2 id="load-heading">Load by department</h2><span class="section-note">Booked ÷ capacity each day · grey means no shift</span></div>
+  <div class="table-responsive"><table class="table heat">
+    <thead><tr><th scope="col" class="heat-label">Department</th>{% for day in span %}<th scope="col" class="day{{ ' is-today' if day == today }}{{ ' week-start' if day.weekday() == 0 }}"><span>{{ day.strftime('%a')[:1] }}</span>{{ day.day }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for department, unit, cells in rows %}
+      <tr><th scope="row" class="heat-label"><a href="{{ url_for('planning.department', company_id=company_id, department=department, week=offset) }}">{{ stage_names.get(department, department) }}</a><small>{{ unit }}</small></th>
+        {% for cap, used, bucket, percent in cells %}<td class="cell{{ ' week-start' if span[loop.index0].weekday() == 0 }}"><span class="{{ bucket }}" title="{{ span[loop.index0].strftime('%a %d %b') }}: {% if percent is none %}no shift{% else %}{{ used|cap }} of {{ cap|cap }} {{ unit }} ({{ percent|cap }}%){% endif %}">{% if percent is not none and used > 0 %}{{ percent|round|int }}{% endif %}</span></td>{% endfor %}
+      </tr>
+    {% else %}<tr><td colspan="{{ span|length + 1 }}" class="empty">No work centres with capacity yet. Set up the factory first.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="heat-legend fine-print"><span class="u1"></span> under 50% <span class="u2"></span> 50–85% <span class="u3"></span> 85–100% <span class="u4"></span> over capacity <span class="off"></span> no shift</p>
+</section>
+
+<section class="section" aria-labelledby="gantt-heading">
+  <div class="section-head"><h2 id="gantt-heading">Order timeline</h2><span class="section-note">Coral line = ex-factory date</span></div>
+  <div class="gantt-wrap">
+    <div class="gantt" role="table" aria-label="Order timeline">
+      <div class="gantt-head" role="row">
+        <span class="gantt-label" role="columnheader">Order</span>
+        <span class="gantt-track" role="presentation">{% for day in span %}<span class="gantt-day gs-{{ loop.index }}{{ ' is-today' if day == today }}" role="columnheader">{{ day.day }}</span>{% endfor %}</span>
+      </div>
+      {% for order, style, bars, marker, spare in gantt %}
+      <div class="gantt-row" role="row">
+        <span class="gantt-label" role="cell"><a href="{{ url_for('planning.order', company_id=company_id, order_id=order.id) }}">{{ order.reference }}</a><small>{{ style.code if style else '' }} · {{ '{:,}'.format(order.quantity) }} pcs</small>{% if spare is not none and spare < 0 %}<span class="tag tag-bad">{{ -spare }} d late</span>{% elif order.status == 'released' %}<span class="tag tag-good">released</span>{% elif order.status == 'draft' %}<span class="tag tag-waiting">not planned</span>{% endif %}</span>
+        <span class="gantt-track" role="cell">
+          {% for stage, column, width, first, last in bars %}<span class="bar stage-{{ stage }} gs-{{ column }} gw-{{ width }}" title="{{ stage_names[stage] }}: {{ first.strftime('%d %b') }} – {{ last.strftime('%d %b') }}"><span class="visually-hidden">{{ stage_names[stage] }} {{ first.strftime('%d %b') }} to {{ last.strftime('%d %b') }}</span></span>{% endfor %}
+          {% if marker %}<span class="ex-factory gs-{{ marker }}" title="Ex-factory {{ order.ex_factory_on.strftime('%d %b') }}"></span>{% endif %}
+        </span>
+      </div>
+      {% else %}<p class="empty p-3">No open orders. Create a production order to see it planned here.</p>{% endfor %}
+    </div>
+  </div>
+  <p class="gantt-legend fine-print">{% for key, name in stage_names.items() %}<span class="stage-{{ key }}"></span> {{ name }} {% endfor %}</p>
+</section>
+{% endblock %}

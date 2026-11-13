@@ -1,6 +1,6 @@
 # Factory Suite (MCM) — module plan
 
-Status: approved by the owner on 13 November 2026. Steps 1 (factory model and machine register) and 2 (styles and SAM) are implemented; see STATUS.md. Later steps are not started.
+Status: approved by the owner on 13 November 2026. Steps 1 (factory model and machine register), 2 (styles and SAM) and 3 (orders and capacity planning) are implemented; see STATUS.md. Step 3 needed no `plan_scenarios` table (what-ifs run in memory). Later steps are not started.
 
 ## 1. Purpose and decisions
 

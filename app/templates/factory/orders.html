@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Production orders · {{ company.name }}{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('planning.board', company_id=company_id) }}">Planning board</a></p>
+<div class="page-head">
+  <div><h1>Production orders</h1><p>Every order is planned in priority order, then by ex-factory date. Released orders keep their plan.</p></div>
+  {% if can_manage %}<div class="page-actions"><a class="btn btn-primary" href="{{ url_for('planning.order_new', company_id=company_id) }}">{{ icon('plus') }}New production order</a></div>{% endif %}
+</div>
+<div class="table-responsive"><table class="table">
+  <thead><tr><th scope="col">Order</th><th scope="col">Style</th><th scope="col" class="num">Pieces</th><th scope="col" class="num">Priority</th><th scope="col">Ex-factory</th><th scope="col">Planned finish</th><th scope="col">Status</th></tr></thead>
+  <tbody>{% for order, style, spare in rows %}
+    <tr>
+      <td><a href="{{ url_for('planning.order', company_id=company_id, order_id=order.id) }}">{{ order.reference }}</a><div class="fine-print">{{ order.colour }}</div></td>
+      <td>{{ style.code if style else '—' }}<div class="fine-print">{{ style.name if style else '' }}</div></td>
+      <td class="num">{{ '{:,}'.format(order.quantity) }}</td>
+      <td class="num">{{ order.priority }}</td>
+      <td>{{ order.ex_factory_on|day }}</td>
+      <td>{% if order.planned_finish_on %}{{ order.planned_finish_on|day }}{% if spare is not none and order.status in ('planned', 'released') %}<div>{% if spare < 0 %}<span class="tag tag-bad">{{ -spare }} days late</span>{% else %}<span class="fine-print">{{ spare }} days spare</span>{% endif %}</div>{% endif %}{% else %}<span class="fine-print">Not planned</span>{% endif %}</td>
+      <td>{{ order.status|tag }}</td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="empty">No production orders yet.{% if can_manage %} Create one to plan it against the factory's capacity.{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

@@ -28,6 +28,8 @@ FACTORY_TABLES = {
     "fabric_specs",
     "operation_bulletins",
     "bulletin_operations",
+    "production_orders",
+    "capacity_bookings",
 }
 
 
@@ -37,7 +39,7 @@ def test_schema_matches_selected_72_core_models():
     )
     expected = {m["table"] for m in schema["models"] if m["phase"] == "Core"}
     assert len(expected) == 72
-    # The 72 Core models plus exactly the Factory Suite tables (migrations f01a01, f02a01).
+    # The 72 Core models plus exactly the Factory Suite tables (migrations f01a01 to f03a01).
     assert set(db.metadata.tables) == expected | FACTORY_TABLES
 
 

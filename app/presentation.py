@@ -1,6 +1,6 @@
 """Display helpers shared by templates: readable quantities and status tags."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 
 from markupsafe import Markup
@@ -93,11 +93,12 @@ def when_text(value):
 
 
 def day_text(value):
-    """'4 Nov 2026' for date-only columns."""
-    if not isinstance(value, datetime):
+    """'4 Nov 2026' for date-only columns (dates or datetimes)."""
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(UTC)
+    elif not isinstance(value, date):
         return value
-    if value.tzinfo is not None:
-        value = value.astimezone(UTC)
     return f"{value.day} {value:%b %Y}"
 
 
