@@ -34,6 +34,10 @@ The 28 Expanded models and their qualification, BOM/allocation, serial, reservat
 
 Run relevant unit, PostgreSQL integration/concurrency and browser tests, dependency/secret checks, reproducible workload measurement and a backup/restore exercise. Fill the rubric evidence matrix using actual file paths, commands, results and screenshots. Update the application README, remaining limitations, demo guide and viva notes. Retain the distinction between target performance/security and observed evidence.
 
+## M8 Factory Suite (MCM) — proposed
+
+On 13 November 2026 the owner asked to grow the product into a general factory management suite centred on Machine Capacity Management for vertically integrated knitwear exporters (first prospect: Style Textile, Lahore). The module plan, data additions, demo dataset and delivery order are in documentation/docs/14_Factory_Suite_MCM_Plan.md. Status: awaiting owner approval; nothing implemented. RecallTrace remains intact as the traceability module, and demo data stays fictional ("Lahore Knit Mills (demo)").
+
 ## Open grading clarification
 
 Confirm whether the instructor accepts owned-parent editing for association rows and controlled lifecycle/reversal operations for protected history. Keep this pending item visible without blocking unrelated implementation or exposing an arbitrary audit/ledger editor.
