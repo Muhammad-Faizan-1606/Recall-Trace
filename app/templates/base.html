@@ -38,7 +38,9 @@
     {% if can_use_factory(company_id) %}
     <div class="side-group">
       <p class="side-heading">Factory</p>
-      {{ nav_link(url_for('factory.overview', company_id=company_id), 'Factory floor', 'activity', '/companies/' ~ company_id ~ '/factory/__none__') }}
+      {{ nav_link(url_for('insights.board', company_id=company_id), 'Dashboard', 'layout-dashboard', ['/companies/' ~ company_id ~ '/factory/dashboard']) }}
+      {% set alert_count = factory_alert_count(company_id) %}<a class="side-link{{ ' is-current' if request.path.startswith('/companies/' ~ company_id ~ '/factory/alerts') }}" href="{{ url_for('insights.listing', company_id=company_id) }}"{% if request.path.startswith('/companies/' ~ company_id ~ '/factory/alerts') %} aria-current="page"{% endif %}>{{ icon('alert-triangle') }}<span>Alerts</span>{% if alert_count %}<span class="count-pill side-count">{{ alert_count }}<span class="visually-hidden"> unresolved</span></span>{% endif %}</a>
+      {{ nav_link(url_for('factory.overview', company_id=company_id), 'Capacity', 'activity', '/companies/' ~ company_id ~ '/factory/__none__') }}
       {% set pbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('planning.board', company_id=company_id), 'Planning board', 'calendar', [pbase ~ 'planning']) }}
       {{ nav_link(url_for('planning.orders', company_id=company_id), 'Production orders', 'clipboard-check', [pbase ~ 'orders']) }}
       {{ nav_link(url_for('balancing.lines', company_id=company_id), 'Line balancing', 'ruler', [pbase ~ 'lines', pbase ~ 'balances']) }}
@@ -82,7 +84,7 @@
     {% if company is defined %}
     <button class="icon-button menu-button" type="button" data-sidebar-open aria-controls="sidebar" aria-label="Open menu">{{ icon('menu') }}</button>
     {{ brand_mark(url_for('overview.overview', company_id=company_id)) }}
-    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'planning': 'Planning', 'balancing': 'Line balancing', 'shopfloor': 'Shop floor', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
+    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'planning': 'Planning', 'balancing': 'Line balancing', 'shopfloor': 'Shop floor', 'insights': 'Factory dashboard', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
     <ol class="crumbs" aria-label="You are here">
       <li><a href="{{ url_for('overview.overview', company_id=company_id) }}">{{ company.name }}</a></li>
       <li><span aria-current="location">{{ 'Search' if request.endpoint == 'overview.search' else sections.get(request.blueprint, 'Workspace') }}</span></li>

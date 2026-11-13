@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}{{ title }} · {{ company.name }}{% endblock %}
 {% block content %}
-<p class="back-link"><a href="{{ url_for('factory.overview' if resource in ('machines', 'work-centers', 'styles') else 'factory.setup', company_id=company_id) }}">{{ 'Factory floor' if resource in ('machines', 'work-centers', 'styles') else 'Factory setup' }}</a></p>
+<p class="back-link"><a href="{{ url_for('factory.overview' if resource in ('machines', 'work-centers', 'styles') else 'factory.setup', company_id=company_id) }}">{{ 'Capacity' if resource in ('machines', 'work-centers', 'styles') else 'Factory setup' }}</a></p>
 <div class="page-head">
   <div><h1>{{ title }}</h1></div>
   {% if can_manage %}<div class="page-actions"><a class="btn btn-primary" href="{{ url_for('factory.create', company_id=company_id, resource=resource) }}">{{ icon('plus') }}New</a></div>{% endif %}

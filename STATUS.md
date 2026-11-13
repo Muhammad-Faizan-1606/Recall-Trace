@@ -1,5 +1,37 @@
 # RecallTrace implementation status
 
+## Factory Suite step 6: alerts and factory dashboard — 13 November 2026
+
+- **Data:** migration `f06a01` adds `factory_alerts`. The schema is now 95 tables: 72 Core plus 23 Factory.
+  - Each alert has a kind, severity, a dedupe key and links to the line, machine, order or dye batch involved.
+  - It records first seen, last seen and cleared times, an owner, acknowledgement, and resolution with a required note.
+  - A partial unique index keeps one unresolved alert per condition.
+- **Checks** (`app/services/alerts.py`):
+  - **Efficiency:** over a line's last three logged hours, more than 5 points below plan (warning) or above it (info). The plan is target × balance efficiency.
+  - **Machine down:** in maintenance for more than 30 minutes, or one stop over 30 minutes (critical after 24 h).
+  - **Late orders:** critical once released.
+  - **Starving lines:** for lines that use bundle tickets, issued work below one hour of planned output.
+  - **Relaxation breach:** fabric cut before its relaxation time.
+- **How alerts behave:**
+  - `scan` reconciles findings with stored alerts: it adds new ones, refreshes ongoing ones and marks cleared ones. It runs on "Run checks now" and automatically after every floor and planning change; a failed check never undoes that change.
+  - Acknowledging can assign an owner, who gets an in-app notification (`factory_alert`).
+  - A resolved condition that still exists is raised again as a fresh alert.
+- **Dashboard:**
+  - Capacity booked for the next 14 days by site and department.
+  - Sewing efficiency per site per day for the week to the latest day with entries.
+  - OEE per site: availability × performance × quality.
+  - Top downtime reasons by operator-minutes.
+  - Orders on time and orders at risk (two days of slack or less), plus the latest alerts.
+- **Navigation:** Dashboard and Alerts (with an unresolved count) lead the Factory group; the capacity overview is renamed "Capacity".
+- **Demo:** the checks run on the fictional history (about 20 alerts across all five kinds), one is acknowledged with an owner, and an earlier resolved alert is kept.
+- **Verification:** `tests/test_alerts.py` passes 6 tests:
+  - the efficiency window, low to high on the same key
+  - late orders, machine down escalating at 24 h, and clearing
+  - relaxation breach and the starving threshold (80 pieces an hour)
+  - acknowledge, assign, notify and resolve, including re-raising
+  - screens, and read-only 403
+- **CI fix:** the step 5 push failed bandit (B704, `Markup` around segno's SVG). All 560 tests had passed. QR codes are now drawn from escaped SVG path data built from the QR matrix, so no raw HTML is inserted; `bandit -r app -q` passes locally.
+
 ## Factory Suite step 5: shop floor execution — 13 November 2026
 
 - **Data:** migration `f05a01` adds six tables. The schema is now 94 tables: 72 Core plus 22 Factory.

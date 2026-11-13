@@ -1,13 +1,12 @@
 """Factory Suite step 5: the shop floor (tablet-friendly) and batch cards."""
 
-import math
 from datetime import date, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import segno
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
-from markupsafe import Markup
 from sqlalchemy import func, select
 
 from app.blueprints.factory import context
@@ -22,13 +21,12 @@ from app.models.factory import (
     Machine,
     OutputLog,
     ProductionOrder,
-    ShiftPattern,
     Style,
     WorkCenter,
 )
 from app.models.master import Site
 from app.policies import allowed, require
-from app.services import balancing, shopfloor
+from app.services import alerts, balancing, shopfloor
 from app.services.business import DomainError, scoped
 
 bp = Blueprint("shopfloor", __name__, url_prefix="/companies/<uuid:company_id>/factory")
@@ -77,43 +75,6 @@ def styles_by_order(company_id, orders):
     }
 
 
-def line_targets(company_id, lines):
-    """{line id: (balance, style, pieces per hour at plan, planned efficiency, slots)}."""
-    current = balancing.current_balances(company_id)
-    figures = balancing.summaries(company_id, list(current.values()))
-    styles = {}
-    if current:
-        from app.blueprints.balancing import style_names
-
-        styles = style_names(company_id, {b.bulletin_id for b in current.values()})
-    patterns = {
-        p.id: p
-        for p in db.session.scalars(
-            select(ShiftPattern).where(ShiftPattern.organization_id == company_id)
-        )
-    }
-    result = {}
-    for line in lines:
-        minutes = balancing.productive_minutes(patterns[line.shift_pattern_id])
-        slots = max(1, math.ceil(minutes / 60))
-        balance = current.get(line.id)
-        per_hour = None
-        if balance is not None and figures.get(balance.id) and minutes:
-            per_hour = figures[balance.id][2] / minutes * 60
-        planned = Decimal(balance.target_efficiency if balance else line.target_efficiency)
-        if balance is not None and figures.get(balance.id) and figures[balance.id][1]:
-            # A line paced by its bottleneck earns target × balance efficiency at best.
-            planned = planned * figures[balance.id][1] / 100
-        result[line.id] = (
-            balance,
-            styles.get(balance.bulletin_id) if balance else None,
-            per_hour,
-            planned,
-            slots,
-        )
-    return result
-
-
 def expected(day_figures, per_hour):
     """Pieces the plan expected for the minutes actually logged."""
     if per_hour is None:
@@ -141,7 +102,7 @@ def floor(company_id):
             day, fallback = latest, True
     lines = balancing.sewing_lines(company_id)
     days = shopfloor.floor(company_id, day, [line.id for line in lines])
-    targets = line_targets(company_id, lines)
+    targets = shopfloor.line_targets(company_id, lines)
     sites = {
         s.id: s for s in db.session.scalars(select(Site).where(Site.organization_id == company_id))
     }
@@ -182,7 +143,7 @@ def line_day(company_id, line_id):
         abort(404)
     day = chosen_day()
     figures = shopfloor.line_day(company_id, line.id, day)
-    balance, style, per_hour, planned, slots = line_targets(company_id, [line])[line.id]
+    balance, style, per_hour, planned, slots = shopfloor.line_targets(company_id, [line])[line.id]
     orders = shopfloor.running_orders(company_id)
     styles = styles_by_order(company_id, orders)
     reasons = db.session.scalars(
@@ -277,6 +238,7 @@ def output_new(company_id, line_id):
     except DomainError as exc:
         flash(str(exc), "danger")
     else:
+        alerts.scan_quietly(company_id)
         flash(
             f"Hour {row.hour} recorded: {row.good_pieces:,} good, {row.rejects} rejects.", "success"
         )
@@ -293,6 +255,7 @@ def downtime_new(company_id, line_id):
     except DomainError as exc:
         flash(str(exc), "danger")
     else:
+        alerts.scan_quietly(company_id)
         flash(f"{row.minutes} minutes of downtime recorded.", "success")
     return _back_to_line(company_id, line_id, values.get("day") or date.today().isoformat())
 
@@ -310,6 +273,7 @@ def output_entry(company_id, log_id):
         except DomainError as exc:
             flash(str(exc), "danger")
             return redirect(request.url, 303)
+        alerts.scan_quietly(company_id)
         flash("Hour corrected. The original entry is kept in its history.", "success")
         return _back_to_line(company_id, row.work_center_id, row.day.isoformat())
     rows = shopfloor.history(company_id, OutputLog, original_id)
@@ -348,6 +312,7 @@ def downtime_entry(company_id, event_id):
         except DomainError as exc:
             flash(str(exc), "danger")
             return redirect(request.url, 303)
+        alerts.scan_quietly(company_id)
         flash("Stop corrected. The original entry is kept in its history.", "success")
         return _back_to_line(company_id, row.work_center_id, row.day.isoformat())
     rows = shopfloor.history(company_id, DowntimeEvent, original_id)
@@ -536,6 +501,7 @@ def batch_step(company_id, batch_id, step):
     except DomainError as exc:
         flash(str(exc), "danger")
     else:
+        alerts.scan_quietly(company_id)
         flash(
             {
                 "start": "Batch started.",
@@ -562,6 +528,7 @@ def bundles(company_id):
         except DomainError as exc:
             flash(str(exc), "danger")
             return redirect(url_for("shopfloor.bundles", company_id=company_id), 303)
+        alerts.scan_quietly(company_id)
         flash(
             f"{len(made)} bundles cut: {made[0].bundle_number} to {made[-1].bundle_number}. "
             "Print their tickets from the list.",
@@ -642,13 +609,25 @@ def bundles(company_id):
 
 
 def ticket_svg(company_id, bundle):
+    """QR code for a bundle's page as (size, SVG path data): numbers only, escaped normally.
+
+    Each run of dark modules in a row becomes one rectangle; a 4-module quiet zone surrounds
+    the code as the QR standard requires.
+    """
     url = url_for("shopfloor.bundle", company_id=company_id, bundle_id=bundle.id, _external=True)
-    code = segno.make(url, error="m")
-    return Markup(
-        code.svg_inline(
-            scale=4, omitsize=True, title=f"Bundle {bundle.bundle_number}", svgclass="qr"
-        )
-    )
+    matrix = segno.make(url, error="m").matrix
+    parts = []
+    for y, row in enumerate(matrix):
+        x = 0
+        while x < len(row):
+            if row[x]:
+                start = x
+                while x < len(row) and row[x]:
+                    x += 1
+                parts.append(f"M{start + 4} {y + 4}h{x - start}v1h-{x - start}z")
+            else:
+                x += 1
+    return SimpleNamespace(size=len(matrix) + 8, path="".join(parts), label=bundle.bundle_number)
 
 
 @bp.get("/bundles/<uuid:bundle_id>")
@@ -708,6 +687,7 @@ def bundle_step(company_id, bundle_id, step):
     except DomainError as exc:
         flash(str(exc), "danger")
     else:
+        alerts.scan_quietly(company_id)
         flash(
             f"Bundle {row.bundle_number} "
             + ("issued to the line." if step == "issue" else "marked sewn."),

@@ -39,6 +39,7 @@ FACTORY_TABLES = {
     "dye_batches",
     "knit_rolls",
     "cut_bundles",
+    "factory_alerts",
 }
 
 

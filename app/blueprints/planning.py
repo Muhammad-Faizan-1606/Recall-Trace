@@ -17,7 +17,7 @@ from app.extensions import db
 from app.forms import ActionForm, trimmed
 from app.models.factory import ProductionOrder, SiteTransitTime, Style, WorkCenter
 from app.policies import require
-from app.services import engineering, planning
+from app.services import alerts, engineering, planning
 from app.services.business import DomainError, scoped
 from app.services.capacity import q as capacity_round
 
@@ -250,6 +250,7 @@ def replan(company_id):
         db.session.rollback()
         flash(str(exc), "danger")
     else:
+        alerts.scan_quietly(company_id)
         flash(f"{len(plans)} open orders re-planned against current capacity.", "success")
     return redirect(url_for("planning.board", company_id=company_id), code=303)
 
@@ -307,6 +308,7 @@ def order_editor(company_id, order_id=None):
             flash(str(exc), "danger")
             status = 409
         else:
+            alerts.scan_quietly(company_id)
             flash("Order saved and every open order re-planned.", "success")
             return redirect(
                 url_for("planning.order", company_id=company_id, order_id=saved.id), code=303
@@ -462,6 +464,7 @@ def order_apply(company_id, order_id):
     except DomainError as exc:
         flash(str(exc), "danger")
     else:
+        alerts.scan_quietly(company_id)
         flash("Change applied and every open order re-planned.", "success")
     return redirect(url_for("planning.order", company_id=company_id, order_id=order_id), code=303)
 
@@ -479,6 +482,7 @@ def order_action(company_id, order_id, action):
     except DomainError as exc:
         flash(str(exc), "danger")
     else:
+        alerts.scan_quietly(company_id)
         flash(
             {
                 "release": "Order released: its plan is now fixed and later orders plan around it.",

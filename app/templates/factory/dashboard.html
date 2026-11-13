@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Factory dashboard · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Factory dashboard</h1>
+    <p>Capacity booked ahead, how the sewing floor performed this week, what stopped it, and which orders are at risk.</p>
+  </div>
+</div>
+<dl class="facts">
+  <div class="{{ 'is-alert' if b.orders_open and b.orders_on_time < b.orders_open }}"><dt>Orders on time</dt><dd>{{ b.orders_on_time }}<small class="fine-print"> of {{ b.orders_open }}</small></dd></div>
+  <div class="{{ 'is-alert' if counts.get('critical') }}"><dt>Unresolved alerts</dt><dd><a href="{{ url_for('insights.listing', company_id=company_id) }}">{{ counts.values()|sum }}</a>{% if counts.get('critical') %}<small class="fine-print"> · {{ counts['critical'] }} critical</small>{% endif %}</dd></div>
+  <div><dt>Sewing efficiency, 7 days</dt><dd>{% if b.floor_total.efficiency is not none %}{{ b.floor_total.efficiency|cap }}%{% else %}—{% endif %}</dd></div>
+  <div><dt>Sewing OEE, 7 days</dt><dd>{% if b.floor_total.oee is not none %}{{ b.floor_total.oee|cap }}%{% else %}—{% endif %}</dd></div>
+</dl>
+
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="util-heading">
+      <div class="section-head"><h2 id="util-heading">Capacity booked, next 14 days</h2><span class="section-note">Booked ÷ capacity by site and department</span></div>
+      <div class="table-responsive"><table class="table heat util">
+        <thead><tr><th scope="col" class="heat-label">Site</th>{% for d in b.departments %}<th scope="col" class="num">{{ d|capitalize if d != 'embellishment' else 'Printing' }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for site in b.sites %}<tr><th scope="row" class="heat-label">{{ site.name }}</th>{% for d in b.departments %}{% set v = b.utilisation.get((site.id, d)) %}<td class="cell">{% if v is none %}<span class="off-cell">—</span>{% else %}<span class="{{ 'u4' if v > 100 else ('u3' if v >= 85 else ('u2' if v >= 50 else ('u1' if v > 0 else 'u0'))) }}">{{ v|round|int }}</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody>
+      </table></div>
+      <p class="heat-legend fine-print"><span class="u1"></span> under 50% <span class="u2"></span> 50–85% <span class="u3"></span> 85–100% <span class="u4"></span> over capacity · <a href="{{ url_for('planning.board', company_id=company_id) }}">Planning board</a></p>
+    </section>
+
+    <section class="section" aria-labelledby="trend-heading">
+      <div class="section-head"><h2 id="trend-heading">Sewing efficiency by day</h2><span class="section-note">{% if latest %}Week to {{ latest.strftime('%d %b') }}{% else %}No output recorded yet{% endif %}</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Site</th>{% for day in b.days %}<th scope="col" class="num">{{ day.strftime('%a %d') }}</th>{% endfor %}<th scope="col" class="num">Week</th><th scope="col" class="num">OEE</th></tr></thead>
+        <tbody>{% for site in b.sites if site.id in b.trend %}<tr><th scope="row">{{ site.name }}</th>{% for t in b.trend[site.id] %}<td class="num">{% if t.efficiency is not none %}{{ t.efficiency|cap }}%{% else %}<span class="fine-print">—</span>{% endif %}</td>{% endfor %}{% set w = b.week[site.id] %}<td class="num"><strong>{% if w.efficiency is not none %}{{ w.efficiency|cap }}%{% else %}—{% endif %}</strong></td><td class="num">{% if w.oee is not none %}{{ w.oee|cap }}%{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="{{ b.days|length + 3 }}" class="empty">No sewing output recorded this week.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      <p class="fine-print">OEE = availability (time not stopped) × performance (earned ÷ running minutes) × quality (good ÷ made).{% if b.floor_total.availability is not none %} This week: {{ (b.floor_total.availability * 100)|cap }}% × {{ (b.floor_total.performance * 100)|cap }}% × {{ (b.floor_total.quality * 100)|cap }}%.{% endif %}</p>
+    </section>
+
+    <section class="section" aria-labelledby="down-heading">
+      <div class="section-head"><h2 id="down-heading">Top downtime reasons, 7 days</h2><span class="section-note">Ranked by operator-minutes lost</span></div>
+      {% set top = b.downtime[0][2] if b.downtime else 0 %}
+      <div class="table-responsive"><table class="table stations">
+        <thead><tr><th scope="col">Reason</th><th scope="col" class="num">Minutes</th><th scope="col" class="num">Operator-min</th><th scope="col" class="load-col"><span class="visually-hidden">Share</span></th></tr></thead>
+        <tbody>{% for reason, minutes, people in b.downtime %}<tr><td>{{ reason.name if reason else '—' }}<div class="fine-print">{{ 'left out of efficiency' if reason and reason.efficiency_rule == 'off_standard' else 'counts against the line' }}</div></td><td class="num">{{ minutes }}</td><td class="num">{{ '{:,}'.format(people) }}</td><td class="load-col"><span class="load-track"><span class="load-bar lb-{{ ((people / top) * 20)|round|int if top else 0 }}"></span></span></td></tr>{% else %}<tr><td colspan="4" class="empty">No stops recorded this week.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <aside class="rail" aria-label="Attention">
+    <section class="panel next-step" aria-labelledby="risk-title">
+      <h2 id="risk-title">Orders at risk</h2>
+      {% for o, spare in b.at_risk[:8] %}
+        <p class="mb-2"><a class="on-navy" href="{{ url_for('planning.order', company_id=company_id, order_id=o.id) }}">{{ o.reference }}</a> · {% if spare < 0 %}{{ -spare }} day{{ 's' if spare != -1 }} late{% else %}{{ spare }} day{{ 's' if spare != 1 }} spare{% endif %}<br><span class="fine-print">Ex-factory {{ o.ex_factory_on.strftime('%d %b') }} · {{ o.status }}</span></p>
+      {% else %}<p class="mb-0">Every open order finishes with more than two days to spare.</p>{% endfor %}
+    </section>
+    <section class="panel" aria-labelledby="alerts-title">
+      <h2 id="alerts-title" class="mb-2">Latest alerts</h2>
+      {% for a in alerts %}<p class="mb-2"><span class="tag {{ 'tag-bad' if a.severity == 'critical' else ('tag-waiting' if a.severity == 'warning' else 'tag-good') }}">{{ a.severity }}</span> {{ a.title }}</p>{% else %}<p class="mb-0">No unresolved alerts.</p>{% endfor %}
+      <a href="{{ url_for('insights.listing', company_id=company_id) }}">All alerts</a>
+    </section>
+  </aside>
+</div>
+{% endblock %}

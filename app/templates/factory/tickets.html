@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_floor_macros.html' import qr_svg %}
 {% block title %}Tickets · {{ order.reference }}{% endblock %}
 {% block content %}
 <p class="back-link d-print-none"><a href="{{ url_for('shopfloor.bundles', company_id=company_id, order=order.id) }}">Bundles for {{ order.reference }}</a></p>
@@ -6,7 +7,7 @@
 <div class="ticket-sheet">
 {% for bundle, qr in tickets %}
   <article class="ticket-card">
-    <div class="ticket-code">{{ qr }}</div>
+    <div class="ticket-code">{{ qr_svg(qr) }}</div>
     <div>
       <p class="ticket-number">{{ bundle.bundle_number }}</p>
       <p class="mb-0">{{ style.code }} · {{ order.colour }}</p>

@@ -12,6 +12,7 @@ whole entry and pointing at the original (`corrects_id`); the newest row for an 
 the one that counts, and the database refuses to change or delete any row.
 """
 
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -33,10 +34,11 @@ from app.models.factory import (
     MachineClass,
     OutputLog,
     ProductionOrder,
+    ShiftPattern,
     WorkCenter,
 )
 from app.policies import membership_for, require
-from app.services import engineering
+from app.services import balancing, engineering
 from app.services.audit import record as audit
 from app.services.business import DomainError, company_lock, scoped
 
@@ -183,6 +185,63 @@ def history(company_id, model, original_id):
         )
         .order_by(model.recorded_at, model.corrects_id.is_not(None))
     ).all()
+
+
+def style_names(company_id, bulletin_ids):
+    """{bulletin id: Style}."""
+    from app.models.factory import OperationBulletin, Style
+
+    if not bulletin_ids:
+        return {}
+    return dict(
+        db.session.execute(
+            select(OperationBulletin.id, Style)
+            .join(
+                Style,
+                (Style.id == OperationBulletin.style_id)
+                & (Style.organization_id == OperationBulletin.organization_id),
+            )
+            .where(
+                OperationBulletin.organization_id == company_id,
+                OperationBulletin.id.in_(list(bulletin_ids)),
+            )
+        ).all()
+    )
+
+
+def line_targets(company_id, lines):
+    """{line id: (balance, style, pieces per hour at plan, planned efficiency, slots)}."""
+    current = balancing.current_balances(company_id)
+    figures = balancing.summaries(company_id, list(current.values()))
+    styles = {}
+    if current:
+        styles = style_names(company_id, {b.bulletin_id for b in current.values()})
+    patterns = {
+        p.id: p
+        for p in db.session.scalars(
+            select(ShiftPattern).where(ShiftPattern.organization_id == company_id)
+        )
+    }
+    result = {}
+    for line in lines:
+        minutes = balancing.productive_minutes(patterns[line.shift_pattern_id])
+        slots = max(1, math.ceil(minutes / 60))
+        balance = current.get(line.id)
+        per_hour = None
+        if balance is not None and figures.get(balance.id) and minutes:
+            per_hour = figures[balance.id][2] / minutes * 60
+        planned = Decimal(balance.target_efficiency if balance else line.target_efficiency)
+        if balance is not None and figures.get(balance.id) and figures[balance.id][1]:
+            # A line paced by its bottleneck earns target × balance efficiency at best.
+            planned = planned * figures[balance.id][1] / 100
+        result[line.id] = (
+            balance,
+            styles.get(balance.bulletin_id) if balance else None,
+            per_hour,
+            planned,
+            slots,
+        )
+    return result
 
 
 def running_orders(company_id):

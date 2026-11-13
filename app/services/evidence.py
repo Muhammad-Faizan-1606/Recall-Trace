@@ -27,7 +27,7 @@ from app.services.business import DomainError, actor, company_lock, scoped
 
 MAX_BYTES = 10 * 1024 * 1024
 KINDS = {"component", "finished", "packaging"}
-EVENT_TYPES = {"case", "notice", "quality", "export", "import"}
+EVENT_TYPES = {"case", "notice", "quality", "export", "import", "factory_alert"}
 
 
 def max_bytes():

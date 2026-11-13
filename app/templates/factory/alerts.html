@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Alerts · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Alerts</h1>
+    <p>Conditions the factory checks found: efficiency off plan, machines down, late orders, lines running out of work and fabric cut before it relaxed.</p>
+  </div>
+  <div class="page-actions">
+    <form class="m-0" method="post" action="{{ url_for('insights.check', company_id=company_id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Run checks now</button></form>
+  </div>
+</div>
+<dl class="facts">
+  <div class="{{ 'is-alert' if counts.get('critical') }}"><dt>Critical</dt><dd>{{ counts.get('critical', 0) }}</dd></div>
+  <div><dt>Warnings</dt><dd>{{ counts.get('warning', 0) }}</dd></div>
+  <div><dt>For information</dt><dd>{{ counts.get('info', 0) }}</dd></div>
+  <div><dt>Last checked</dt><dd>{% if last_check %}{{ age(last_check, moment) }}<small class="fine-print"> ago</small>{% else %}—{% endif %}</dd></div>
+</dl>
+<nav aria-label="Alert lists"><ul class="tabs">{% for key, text in [('open', 'Unresolved'), ('resolved', 'Resolved')] %}<li><a href="{{ url_for('insights.listing', company_id=company_id, show=key) }}"{% if key == show %} aria-current="page"{% endif %}>{{ text }}</a></li>{% endfor %}</ul></nav>
+
+<div class="alert-list">
+{% for a in rows %}
+  <article class="alert-card sev-{{ a.severity }}{{ ' is-cleared' if a.cleared_at }}" aria-labelledby="al-{{ a.id }}">
+    <div class="alert-main">
+      <p class="alert-meta"><span class="tag {{ 'tag-bad' if a.severity == 'critical' else ('tag-waiting' if a.severity == 'warning' else 'tag-good') }}">{{ a.severity }}</span><span>{{ a.kind.replace('_', ' ') }}</span><span>{{ a.status }}</span>{% if a.cleared_at and a.status != 'resolved' %}<span class="tag tag-good">condition cleared {{ age(a.cleared_at, moment) }} ago</span>{% endif %}</p>
+      <h2 id="al-{{ a.id }}" class="h6 mb-1">{{ a.title }}</h2>
+      <p class="mb-2">{{ a.detail }}</p>
+      <p class="fine-print mb-0">
+        First seen {{ a.first_seen_at|when }}{% if not a.cleared_at and a.status != 'resolved' %} · still seen {{ age(a.last_seen_at, moment) }} ago{% endif %}
+        {% if a.work_center_id in lines %} · <a href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=a.work_center_id) if lines[a.work_center_id].startswith(('QIE', 'PARK', 'RWD', 'SUN')) or a.kind in ('efficiency_low', 'efficiency_high', 'line_starving') else url_for('factory.detail', company_id=company_id, resource='work-centers', record_id=a.work_center_id) }}">{{ lines[a.work_center_id] }}</a>{% endif %}
+        {% if a.machine_id in machines %} · <a href="{{ url_for('factory.detail', company_id=company_id, resource='machines', record_id=a.machine_id) }}">{{ machines[a.machine_id] }}</a>{% endif %}
+        {% if a.production_order_id in orders %} · <a href="{{ url_for('planning.order', company_id=company_id, order_id=a.production_order_id) }}">{{ orders[a.production_order_id] }}</a>{% endif %}
+        {% if a.dye_batch_id in batches %} · <a href="{{ url_for('shopfloor.batch', company_id=company_id, batch_id=a.dye_batch_id) }}">Batch {{ batches[a.dye_batch_id] }}</a>{% endif %}
+        {% if a.owner_id %} · Owner {{ people.get(a.owner_id, 'a former member') }}{% endif %}
+      </p>
+      {% if a.status == 'resolved' %}<p class="resolution mb-0"><strong>Resolved {{ a.resolved_at|when }}:</strong> {{ a.resolution_note }}</p>{% endif %}
+    </div>
+    {% if can_record and a.status != 'resolved' %}
+    <details class="alert-actions">
+      <summary>{{ 'Acknowledge or resolve' if a.status == 'open' else 'Owner or resolve' }}</summary>
+      <form method="post" action="{{ url_for('insights.act', company_id=company_id, alert_id=a.id, action='acknowledge') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version" value="{{ a.version }}">
+        <label class="form-label" for="owner-{{ a.id }}">Owner</label>
+        <select class="form-select form-select-sm mb-2" id="owner-{{ a.id }}" name="owner_id"><option value="">{{ 'Nobody yet' if not a.owner_id else 'Keep current owner' }}</option>{% for member_id, name in member_choices %}<option value="{{ member_id }}"{% if member_id == a.owner_id %} selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+        <button class="btn btn-sm btn-outline-secondary w-100" type="submit">{{ 'Acknowledge' if a.status == 'open' else 'Update owner' }}</button>
+      </form>
+      <form method="post" action="{{ url_for('insights.act', company_id=company_id, alert_id=a.id, action='resolve') }}" class="mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version" value="{{ a.version }}">
+        <label class="form-label" for="note-{{ a.id }}">What was done</label>
+        <input class="form-control form-control-sm mb-2" id="note-{{ a.id }}" name="note" maxlength="400" required>
+        <button class="btn btn-sm btn-success w-100" type="submit">Resolve</button>
+      </form>
+    </details>
+    {% endif %}
+  </article>
+{% else %}
+  <p class="empty">{% if show == 'open' %}No unresolved alerts. Run the checks to look again.{% else %}No resolved alerts yet.{% endif %}</p>
+{% endfor %}
+</div>
+{% endblock %}

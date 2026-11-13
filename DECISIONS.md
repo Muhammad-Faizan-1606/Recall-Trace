@@ -270,3 +270,12 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **The efficiency plan accounts for balance.** Comparing achieved line efficiency with the operators' target alone would make every line look behind by its balance loss. The floor compares with target × balance efficiency and says so on screen.
 - **QR tickets use segno.** It is pure Python, MIT-licensed and has no dependencies; it is pinned with hashes in requirements.txt and requirements-dev.txt. Codes are rendered as inline SVG (allowed by the strict CSP) and encode the bundle's in-app URL, which still requires login and company access.
 - **Stenter runs and the lot genealogy link are deferred to step 8.** Rolls, batches and bundles carry the chain (knitting machine → batch → bundle → line); posting them as lots and production runs belongs to the trace connection step.
+
+## 13 November 2026 — Factory Suite step 6: alerts and dashboard
+
+- **`factory_alerts`, not `alerts`.** The Core release already has in-app `notifications`; the prefix keeps factory conditions distinct. Assigning an owner sends one of those notifications rather than adding a second messaging system.
+- **Checks run on events, not on a timer.** There is no scheduler running in the current Vercel deployment. Checks run after each floor and planning change, and on demand. When a worker or cron is deployed, `alerts.scan` is the one function to call.
+- **A recent window for efficiency.** Judging the whole day so far flags every line for its normal slow first hour. The last three logged hours show how the line is running now.
+- **Starving checks only lines that use bundle tickets.** A line with no tickets has no recorded work in progress, so the system cannot know it is starving and does not pretend to.
+- **OEE is reported per site for sewing.** The plan said "by machine class". Sewing lines record people-time rather than machine-time, so availability, performance and quality are computed from line output per site. Machine-level OEE needs counter data (out of scope: IoT).
+- **QR rendering without Markup.** The QR matrix is turned into SVG path numbers and rendered through normal Jinja escaping, so nothing bypasses auto-escaping.

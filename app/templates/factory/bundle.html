@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_floor_macros.html' import qr_svg %}
 {% block title %}{{ bundle.bundle_number }} · Bundle{% endblock %}
 {% block content %}
 <p class="back-link"><a href="{{ url_for('shopfloor.bundles', company_id=company_id, order=order.id) }}">Bundles for {{ order.reference }}</a></p>
@@ -37,7 +38,7 @@
     {% endif %}
     <section class="panel ticket" aria-labelledby="ticket-title">
       <h2 id="ticket-title" class="mb-2">Ticket</h2>
-      <div class="ticket-code">{{ qr }}</div>
+      <div class="ticket-code">{{ qr_svg(qr) }}</div>
       <p class="ticket-number">{{ bundle.bundle_number }}</p>
       <p class="fine-print mb-0">{{ style.code }} · size {{ bundle.size }} · {{ bundle.pieces }} pcs · lay {{ bundle.lay_number }}</p>
     </section>

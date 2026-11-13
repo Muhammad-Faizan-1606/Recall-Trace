@@ -653,3 +653,76 @@ class CutBundle(Owned, db.Model):
         CheckConstraint("(status = 'sewn') = (sewn_at IS NOT NULL)", name="sewn"),
         db.Index("ix_cut_bundles_order", "organization_id", "production_order_id"),
     )
+
+
+# ---------- Step 6: alerts ----------
+
+ALERT_KINDS = (
+    "efficiency_low",
+    "efficiency_high",
+    "machine_down",
+    "order_late",
+    "line_starving",
+    "relaxation_breach",
+)
+ALERT_SEVERITIES = ("info", "warning", "critical")
+ALERT_STATUSES = ("open", "acknowledged", "resolved")
+
+
+class FactoryAlert(Owned, db.Model):
+    """A condition the factory checks found, and what people did about it.
+
+    The checks raise one alert per condition (`dedupe_key`) while it is unresolved, refresh
+    `last_seen_at` each time they still see it, and set `cleared_at` when it goes away. A
+    person acknowledges it, may assign an owner, and resolves it with a note.
+    """
+
+    __tablename__ = "factory_alerts"
+    kind: Mapped[str] = mapped_column(db.String(30))
+    severity: Mapped[str] = mapped_column(db.String(10))
+    dedupe_key: Mapped[str] = mapped_column(db.String(160))
+    title: Mapped[str] = mapped_column(db.String(160))
+    detail: Mapped[str] = mapped_column(db.String(400))
+    work_center_id: Mapped[uuid.UUID | None] = mapped_column()
+    machine_id: Mapped[uuid.UUID | None] = mapped_column()
+    production_order_id: Mapped[uuid.UUID | None] = mapped_column()
+    dye_batch_id: Mapped[uuid.UUID | None] = mapped_column()
+    status: Mapped[str] = mapped_column(db.String(20), default="open", server_default="open")
+    first_seen_at: Mapped[datetime] = mapped_column(db.DateTime(timezone=True), default=now)
+    last_seen_at: Mapped[datetime] = mapped_column(db.DateTime(timezone=True), default=now)
+    cleared_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    owner_id: Mapped[uuid.UUID | None] = mapped_column()
+    acknowledged_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    acknowledged_by_id: Mapped[uuid.UUID | None] = mapped_column()
+    resolved_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    resolved_by_id: Mapped[uuid.UUID | None] = mapped_column()
+    resolution_note: Mapped[str | None] = mapped_column(db.String(400))
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id"),
+        tenant_fk("work_center_id", "work_centers"),
+        tenant_fk("machine_id", "machines"),
+        tenant_fk("production_order_id", "production_orders"),
+        tenant_fk("dye_batch_id", "dye_batches"),
+        tenant_fk("owner_id", "memberships"),
+        tenant_fk("acknowledged_by_id", "memberships"),
+        tenant_fk("resolved_by_id", "memberships"),
+        _in("kind", ALERT_KINDS),
+        _in("severity", ALERT_SEVERITIES),
+        _in("status", ALERT_STATUSES),
+        CheckConstraint(
+            "(status = 'resolved') = (resolved_at IS NOT NULL AND resolution_note IS NOT NULL)",
+            name="resolution",
+        ),
+        CheckConstraint(
+            "status <> 'acknowledged' OR acknowledged_at IS NOT NULL", name="acknowledgement"
+        ),
+        CheckConstraint("last_seen_at >= first_seen_at", name="seen_order"),
+        db.Index(
+            "uq_factory_alerts_unresolved",
+            "organization_id",
+            "dedupe_key",
+            unique=True,
+            postgresql_where=db.text("status <> 'resolved'"),
+        ),
+        db.Index("ix_factory_alerts_status", "organization_id", "status"),
+    )

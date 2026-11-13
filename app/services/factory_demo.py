@@ -1242,3 +1242,56 @@ def seed_floor(organization, member, today=None):
         f"Shop floor history: {logs} hourly entries over two days (one corrected), {stops} stops, "
         f"{rolls} knit rolls, {batches} dye batches and {bundles} cut bundles."
     ]
+
+
+# ---------- Step 6: first run of the factory checks ----------
+
+
+def seed_alerts(organization, member):
+    """Run the checks once on the fictional history, acknowledge one and keep one resolved."""
+    from app.models import now as current_time
+    from app.models.factory import FactoryAlert, WorkCenter
+    from app.services import alerts
+
+    company_id = organization.id
+    if db.session.scalar(select(FactoryAlert.id).where(FactoryAlert.organization_id == company_id)):
+        return []
+    park = db.session.scalar(
+        select(WorkCenter).where(
+            WorkCenter.organization_id == company_id, WorkCenter.code == "PARK-L01"
+        )
+    )
+    moment = current_time()
+    if park is not None:
+        db.session.add(
+            FactoryAlert(
+                organization_id=company_id,
+                kind="line_starving",
+                severity="warning",
+                dedupe_key=f"wip:{park.id}:demo-history",
+                title="PARK-L01 ran short of cut bundles",
+                detail="Fictional earlier alert: the line had under one hour of work waiting.",
+                work_center_id=park.id,
+                first_seen_at=moment - timedelta(days=2, hours=3),
+                last_seen_at=moment - timedelta(days=2, hours=2),
+                cleared_at=moment - timedelta(days=2, hours=1),
+                status="resolved",
+                acknowledged_at=moment - timedelta(days=2, hours=2, minutes=40),
+                acknowledged_by_id=member.id,
+                resolved_at=moment - timedelta(days=2, hours=1),
+                resolved_by_id=member.id,
+                resolution_note="Cutting bay issued lay 2 early; line fed again within 40 min.",
+            )
+        )
+    db.session.flush()
+    raised, cleared, active = alerts.scan(company_id)
+    first = db.session.scalar(
+        select(FactoryAlert).where(
+            FactoryAlert.organization_id == company_id,
+            FactoryAlert.status == "open",
+            FactoryAlert.kind == "efficiency_low",
+        )
+    )
+    if first is not None:
+        alerts.acknowledge(company_id, first.id, first.version, member.id)
+    return [f"Factory checks run: {raised} alerts raised from the fictional history."]

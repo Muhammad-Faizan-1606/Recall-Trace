@@ -737,6 +737,27 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .lb-0 { width: 0%; } .lb-1 { width: 5%; } .lb-2 { width: 10%; } .lb-3 { width: 15%; } .lb-4 { width: 20%; } .lb-5 { width: 25%; } .lb-6 { width: 30%; } .lb-7 { width: 35%; } .lb-8 { width: 40%; } .lb-9 { width: 45%; } .lb-10 { width: 50%; } .lb-11 { width: 55%; } .lb-12 { width: 60%; } .lb-13 { width: 65%; } .lb-14 { width: 70%; } .lb-15 { width: 75%; } .lb-16 { width: 80%; } .lb-17 { width: 85%; } .lb-18 { width: 90%; } .lb-19 { width: 95%; } .lb-20 { width: 100%; }
 .suggestion + .suggestion { margin-top: .875rem; padding-top: .875rem; border-top: 1px solid var(--line); }
 
+/* Alerts and the factory dashboard. */
+.alert-list { display: grid; gap: .75rem; }
+.alert-card { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 1rem; padding: 1rem 1.125rem; border: 1px solid var(--line); border-left: 4px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--card-shadow); }
+.alert-card.sev-critical { border-left-color: var(--bad); }
+.alert-card.sev-warning { border-left-color: var(--hold); }
+.alert-card.sev-info { border-left-color: var(--good); }
+.alert-card.is-cleared { opacity: .78; }
+.alert-meta { display: flex; flex-wrap: wrap; gap: .25rem .625rem; align-items: center; margin: 0 0 .375rem; color: var(--muted); font-size: .8125rem; }
+.alert-meta > span:not(.tag)::first-letter { text-transform: uppercase; }
+.resolution { margin-top: .5rem; padding: .5rem .75rem; border-radius: var(--radius); background: var(--good-wash); }
+.alert-actions summary { cursor: pointer; list-style: none; padding: .375rem .75rem; border: 1px solid var(--line-strong); border-radius: 999px; font-size: .8125rem; font-weight: 600; text-align: center; }
+.alert-actions summary::-webkit-details-marker { display: none; }
+.alert-actions[open] summary { margin-bottom: .75rem; background: var(--neutral-wash); }
+.side-count { margin-left: auto; background: var(--coral); color: #fff; }
+.off-cell { color: var(--muted); }
+.heat.util { min-width: 600px; }
+.heat.util .heat-label { width: 10rem; }
+.heat.util td.cell { padding: 4px 3px !important; text-align: center; }
+.next-step a.on-navy { color: var(--on-navy); }
+@media (max-width: 760px) { .alert-card { grid-template-columns: minmax(0, 1fr); } }
+
 /* Shop floor: large touch targets, bundle tickets. */
 .floor-entry .form-control, .floor-entry .form-select { min-height: 44px; }
 .floor-entry .btn { min-height: 48px; }

@@ -9,3 +9,4 @@
 {% macro cards_tabs(current, company_id) %}
 <nav aria-label="Batch cards"><ul class="tabs">{% for key, text, endpoint in [('rolls', 'Knit rolls', 'shopfloor.rolls'), ('batches', 'Dye batches', 'shopfloor.batches'), ('bundles', 'Cut bundles', 'shopfloor.bundles')] %}<li><a href="{{ url_for(endpoint, company_id=company_id) }}"{% if key == current %} aria-current="page"{% endif %}>{{ text }}</a></li>{% endfor %}</ul></nav>
 {% endmacro %}
+{% macro qr_svg(qr) %}<svg class="qr" viewBox="0 0 {{ qr.size }} {{ qr.size }}" role="img" aria-label="QR code for bundle {{ qr.label }}"><rect width="{{ qr.size }}" height="{{ qr.size }}" fill="#fff"/><path d="{{ qr.path }}" fill="#000"/></svg>{% endmacro %}
