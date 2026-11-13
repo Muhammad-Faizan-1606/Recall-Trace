@@ -461,3 +461,195 @@ class StationOperation(Owned, db.Model):
         tenant_fk("bulletin_operation_id", "bulletin_operations"),
         CheckConstraint("share > 0 AND share <= 1", name="share"),
     )
+
+
+# ---------- Step 5: shop floor execution ----------
+
+DOWNTIME_CATEGORIES = (
+    "breakdown",
+    "power",
+    "no_feeding",
+    "changeover",
+    "needle_bobbin",
+    "quality",
+    "meeting",
+    "other",
+)
+# off_standard: approved lost time, left out of the efficiency denominator.
+# operator: time the line still answers for, so it lowers achieved efficiency.
+EFFICIENCY_RULES = ("off_standard", "operator")
+ROLL_GRADES = ("A", "B", "C")
+DYE_STATUSES = ("loaded", "dyeing", "passed", "re_dye", "rejected")
+BUNDLE_STATUSES = ("cut", "issued", "sewn")
+
+
+class DowntimeReason(Owned, db.Model):
+    """Why a line or machine stopped, and whether that time counts against the line."""
+
+    __tablename__ = "downtime_reasons"
+    code: Mapped[str] = mapped_column(db.String(40))
+    name: Mapped[str] = mapped_column(db.String(120))
+    category: Mapped[str] = mapped_column(db.String(20))
+    efficiency_rule: Mapped[str] = mapped_column(db.String(20))
+    archived_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    __table_args__ = (
+        *identity("code"),
+        _in("category", DOWNTIME_CATEGORIES),
+        _in("efficiency_rule", EFFICIENCY_RULES),
+    )
+
+
+class OutputLog(Owned, db.Model):
+    """One hour of one sewing line: good pieces, rejects and the people who made them.
+
+    Append-only (immutable in the database). A correction is a new row that restates the
+    whole hour and points at the original; the newest row for an hour is the one that counts.
+    """
+
+    __tablename__ = "output_logs"
+    work_center_id: Mapped[uuid.UUID] = mapped_column()
+    production_order_id: Mapped[uuid.UUID] = mapped_column()
+    day: Mapped[date] = mapped_column(db.Date)
+    hour: Mapped[int] = mapped_column()  # 1 = first hour of the production day
+    good_pieces: Mapped[int] = mapped_column()
+    rejects: Mapped[int] = mapped_column()
+    operators: Mapped[int] = mapped_column()
+    minutes: Mapped[int] = mapped_column(default=60, server_default="60")
+    # The garment SAM the pieces earn, copied from the order's bulletin when recorded.
+    sam: Mapped[Decimal] = mapped_column(db.Numeric(8, 4))
+    corrects_id: Mapped[uuid.UUID | None] = mapped_column()
+    note: Mapped[str | None] = mapped_column(db.String(200))
+    recorded_by_id: Mapped[uuid.UUID | None] = mapped_column()
+    recorded_at: Mapped[datetime] = mapped_column(db.DateTime(timezone=True), default=now)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id"),
+        tenant_fk("work_center_id", "work_centers"),
+        tenant_fk("production_order_id", "production_orders"),
+        tenant_fk("corrects_id", "output_logs"),
+        tenant_fk("recorded_by_id", "memberships"),
+        CheckConstraint("hour BETWEEN 1 AND 24", name="hour"),
+        CheckConstraint("good_pieces BETWEEN 0 AND 100000", name="good_pieces"),
+        CheckConstraint("rejects BETWEEN 0 AND 100000", name="rejects"),
+        CheckConstraint("operators BETWEEN 0 AND 500", name="operators"),
+        CheckConstraint("minutes BETWEEN 0 AND 60", name="minutes"),
+        CheckConstraint("sam > 0", name="sam"),
+        db.Index(
+            "uq_output_logs_original_hour",
+            "organization_id",
+            "work_center_id",
+            "day",
+            "hour",
+            unique=True,
+            postgresql_where=db.text("corrects_id IS NULL"),
+        ),
+        db.Index("ix_output_logs_center_day", "organization_id", "work_center_id", "day"),
+    )
+
+
+class DowntimeEvent(Owned, db.Model):
+    """Lost minutes on a line (or one machine of it), with a reason. Append-only like output."""
+
+    __tablename__ = "downtime_events"
+    work_center_id: Mapped[uuid.UUID] = mapped_column()
+    machine_id: Mapped[uuid.UUID | None] = mapped_column()
+    reason_id: Mapped[uuid.UUID] = mapped_column()
+    day: Mapped[date] = mapped_column(db.Date)
+    hour: Mapped[int] = mapped_column()
+    minutes: Mapped[int] = mapped_column()
+    # People idled by the stop: 1 for one machine, the whole line for a power cut.
+    operators_affected: Mapped[int] = mapped_column()
+    corrects_id: Mapped[uuid.UUID | None] = mapped_column()
+    note: Mapped[str | None] = mapped_column(db.String(200))
+    recorded_by_id: Mapped[uuid.UUID | None] = mapped_column()
+    recorded_at: Mapped[datetime] = mapped_column(db.DateTime(timezone=True), default=now)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id"),
+        tenant_fk("work_center_id", "work_centers"),
+        tenant_fk("machine_id", "machines"),
+        tenant_fk("reason_id", "downtime_reasons"),
+        tenant_fk("corrects_id", "downtime_events"),
+        tenant_fk("recorded_by_id", "memberships"),
+        CheckConstraint("hour BETWEEN 1 AND 24", name="hour"),
+        CheckConstraint("minutes BETWEEN 0 AND 1440", name="minutes"),
+        CheckConstraint("operators_affected BETWEEN 0 AND 500", name="operators_affected"),
+        db.Index("ix_downtime_events_center_day", "organization_id", "work_center_id", "day"),
+    )
+
+
+class DyeBatch(Owned, db.Model):
+    """One load of a dyeing vessel: which rolls, which colour and recipe, and the result."""
+
+    __tablename__ = "dye_batches"
+    batch_number: Mapped[str] = mapped_column(db.String(40))
+    machine_id: Mapped[uuid.UUID] = mapped_column()
+    production_order_id: Mapped[uuid.UUID | None] = mapped_column()
+    colour: Mapped[str] = mapped_column(db.String(60))
+    recipe_reference: Mapped[str] = mapped_column(db.String(60))
+    status: Mapped[str] = mapped_column(db.String(20), default="loaded", server_default="loaded")
+    started_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(db.String(200))
+    __table_args__ = (
+        *identity("batch_number"),
+        tenant_fk("machine_id", "machines"),
+        tenant_fk("production_order_id", "production_orders"),
+        _in("status", DYE_STATUSES),
+        CheckConstraint(
+            "finished_at IS NULL OR (started_at IS NOT NULL AND finished_at >= started_at)",
+            name="batch_times",
+        ),
+        CheckConstraint(
+            "(status IN ('passed', 're_dye', 'rejected')) = (finished_at IS NOT NULL)",
+            name="finished_status",
+        ),
+    )
+
+
+class KnitRoll(Owned, db.Model):
+    """One greige roll off a knitting machine; loaded into a dye batch later."""
+
+    __tablename__ = "knit_rolls"
+    roll_number: Mapped[str] = mapped_column(db.String(40))
+    machine_id: Mapped[uuid.UUID] = mapped_column()
+    production_order_id: Mapped[uuid.UUID | None] = mapped_column()
+    knitted_on: Mapped[date] = mapped_column(db.Date)
+    kg: Mapped[Decimal] = mapped_column(db.Numeric(8, 3))
+    grade: Mapped[str] = mapped_column(db.String(1), default="A", server_default="A")
+    dye_batch_id: Mapped[uuid.UUID | None] = mapped_column()
+    __table_args__ = (
+        *identity("roll_number"),
+        tenant_fk("machine_id", "machines"),
+        tenant_fk("production_order_id", "production_orders"),
+        tenant_fk("dye_batch_id", "dye_batches"),
+        _in("grade", ROLL_GRADES),
+        CheckConstraint("kg > 0 AND kg <= 100", name="kg"),
+    )
+
+
+class CutBundle(Owned, db.Model):
+    """A tied bundle of cut panels for one size, with a QR ticket that travels with it."""
+
+    __tablename__ = "cut_bundles"
+    bundle_number: Mapped[str] = mapped_column(db.String(40))
+    production_order_id: Mapped[uuid.UUID] = mapped_column()
+    dye_batch_id: Mapped[uuid.UUID | None] = mapped_column()
+    lay_number: Mapped[str] = mapped_column(db.String(40))
+    size: Mapped[str] = mapped_column(db.String(10))
+    pieces: Mapped[int] = mapped_column()
+    status: Mapped[str] = mapped_column(db.String(20), default="cut", server_default="cut")
+    issued_line_id: Mapped[uuid.UUID | None] = mapped_column()
+    issued_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    sewn_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    __table_args__ = (
+        *identity("bundle_number"),
+        tenant_fk("production_order_id", "production_orders"),
+        tenant_fk("dye_batch_id", "dye_batches"),
+        tenant_fk("issued_line_id", "work_centers"),
+        _in("status", BUNDLE_STATUSES),
+        CheckConstraint("pieces BETWEEN 1 AND 500", name="pieces"),
+        CheckConstraint(
+            "(status = 'cut') = (issued_line_id IS NULL AND issued_at IS NULL)", name="issued"
+        ),
+        CheckConstraint("(status = 'sewn') = (sewn_at IS NOT NULL)", name="sewn"),
+        db.Index("ix_cut_bundles_order", "organization_id", "production_order_id"),
+    )

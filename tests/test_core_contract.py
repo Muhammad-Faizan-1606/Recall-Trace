@@ -33,6 +33,12 @@ FACTORY_TABLES = {
     "line_balances",
     "line_stations",
     "station_operations",
+    "downtime_reasons",
+    "output_logs",
+    "downtime_events",
+    "dye_batches",
+    "knit_rolls",
+    "cut_bundles",
 }
 
 

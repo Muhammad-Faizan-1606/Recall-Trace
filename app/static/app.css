@@ -737,6 +737,28 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .lb-0 { width: 0%; } .lb-1 { width: 5%; } .lb-2 { width: 10%; } .lb-3 { width: 15%; } .lb-4 { width: 20%; } .lb-5 { width: 25%; } .lb-6 { width: 30%; } .lb-7 { width: 35%; } .lb-8 { width: 40%; } .lb-9 { width: 45%; } .lb-10 { width: 50%; } .lb-11 { width: 55%; } .lb-12 { width: 60%; } .lb-13 { width: 65%; } .lb-14 { width: 70%; } .lb-15 { width: 75%; } .lb-16 { width: 80%; } .lb-17 { width: 85%; } .lb-18 { width: 90%; } .lb-19 { width: 95%; } .lb-20 { width: 100%; }
 .suggestion + .suggestion { margin-top: .875rem; padding-top: .875rem; border-top: 1px solid var(--line); }
 
+/* Shop floor: large touch targets, bundle tickets. */
+.floor-entry .form-control, .floor-entry .form-select { min-height: 44px; }
+.floor-entry .btn { min-height: 48px; }
+.hours th[scope="row"] { white-space: nowrap; font-weight: 600; }
+.hour-empty th, .hour-empty td { color: var(--muted); background: transparent; }
+.is-current-row > * { background: var(--good-wash) !important; }
+.scan-form { max-width: 520px; }
+.check-list { max-height: 260px; overflow-y: auto; padding: .5rem .75rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.check-list .form-check { display: flex; gap: .5rem; align-items: center; min-height: 36px; margin: 0; }
+.ticket-code svg.qr { display: block; width: 168px; height: 168px; flex: none; background: #fff; padding: 6px; border-radius: 8px; }
+.ticket { text-align: center; }
+.ticket .ticket-code svg.qr { margin: 0 auto; }
+.ticket-number { margin: .5rem 0 .125rem; font-family: var(--display); font-weight: 700; font-size: 1.125rem; letter-spacing: .02em; }
+.ticket-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: .75rem; }
+.ticket-card { display: flex; gap: 1rem; align-items: center; padding: .75rem; border: 1px dashed var(--line-strong); border-radius: var(--radius); background: var(--surface); break-inside: avoid; }
+.ticket-card .ticket-number { margin-top: 0; }
+@media print {
+  .ticket-sheet { grid-template-columns: repeat(2, 1fr); gap: 0; }
+  .ticket-card { border-color: #000; border-radius: 0; }
+  .d-print-none { display: none !important; }
+}
+
 /* ---------- Motion and interaction ---------- */
 html { scroll-behavior: smooth; interpolate-size: allow-keywords; }
 

@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% from 'factory/_floor_macros.html' import cards_tabs %}
+{% block title %}Dye batches · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Batch cards</h1><p>Every roll, dye batch and cut bundle, so fabric can be followed from the knitting frame to the sewing line.</p></div></div>
+{{ cards_tabs('batches', company_id) }}
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="batches-heading">
+      <div class="section-head"><h2 id="batches-heading">Dye batches</h2><span class="section-note">Newest first</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Batch</th><th scope="col">Vessel</th><th scope="col">Colour</th><th scope="col" class="num">kg</th><th scope="col">Status</th></tr></thead>
+        <tbody>{% for b in rows %}
+          <tr data-href="{{ url_for('shopfloor.batch', company_id=company_id, batch_id=b.id) }}">
+            <td><a href="{{ url_for('shopfloor.batch', company_id=company_id, batch_id=b.id) }}">{{ b.batch_number }}</a><div class="fine-print">{{ b.recipe_reference }}</div></td>
+            <td>{{ vessel_names.get(b.machine_id, '—') }}</td>
+            <td>{{ b.colour }}</td>
+            <td class="num">{{ kg.get(b.id, 0)|qty }}</td>
+            <td>{{ b.status|tag }}</td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty">No dye batches yet.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+  <aside class="rail" aria-label="Load a batch">
+    {% if can_record %}
+    <section class="panel next-step floor-entry" aria-labelledby="load-title">
+      <h2 id="load-title">Load a batch</h2>
+      {% if rolls and vessels %}
+      <form method="post">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="batch_number">Batch number</label><input class="form-control mb-2" id="batch_number" name="batch_number" maxlength="40" required>
+        <label class="form-label" for="machine_id">Vessel</label>
+        <select class="form-select mb-2" id="machine_id" name="machine_id">{% for m in vessels %}<option value="{{ m.id }}">{{ m.asset_tag }} · {{ m.rated_value|qty }} kg</option>{% endfor %}</select>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" for="colour">Colour</label><input class="form-control" id="colour" name="colour" maxlength="60" required></div>
+          <div class="col-6"><label class="form-label" for="recipe_reference">Recipe</label><input class="form-control" id="recipe_reference" name="recipe_reference" maxlength="60" required></div>
+        </div>
+        <label class="form-label mt-2" for="production_order_id">Order (optional)</label>
+        <select class="form-select mb-2" id="production_order_id" name="production_order_id"><option value="">None</option>{% for o in orders %}<option value="{{ o.id }}">{{ o.reference }}</option>{% endfor %}</select>
+        <fieldset class="mb-3"><legend class="form-label">Rolls ({{ rolls|length }} waiting)</legend>
+          <div class="check-list">{% for roll in rolls %}<label class="form-check"><input class="form-check-input" type="checkbox" name="roll_ids" value="{{ roll.id }}"> <span class="form-check-label">{{ roll.roll_number }} · {{ roll.kg|qty }} kg{% if roll.grade != 'A' %} · grade {{ roll.grade }}{% endif %}</span></label>{% endfor %}</div>
+        </fieldset>
+        <button class="btn btn-primary w-100" type="submit">Load batch</button>
+      </form>
+      {% elif not vessels %}<p class="mb-0">No dyeing vessel is running.</p>
+      {% else %}<p class="mb-0">No rolls are waiting. Record knit rolls first.</p>{% endif %}
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

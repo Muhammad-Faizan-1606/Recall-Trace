@@ -14,3 +14,4 @@ python-dotenv
 gunicorn
 cryptography>=50,<51
 requests>=2.34.2,<3
+segno>=1.6.6,<1.7

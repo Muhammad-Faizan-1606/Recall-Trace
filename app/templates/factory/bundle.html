@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}{{ bundle.bundle_number }} · Bundle{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('shopfloor.bundles', company_id=company_id, order=order.id) }}">Bundles for {{ order.reference }}</a></p>
+<div class="record-head">
+  <div>
+    <h1>Bundle {{ bundle.bundle_number }}</h1>
+    <p class="record-meta">{{ bundle.status|tag }}<span>{{ style.code }} — {{ style.name }}</span><span>Size {{ bundle.size }} · {{ bundle.pieces }} pieces</span></p>
+  </div>
+</div>
+<div class="split">
+  <div>
+    <dl class="kv">
+      <dt>Order</dt><dd><a href="{{ url_for('planning.order', company_id=company_id, order_id=order.id) }}">{{ order.reference }}</a> · {{ order.colour }}</dd>
+      <dt>Lay</dt><dd>{{ bundle.lay_number }}</dd>
+      <dt>Fabric</dt><dd>{% if batch %}<a href="{{ url_for('shopfloor.batch', company_id=company_id, batch_id=batch.id) }}">Dye batch {{ batch.batch_number }}</a> · {{ batch.colour }}{% else %}Not recorded{% endif %}</dd>
+      <dt>Cut</dt><dd>{{ bundle.created_at|when }}</dd>
+      <dt>Issued</dt><dd>{% if line %}{{ line.name }} ({{ line.code }}) · {{ bundle.issued_at|when }}{% else %}—{% endif %}</dd>
+      <dt>Sewn</dt><dd>{% if bundle.sewn_at %}{{ bundle.sewn_at|when }}{% else %}—{% endif %}</dd>
+    </dl>
+  </div>
+  <aside class="rail" aria-label="Ticket and actions">
+    {% if can_record and bundle.status != 'sewn' %}
+    <section class="panel next-step floor-entry" aria-labelledby="move-title">
+      <h2 id="move-title">{{ 'Issue to a line' if bundle.status == 'cut' else 'On the line' }}</h2>
+      {% if bundle.status == 'cut' %}
+      <form method="post" action="{{ url_for('shopfloor.bundle_step', company_id=company_id, bundle_id=bundle.id, step='issue') }}">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="line_id">Sewing line</label>
+        <select class="form-select mb-3" id="line_id" name="line_id">{% for l in lines %}<option value="{{ l.id }}">{{ l.code }} · {{ l.name }}</option>{% endfor %}</select>
+        <button class="btn btn-primary w-100" type="submit">Issue bundle</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('shopfloor.bundle_step', company_id=company_id, bundle_id=bundle.id, step='sewn') }}">{{ action_form.hidden_tag() }}<button class="btn btn-success w-100" type="submit">Mark sewn</button></form>
+      {% endif %}
+    </section>
+    {% endif %}
+    <section class="panel ticket" aria-labelledby="ticket-title">
+      <h2 id="ticket-title" class="mb-2">Ticket</h2>
+      <div class="ticket-code">{{ qr }}</div>
+      <p class="ticket-number">{{ bundle.bundle_number }}</p>
+      <p class="fine-print mb-0">{{ style.code }} · size {{ bundle.size }} · {{ bundle.pieces }} pcs · lay {{ bundle.lay_number }}</p>
+    </section>
+  </aside>
+</div>
+{% endblock %}

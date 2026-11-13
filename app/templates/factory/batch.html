@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}{{ batch.batch_number }} · Dye batch{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('shopfloor.batches', company_id=company_id) }}">Dye batches</a></p>
+<div class="record-head">
+  <div>
+    <h1>Dye batch {{ batch.batch_number }}</h1>
+    <p class="record-meta">{{ batch.status|tag }}<span>{{ batch.colour }}</span><span>Recipe {{ batch.recipe_reference }}</span>{% if order %}<a href="{{ url_for('planning.order', company_id=company_id, order_id=order.id) }}">{{ order.reference }}</a>{% endif %}</p>
+  </div>
+  {% if can_record %}
+  <div class="page-actions">
+    {% if batch.status == 'loaded' %}<form class="m-0" method="post" action="{{ url_for('shopfloor.batch_step', company_id=company_id, batch_id=batch.id, step='start') }}">{{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Start dyeing</button></form>{% endif %}
+    {% if batch.status == 'dyeing' %}
+      <form class="m-0" method="post" action="{{ url_for('shopfloor.batch_step', company_id=company_id, batch_id=batch.id, step='rejected') }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-danger" type="submit">Reject</button></form>
+      <form class="m-0" method="post" action="{{ url_for('shopfloor.batch_step', company_id=company_id, batch_id=batch.id, step='re_dye') }}">{{ action_form.hidden_tag() }}<button class="btn btn-outline-secondary" type="submit">Needs re-dye</button></form>
+      <form class="m-0" method="post" action="{{ url_for('shopfloor.batch_step', company_id=company_id, batch_id=batch.id, step='passed') }}">{{ action_form.hidden_tag() }}<button class="btn btn-success" type="submit">Shade passed</button></form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+<dl class="facts">
+  <div><dt>Vessel</dt><dd>{{ vessel.asset_tag }}</dd></div>
+  <div class="{{ 'is-alert' if total < capacity / 2 }}"><dt>Load</dt><dd>{{ total|qty }}<small class="fine-print"> of {{ capacity|qty }} kg</small></dd></div>
+  <div><dt>Started · finished</dt><dd>{% if batch.started_at %}{{ batch.started_at|when }}{% else %}—{% endif %}<small class="fine-print">{% if batch.finished_at %} · {{ batch.finished_at|when }}{% endif %}</small></dd></div>
+  <div><dt>Bundles cut from it</dt><dd>{{ bundles }}</dd></div>
+</dl>
+<section class="section" aria-labelledby="rolls-heading">
+  <div class="section-head"><h2 id="rolls-heading">Rolls in this batch</h2></div>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th scope="col">Roll</th><th scope="col">Knitted</th><th scope="col" class="num">kg</th><th scope="col">Grade</th></tr></thead>
+    <tbody>{% for roll in rolls %}<tr><td>{{ roll.roll_number }}</td><td>{{ roll.knitted_on|day }}</td><td class="num">{{ roll.kg|qty }}</td><td>{{ roll.grade }}</td></tr>{% else %}<tr><td colspan="4" class="empty">No rolls; they were moved to a re-dye batch.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endblock %}

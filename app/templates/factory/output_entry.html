@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Hour {{ current.hour }} · {{ line.name }}{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=line.id, day=current.day.isoformat()) }}">{{ line.name }} · {{ current.day.strftime('%d %b') }}</a></p>
+<div class="page-head"><div><h1>Hour {{ current.hour }} on {{ line.name }}</h1><p>Entries are never changed or deleted. A correction restates the hour and the newest entry counts.</p></div></div>
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="hist-heading">
+      <div class="section-head"><h2 id="hist-heading">History</h2></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Recorded</th><th scope="col">Order</th><th scope="col" class="num">Good</th><th scope="col" class="num">Rejects</th><th scope="col" class="num">Operators</th><th scope="col" class="num">Minutes</th><th scope="col">Note</th></tr></thead>
+        <tbody>{% for row in rows %}<tr{% if row.id == current.id %} class="is-current-row"{% endif %}><td>{{ row.recorded_at|when }}{% if row.id == current.id %} <span class="tag tag-good">counts</span>{% elif row.corrects_id is none %} <span class="tag">original</span>{% endif %}</td><td>{{ orders[row.production_order_id].reference if row.production_order_id in orders else '—' }}</td><td class="num">{{ row.good_pieces }}</td><td class="num">{{ row.rejects }}</td><td class="num">{{ row.operators }}</td><td class="num">{{ row.minutes }}</td><td>{{ row.note or '' }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+  <aside class="rail" aria-label="Correct">
+    {% if can_record %}
+    <section class="panel next-step" aria-labelledby="fix-title">
+      <h2 id="fix-title">Correct this hour</h2>
+      <form method="post">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="production_order_id">Order</label>
+        <select class="form-select mb-2" id="production_order_id" name="production_order_id">{% for o in running %}<option value="{{ o.id }}"{% if o.id == current.production_order_id %} selected{% endif %}>{{ o.reference }}</option>{% endfor %}</select>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" for="good_pieces">Good pieces</label><input class="form-control" id="good_pieces" name="good_pieces" type="number" min="0" max="100000" value="{{ current.good_pieces }}" required></div>
+          <div class="col-6"><label class="form-label" for="rejects">Rejects</label><input class="form-control" id="rejects" name="rejects" type="number" min="0" max="100000" value="{{ current.rejects }}" required></div>
+          <div class="col-6"><label class="form-label" for="operators">Operators</label><input class="form-control" id="operators" name="operators" type="number" min="0" max="500" value="{{ current.operators }}" required></div>
+          <div class="col-6"><label class="form-label" for="minutes">Minutes</label><input class="form-control" id="minutes" name="minutes" type="number" min="0" max="60" value="{{ current.minutes }}" required></div>
+        </div>
+        <label class="form-label mt-2" for="note">Why it is corrected</label>
+        <input class="form-control mb-3" id="note" name="note" maxlength="200" required>
+        <button class="btn btn-primary w-100" type="submit">Save correction</button>
+      </form>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

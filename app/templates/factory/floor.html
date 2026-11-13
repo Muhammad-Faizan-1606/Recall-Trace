@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% from 'factory/_floor_macros.html' import day_nav, eff_tag %}
+{% block title %}Shop floor · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Shop floor</h1>
+    <p>Hour-by-hour output from every sewing line against its plan. Tap a line to record its hours and stops.</p>
+  </div>
+</div>
+{{ day_nav('shopfloor.floor', day, today, {'company_id': company_id}) }}
+{% if fallback %}<div class="alert alert-info" role="status">Nothing is recorded for today yet, so this shows {{ day.strftime('%A %d %b') }}, the latest day with entries.</div>{% endif %}
+
+<dl class="facts">
+  <div><dt>Lines reporting</dt><dd>{{ reporting }}<small class="fine-print"> of {{ lines }}</small></dd></div>
+  <div><dt>Good pieces</dt><dd>{{ '{:,}'.format(total.good) }}</dd></div>
+  <div><dt>Achieved efficiency</dt><dd>{% if total.efficiency is not none %}{{ total.efficiency|cap }}%{% else %}—{% endif %}</dd></div>
+  <div class="{{ 'is-alert' if total.reject_rate and total.reject_rate > 3 }}"><dt>Rejects</dt><dd>{% if total.reject_rate is not none %}{{ total.reject_rate|two }}%{% else %}—{% endif %}</dd></div>
+</dl>
+<p class="fine-print">Efficiency = good pieces × SAM ÷ (operators × minutes worked − approved off-standard minutes). The plan is the line's target efficiency × its balance efficiency (a line paced by its bottleneck cannot earn more); green is within 5 points of it.</p>
+
+{% for site, items in groups %}
+<section class="section" aria-labelledby="site-{{ loop.index }}">
+  <div class="section-head"><h2 id="site-{{ loop.index }}">{{ site.name if site else 'Unknown site' }}</h2></div>
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th scope="col">Line</th><th scope="col">Running</th><th scope="col" class="num">Hours</th><th scope="col" class="num">Good · plan</th><th scope="col" class="num">Efficiency</th><th scope="col" class="num">Rejects</th><th scope="col" class="num">Down min</th></tr></thead>
+    <tbody>{% for line, f, target, plan in items %}{% set balance, style, per_hour, planned, slots = target %}
+      <tr data-href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=line.id, day=day.isoformat()) }}">
+        <td><a href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=line.id, day=day.isoformat()) }}">{{ line.name }}</a><div class="fine-print">{{ line.code }}</div></td>
+        <td>{{ style.code if style else '—' }}</td>
+        <td class="num">{{ f.hours|length }}<span class="fine-print"> / {{ slots }}</span></td>
+        <td class="num">{{ '{:,}'.format(f.good) }}{% if plan %}<div class="fine-print">{{ plan|cap }}</div>{% endif %}</td>
+        <td class="num">{{ eff_tag(f.efficiency, planned) }}<div class="fine-print">plan {{ planned|cap }}%</div></td>
+        <td class="num">{% if f.reject_rate is not none %}{{ f.reject_rate|two }}%{% else %}—{% endif %}</td>
+        <td class="num">{{ f.downtime_minutes or '—' }}</td>
+      </tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+{% else %}
+<p class="empty">No sewing lines yet.</p>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% from 'factory/_floor_macros.html' import cards_tabs %}
+{% block title %}Cut bundles · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Batch cards</h1><p>Every roll, dye batch and cut bundle, so fabric can be followed from the knitting frame to the sewing line.</p></div></div>
+{{ cards_tabs('bundles', company_id) }}
+<form class="scan-form mb-3" method="get" role="search">
+  <label class="form-label" for="number">Scan or type a bundle number</label>
+  <div class="input-group"><input class="form-control form-control-lg" id="number" name="number" placeholder="PO-27010-0001" autocomplete="off" maxlength="40"><button class="btn btn-primary" type="submit">Open</button></div>
+</form>
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="progress-heading">
+      <div class="section-head"><h2 id="progress-heading">Orders in cutting</h2><span class="section-note">Pieces by bundle status</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Order</th><th scope="col" class="num">Ordered</th><th scope="col" class="num">At cutting</th><th scope="col" class="num">On lines</th><th scope="col" class="num">Sewn</th><th scope="col"><span class="visually-hidden">Tickets</span></th></tr></thead>
+        <tbody>{% for order_id, counts in by_order.items() %}{% set o = order_names.get(order_id) %}
+          <tr>
+            <td><a href="{{ url_for('shopfloor.bundles', company_id=company_id, order=order_id) }}">{{ o.reference if o else '—' }}</a></td>
+            <td class="num">{{ '{:,}'.format(o.quantity) if o else '—' }}</td>
+            {% for status in ('cut', 'issued', 'sewn') %}<td class="num">{{ '{:,}'.format(counts[status][1]) if status in counts else '—' }}</td>{% endfor %}
+            <td class="text-end">{% if 'cut' in counts %}<a href="{{ url_for('shopfloor.tickets', company_id=company_id, order=order_id) }}">Print tickets</a>{% endif %}</td>
+          </tr>
+        {% else %}<tr><td colspan="6" class="empty">Nothing cut yet.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+    <section class="section" aria-labelledby="bundles-heading">
+      <div class="section-head"><h2 id="bundles-heading">{% if selected %}Bundles for {{ selected.reference }}{% else %}Latest bundles{% endif %}</h2>{% if selected %}<a class="section-note" href="{{ url_for('shopfloor.bundles', company_id=company_id) }}">Show all</a>{% endif %}</div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Bundle</th><th scope="col">Order</th><th scope="col">Lay</th><th scope="col">Size</th><th scope="col" class="num">Pieces</th><th scope="col">Status</th></tr></thead>
+        <tbody>{% for b in page.items %}
+          <tr data-href="{{ url_for('shopfloor.bundle', company_id=company_id, bundle_id=b.id) }}">
+            <td><a href="{{ url_for('shopfloor.bundle', company_id=company_id, bundle_id=b.id) }}">{{ b.bundle_number }}</a></td>
+            <td>{{ order_names[b.production_order_id].reference if b.production_order_id in order_names else '—' }}</td>
+            <td>{{ b.lay_number }}</td><td>{{ b.size }}</td><td class="num">{{ b.pieces }}</td>
+            <td>{{ b.status|tag }}{% if b.issued_line_id and b.issued_line_id in lines %}<div class="fine-print">{{ lines[b.issued_line_id].code }}</div>{% endif %}</td>
+          </tr>
+        {% else %}<tr><td colspan="6" class="empty">No bundles yet.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% if page.pages > 1 %}<nav class="pager" aria-label="Pages">{% if page.has_prev %}<a href="{{ url_for('shopfloor.bundles', company_id=company_id, page=page.prev_num, order=selected.id if selected else None) }}">← Newer</a>{% endif %}<span>Page {{ page.page }} of {{ page.pages }}</span>{% if page.has_next %}<a href="{{ url_for('shopfloor.bundles', company_id=company_id, page=page.next_num, order=selected.id if selected else None) }}">Older →</a>{% endif %}</nav>{% endif %}
+    </section>
+  </div>
+  <aside class="rail" aria-label="Cut a lay">
+    {% if can_record %}
+    <section class="panel next-step floor-entry" aria-labelledby="cut-title">
+      <h2 id="cut-title">Cut a lay into bundles</h2>
+      {% if released %}
+      <form method="post">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="production_order_id">Order</label>
+        <select class="form-select mb-2" id="production_order_id" name="production_order_id">{% for o in released %}<option value="{{ o.id }}"{% if selected and o.id == selected.id %} selected{% endif %}>{{ o.reference }} · {{ '{:,}'.format(o.quantity) }} pcs</option>{% endfor %}</select>
+        <label class="form-label" for="dye_batch_id">Fabric from dye batch</label>
+        <select class="form-select mb-2" id="dye_batch_id" name="dye_batch_id"><option value="">Not recorded</option>{% for b in passed %}<option value="{{ b.id }}">{{ b.batch_number }} · {{ b.colour }}</option>{% endfor %}</select>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" for="lay_number">Lay number</label><input class="form-control" id="lay_number" name="lay_number" maxlength="40" required></div>
+          <div class="col-6"><label class="form-label" for="bundle_size">Pieces per bundle</label><input class="form-control" id="bundle_size" name="bundle_size" type="number" min="1" max="500" value="30" required></div>
+        </div>
+        <label class="form-label mt-2" for="sizes">Pieces per size</label>
+        <input class="form-control" id="sizes" name="sizes" placeholder="S:120, M:240, L:240, XL:120" required>
+        <div class="form-text mb-3">Bundles are numbered after the order, e.g. PO-27010-0001.</div>
+        <button class="btn btn-primary w-100" type="submit">Cut bundles</button>
+      </form>
+      {% else %}<p class="mb-0">No orders are released to the floor.</p>{% endif %}
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

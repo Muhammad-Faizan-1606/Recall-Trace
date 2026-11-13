@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% from 'factory/_floor_macros.html' import day_nav, eff_tag %}
+{% block title %}{{ line.name }} · Shop floor{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('shopfloor.floor', company_id=company_id, day=day.isoformat()) }}">Shop floor</a></p>
+<div class="record-head">
+  <div>
+    <h1>{{ line.name }} · {{ site.name if site }}</h1>
+    <p class="record-meta"><span>{{ line.code }}</span>{% if style %}<span>Running {{ style.code }} — {{ style.name }}</span><a href="{{ url_for('balancing.balance', company_id=company_id, balance_id=balance.id) }}">Line balance</a>{% else %}<span>No published balance</span>{% endif %}</p>
+  </div>
+</div>
+{{ day_nav('shopfloor.line_day', day, today, {'company_id': company_id, 'line_id': line.id}) }}
+
+<dl class="facts">
+  <div><dt>Good pieces</dt><dd>{{ '{:,}'.format(figures.good) }}{% if target_so_far %}<small class="fine-print"> · plan {{ target_so_far|cap }}</small>{% endif %}</dd></div>
+  <div class="{{ 'is-alert' if figures.efficiency is not none and figures.efficiency < planned - 5 }}"><dt>Achieved efficiency</dt><dd>{% if figures.efficiency is not none %}{{ figures.efficiency|cap }}%{% else %}—{% endif %}<small class="fine-print"> · plan {{ planned|cap }}%</small></dd></div>
+  <div><dt>Rejects</dt><dd>{{ figures.rejects }}{% if figures.reject_rate is not none %}<small class="fine-print"> · {{ figures.reject_rate|two }}%</small>{% endif %}</dd></div>
+  <div><dt>Downtime</dt><dd>{{ figures.downtime_minutes }}<small class="fine-print"> min</small></dd></div>
+</dl>
+
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="hours-heading">
+      <div class="section-head"><h2 id="hours-heading">Hour by hour</h2>{% if per_hour %}<span class="section-note">Plan {{ per_hour|cap }} pieces an hour ({{ planned|cap }}% after balance)</span>{% endif %}</div>
+      <div class="table-responsive"><table class="table hours">
+        <thead><tr><th scope="col">Hour</th><th scope="col">Order</th><th scope="col" class="num">Good</th><th scope="col" class="num">Rejects</th><th scope="col" class="num">Operators</th><th scope="col" class="num">Efficiency</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>{% for hour in slots %}{% set entry = hours.get(hour) %}
+          {% if entry %}{% set original, row, corrected = entry %}
+          <tr>
+            <th scope="row">Hour {{ hour }}</th>
+            <td>{{ order_names[row.production_order_id].reference if row.production_order_id in order_names else '—' }}</td>
+            <td class="num"><strong>{{ row.good_pieces }}</strong>{% if per_hour %}<div class="fine-print">plan {{ (per_hour * row.minutes / 60)|cap }}</div>{% endif %}</td>
+            <td class="num">{{ row.rejects }}</td>
+            <td class="num">{{ row.operators }}{% if row.minutes != 60 %}<div class="fine-print">{{ row.minutes }} min</div>{% endif %}</td>
+            <td class="num">{% set clock = row.operators * row.minutes %}{% if clock %}{{ eff_tag(row.good_pieces * row.sam / clock * hundred, planned) }}{% else %}—{% endif %}</td>
+            <td class="text-end"><a href="{{ url_for('shopfloor.output_entry', company_id=company_id, log_id=original) }}">{{ 'Corrected' if corrected else ('Correct' if can_record else 'History') }}</a></td>
+          </tr>
+          {% else %}
+          <tr class="hour-empty"><th scope="row">Hour {{ hour }}</th><td colspan="6" class="fine-print">Not recorded</td></tr>
+          {% endif %}
+        {% endfor %}</tbody>
+      </table></div>
+    </section>
+
+    <section class="section" aria-labelledby="down-heading">
+      <div class="section-head"><h2 id="down-heading">Stops</h2><span class="section-note">Off-standard stops are left out of efficiency; the rest count against the line</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Hour</th><th scope="col">Reason</th><th scope="col" class="num">Minutes</th><th scope="col" class="num">Operators</th><th scope="col">Effect</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>{% for original, event, reason, corrected in figures.downtime %}
+          <tr>
+            <td>Hour {{ event.hour }}</td>
+            <td>{{ reason.name if reason else '—' }}{% if event.note %}<div class="fine-print">{{ event.note }}</div>{% endif %}</td>
+            <td class="num">{{ event.minutes }}</td>
+            <td class="num">{{ event.operators_affected }}</td>
+            <td>{% if reason and reason.efficiency_rule == 'off_standard' %}<span class="tag">left out</span>{% else %}<span class="tag tag-waiting">counts</span>{% endif %}</td>
+            <td class="text-end"><a href="{{ url_for('shopfloor.downtime_entry', company_id=company_id, event_id=original) }}">{{ 'Corrected' if corrected else ('Correct' if can_record else 'History') }}</a></td>
+          </tr>
+        {% else %}<tr><td colspan="6" class="empty">No stops recorded.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <aside class="rail" aria-label="Record">
+    {% if can_record %}
+    <section class="panel next-step floor-entry" aria-labelledby="out-title">
+      <h2 id="out-title">Record an hour</h2>
+      {% if orders %}
+      <form method="post" action="{{ url_for('shopfloor.output_new', company_id=company_id, line_id=line.id) }}">
+        {{ action_form.hidden_tag() }}<input type="hidden" name="day" value="{{ day.isoformat() }}">
+        <label class="form-label" for="hour">Hour</label>
+        <select class="form-select mb-2" id="hour" name="hour">{% for h in range(1, 25) if h not in hours %}<option value="{{ h }}"{% if h == next_hour %} selected{% endif %}>Hour {{ h }}</option>{% endfor %}</select>
+        <label class="form-label" for="production_order_id">Order</label>
+        <select class="form-select mb-2" id="production_order_id" name="production_order_id">{% for o in orders %}<option value="{{ o.id }}"{% if o.id == default_order %} selected{% endif %}>{{ o.reference }} · {{ order_styles[o.style_id].code if o.style_id in order_styles else '' }}</option>{% endfor %}</select>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" for="good_pieces">Good pieces</label><input class="form-control form-control-lg" id="good_pieces" name="good_pieces" type="number" inputmode="numeric" min="0" max="100000" required></div>
+          <div class="col-6"><label class="form-label" for="rejects">Rejects</label><input class="form-control form-control-lg" id="rejects" name="rejects" type="number" inputmode="numeric" min="0" max="100000" value="0" required></div>
+          <div class="col-6"><label class="form-label" for="operators">Operators</label><input class="form-control" id="operators" name="operators" type="number" inputmode="numeric" min="0" max="500" value="{{ default_operators }}" required></div>
+          <div class="col-6"><label class="form-label" for="minutes">Minutes worked</label><input class="form-control" id="minutes" name="minutes" type="number" inputmode="numeric" min="0" max="60" value="60" required></div>
+        </div>
+        <label class="form-label mt-2" for="out-note">Note</label>
+        <input class="form-control mb-3" id="out-note" name="note" maxlength="200">
+        <button class="btn btn-primary w-100" type="submit">Save hour</button>
+      </form>
+      {% else %}<p class="mb-0">No orders are released to the floor. Release one from Production orders first.</p>{% endif %}
+    </section>
+    <section class="panel floor-entry" aria-labelledby="down-title">
+      <h2 id="down-title">Record a stop</h2>
+      {% if reasons %}
+      <form method="post" action="{{ url_for('shopfloor.downtime_new', company_id=company_id, line_id=line.id) }}">
+        {{ action_form.hidden_tag() }}<input type="hidden" name="day" value="{{ day.isoformat() }}">
+        <label class="form-label" for="reason_id">Reason</label>
+        <select class="form-select mb-2" id="reason_id" name="reason_id">{% for r in reasons %}<option value="{{ r.id }}">{{ r.name }}{% if r.efficiency_rule == 'off_standard' %} (left out){% endif %}</option>{% endfor %}</select>
+        <label class="form-label" for="machine_id">Machine</label>
+        <select class="form-select mb-2" id="machine_id" name="machine_id"><option value="">Whole line / none</option>{% for m in machines %}<option value="{{ m.id }}">{{ m.asset_tag }}</option>{% endfor %}</select>
+        <div class="row g-2">
+          <div class="col-4"><label class="form-label" for="d-hour">Hour</label><input class="form-control" id="d-hour" name="hour" type="number" min="1" max="24" value="{{ next_hour or 1 }}" required></div>
+          <div class="col-4"><label class="form-label" for="d-min">Minutes</label><input class="form-control" id="d-min" name="minutes" type="number" inputmode="numeric" min="1" max="600" required></div>
+          <div class="col-4"><label class="form-label" for="d-ops">Operators</label><input class="form-control" id="d-ops" name="operators_affected" type="number" inputmode="numeric" min="1" max="500" value="1" required></div>
+        </div>
+        <label class="form-label mt-2" for="d-note">Note</label>
+        <input class="form-control mb-3" id="d-note" name="note" maxlength="200">
+        <button class="btn btn-outline-secondary w-100" type="submit">Save stop</button>
+      </form>
+      {% else %}<p class="mb-0">Add downtime reasons under Factory setup first.</p>{% endif %}
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

@@ -1,5 +1,36 @@
 # RecallTrace implementation status
 
+## Factory Suite step 5: shop floor execution — 13 November 2026
+
+- **Data:** migration `f05a01` adds six tables. The schema is now 94 tables: 72 Core plus 22 Factory.
+  - `downtime_reasons`: each says whether its time is off-standard (left out of efficiency) or counts against the line.
+  - `output_logs`: hourly good pieces, rejects, operators and minutes, with the garment SAM copied in when recorded.
+  - `downtime_events`: minutes and operators affected, optionally against one machine of the line.
+  - `knit_rolls`, `dye_batches` and `cut_bundles`.
+- **History is append-only:**
+  - Output logs and downtime events have the reviewed immutable-history trigger. The runtime is granted SELECT and INSERT only, enforced by `operations/database_access.py` (IMMUTABLE).
+  - A correction is a new row that restates the hour or stop, needs a reason, and points at the original. The newest row counts; zero minutes withdraws a stop.
+  - A partial unique index allows one original entry per line, day and hour.
+- **Rules** (`app/services/shopfloor.py`):
+  - Output only for orders released to the floor, no future days, and late entries up to 7 days.
+  - A stop's machine must belong to the line.
+  - Rolls come from knitting machines and grade C rolls are never dyed. A batch must fit the vessel's rated kg (with a warning under half full); its steps are loaded → dyeing → passed / re-dye / rejected, and re-dye rolls can be loaded again.
+  - Bundles are cut only for released orders, from passed batches. They are numbered after the order, capped at the order quantity plus a 5% cutting allowance, and move cut → issued to a line → sewn.
+  - A new permission, `factory.record`, separates floor recording from factory setup (`factory.manage`).
+- **Efficiency:** earned (good × SAM) ÷ (operators × minutes − approved off-standard minutes). The floor compares it with target × balance efficiency, because a line paced by its bottleneck cannot earn more.
+- **Screens:**
+  - **Shop floor overview:** every line by site, with hours logged, good pieces against plan, efficiency, rejects and downtime. With no entries yet today it shows the latest day that has them, and says so.
+  - **Tablet line page:** hour-by-hour against plan, stops, large-touch entry forms for an hour and a stop, and correction pages with full history.
+  - **Batch cards:** knit rolls, dye batches (load, start, result) and cut bundles. Bundles have cutting progress per order, a scan box, a bundle page with a QR ticket (segno 1.6.6, inline SVG, no external calls) and printable ticket sheets.
+- **Demo:** 8 downtime reasons, plus two days of hourly output on the 16 lines running released orders (314 entries, one corrected), a power cut across the Apparel Park lines, a few line stops, 36 rolls, 3 dye batches and 56 bundles.
+- **Verification:** `tests/test_shopfloor.py` passes 7 tests:
+  - the efficiency worked example, with restatements and a withdrawn stop
+  - output rules, corrections, and the database refusing UPDATE and DELETE
+  - downtime off-standard handling
+  - roll, batch and re-dye rules
+  - bundle numbering and the cutting cap
+  - screens through CSRF, QR tickets, and read-only 403
+
 ## Factory Suite step 4: line balancing — 13 November 2026
 
 - **Data:** migration `f04a01` adds `line_balances`, `line_stations` and `station_operations`. The schema is now 88 tables: 72 Core plus 16 Factory.

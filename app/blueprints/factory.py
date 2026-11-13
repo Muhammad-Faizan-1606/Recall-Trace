@@ -249,6 +249,14 @@ COLUMNS = {
         ("Composition", lambda r, x: r.composition),
         ("Per garment", lambda r, x: f"{quantity_text(r.consumption_kg)} kg"),
     ),
+    "downtime-reasons": (
+        ("Reason", lambda r, x: label(r)),
+        ("Category", lambda r, x: human(r.category)),
+        (
+            "Efficiency",
+            lambda r, x: "Left out" if r.efficiency_rule == "off_standard" else "Counts",
+        ),
+    ),
     "transit": (
         ("Route", lambda r, x: label(r)),
         ("Hours", lambda r, x: r.hours),

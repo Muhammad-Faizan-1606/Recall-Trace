@@ -10,6 +10,7 @@
   ('machines', 'Machines', 'Every physical machine with its rating and status.', counts['machines'], url_for('factory.listing', company_id=company_id, resource='machines')),
   ('calendar', 'Holidays and shutdowns', 'Days a site works differently from its shift pattern.', counts['calendar'], url_for('factory.listing', company_id=company_id, resource='calendar')),
   ('transit', 'Transit times', 'Hours to move material between sites, used when scheduling.', counts['transit'], url_for('factory.listing', company_id=company_id, resource='transit')),
+  ('downtime-reasons', 'Downtime reasons', 'Why lines stop, and whether that time counts against their efficiency.', counts['downtime-reasons'], url_for('factory.listing', company_id=company_id, resource='downtime-reasons')),
 ] %}
 <div class="directory"><section aria-label="Setup steps"><ul>
 {% for key, name, blurb, count, href in steps %}

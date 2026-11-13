@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% from 'factory/_floor_macros.html' import cards_tabs %}
+{% block title %}Knit rolls · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Batch cards</h1><p>Every roll, dye batch and cut bundle, so fabric can be followed from the knitting frame to the sewing line.</p></div></div>
+{{ cards_tabs('rolls', company_id) }}
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="rolls-heading">
+      <div class="section-head"><h2 id="rolls-heading">Knit rolls</h2><span class="section-note">{{ waiting }} waiting for dyeing</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Roll</th><th scope="col">Machine</th><th scope="col">Knitted</th><th scope="col" class="num">kg</th><th scope="col">Grade</th><th scope="col">Order</th><th scope="col">Dye batch</th></tr></thead>
+        <tbody>{% for roll in page.items %}
+          <tr>
+            <td><strong>{{ roll.roll_number }}</strong></td>
+            <td>{{ machine_names.get(roll.machine_id, '—') }}</td>
+            <td>{{ roll.knitted_on|day }}</td>
+            <td class="num">{{ roll.kg|qty }}</td>
+            <td><span class="tag {{ 'tag-good' if roll.grade == 'A' else ('tag-waiting' if roll.grade == 'B' else 'tag-bad') }}">{{ roll.grade }}</span></td>
+            <td>{{ order_names.get(roll.production_order_id, '—') }}</td>
+            <td>{% if roll.dye_batch_id %}<a href="{{ url_for('shopfloor.batch', company_id=company_id, batch_id=roll.dye_batch_id) }}">{{ batches[roll.dye_batch_id].batch_number if roll.dye_batch_id in batches else 'Batch' }}</a>{% else %}<span class="fine-print">Not loaded</span>{% endif %}</td>
+          </tr>
+        {% else %}<tr><td colspan="7" class="empty">No rolls recorded yet.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% if page.pages > 1 %}<nav class="pager" aria-label="Pages">{% if page.has_prev %}<a href="{{ url_for('shopfloor.rolls', company_id=company_id, page=page.prev_num) }}">← Newer</a>{% endif %}<span>Page {{ page.page }} of {{ page.pages }}</span>{% if page.has_next %}<a href="{{ url_for('shopfloor.rolls', company_id=company_id, page=page.next_num) }}">Older →</a>{% endif %}</nav>{% endif %}
+    </section>
+  </div>
+  <aside class="rail" aria-label="Record a roll">
+    {% if can_record %}
+    <section class="panel next-step floor-entry" aria-labelledby="roll-title">
+      <h2 id="roll-title">Record a roll</h2>
+      <form method="post">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="roll_number">Roll number</label><input class="form-control mb-2" id="roll_number" name="roll_number" maxlength="40" required>
+        <label class="form-label" for="machine_id">Knitting machine</label>
+        <select class="form-select mb-2" id="machine_id" name="machine_id">{% for m in machines %}<option value="{{ m.id }}">{{ m.asset_tag }}{% if m.status != 'active' %} ({{ m.status }}){% endif %}</option>{% endfor %}</select>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" for="kg">Weight (kg)</label><input class="form-control" id="kg" name="kg" type="number" step="0.001" min="0.001" max="100" inputmode="decimal" required></div>
+          <div class="col-6"><label class="form-label" for="grade">Grade</label><select class="form-select" id="grade" name="grade"><option>A</option><option>B</option><option>C</option></select></div>
+        </div>
+        <label class="form-label mt-2" for="knitted_on">Knitted on</label><input class="form-control mb-2" id="knitted_on" name="knitted_on" type="date" value="{{ today.isoformat() }}" required>
+        <label class="form-label" for="production_order_id">Order (optional)</label>
+        <select class="form-select mb-3" id="production_order_id" name="production_order_id"><option value="">None yet</option>{% for o in orders %}<option value="{{ o.id }}">{{ o.reference }}</option>{% endfor %}</select>
+        <button class="btn btn-primary w-100" type="submit">Save roll</button>
+      </form>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

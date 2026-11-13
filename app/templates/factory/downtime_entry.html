@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Stop · {{ line.name }}{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=line.id, day=current.day.isoformat()) }}">{{ line.name }} · {{ current.day.strftime('%d %b') }}</a></p>
+<div class="page-head"><div><h1>Stop on {{ line.name }}</h1><p>Entries are never changed or deleted. A correction restates the stop; zero minutes withdraws it.</p></div></div>
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="hist-heading">
+      <div class="section-head"><h2 id="hist-heading">History</h2></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Recorded</th><th scope="col">Reason</th><th scope="col">Machine</th><th scope="col" class="num">Hour</th><th scope="col" class="num">Minutes</th><th scope="col" class="num">Operators</th><th scope="col">Note</th></tr></thead>
+        <tbody>{% for row in rows %}<tr><td>{{ row.recorded_at|when }}{% if row.id == current.id %} <span class="tag tag-good">counts</span>{% endif %}</td><td>{{ reason_names[row.reason_id].name if row.reason_id in reason_names else '—' }}</td><td>{{ machine_names.get(row.machine_id, '—') }}</td><td class="num">{{ row.hour }}</td><td class="num">{{ row.minutes }}</td><td class="num">{{ row.operators_affected }}</td><td>{{ row.note or '' }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+  <aside class="rail" aria-label="Correct">
+    {% if can_record %}
+    <section class="panel next-step" aria-labelledby="fix-title">
+      <h2 id="fix-title">Correct this stop</h2>
+      <form method="post">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="reason_id">Reason</label>
+        <select class="form-select mb-2" id="reason_id" name="reason_id">{% for r in reasons if not r.archived_at or r.id == current.reason_id %}<option value="{{ r.id }}"{% if r.id == current.reason_id %} selected{% endif %}>{{ r.name }}</option>{% endfor %}</select>
+        <label class="form-label" for="machine_id">Machine</label>
+        <select class="form-select mb-2" id="machine_id" name="machine_id"><option value="">Whole line / none</option>{% for m in machines %}<option value="{{ m.id }}"{% if m.id == current.machine_id %} selected{% endif %}>{{ m.asset_tag }}</option>{% endfor %}</select>
+        <div class="row g-2">
+          <div class="col-4"><label class="form-label" for="hour">Hour</label><input class="form-control" id="hour" name="hour" type="number" min="1" max="24" value="{{ current.hour }}" required></div>
+          <div class="col-4"><label class="form-label" for="minutes">Minutes</label><input class="form-control" id="minutes" name="minutes" type="number" min="0" max="600" value="{{ current.minutes }}" required></div>
+          <div class="col-4"><label class="form-label" for="ops">Operators</label><input class="form-control" id="ops" name="operators_affected" type="number" min="0" max="500" value="{{ current.operators_affected }}" required></div>
+        </div>
+        <label class="form-label mt-2" for="note">Why it is corrected</label>
+        <input class="form-control mb-3" id="note" name="note" maxlength="200" required>
+        <button class="btn btn-primary w-100" type="submit">Save correction</button>
+      </form>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

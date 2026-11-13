@@ -953,3 +953,292 @@ def seed_balances(organization, member):
         f"{published} sewing lines balanced and published ({len(UNEVEN)} left uneven to show "
         "the bottleneck tools), plus one changeover draft."
     ]
+
+
+# ---------- Step 5: fictional shop-floor history ----------
+
+DOWNTIME_REASONS = [
+    ("BRK", "Machine breakdown", "breakdown", "off_standard"),
+    ("PWR", "Power cut", "power", "off_standard"),
+    ("FEED", "No feeding (waiting for bundles)", "no_feeding", "off_standard"),
+    ("CHG", "Style changeover", "changeover", "off_standard"),
+    ("NDL", "Needle or bobbin change", "needle_bobbin", "operator"),
+    ("RWK", "Quality rework", "quality", "operator"),
+    ("MTG", "Line meeting", "meeting", "off_standard"),
+    ("OTH", "Other", "other", "operator"),
+]
+# How each line performs against its plan in the fictional history (1.00 = on plan).
+LINE_FORM = {"QIE2-L03": 0.78, "PARK-L06": 0.86, "PARK-L05": 1.04, "SUN-L02": 0.93}
+
+
+def _pace(code, hour, day_index):
+    """A deterministic hourly rhythm: slow first hour, a dip after lunch, steady otherwise."""
+    shape = {1: 0.74, 2: 0.92, 5: 0.88}.get(hour, 1.0)
+    wobble = ((sum(map(ord, code)) * 7 + hour * 13 + day_index * 29) % 11 - 5) / 100
+    return shape + wobble
+
+
+def seed_floor(organization, member, today=None):
+    """Two days of hourly output, stops, rolls, dye batches and bundles, once."""
+    from app.models import now as current_time
+    from app.models.factory import (
+        CutBundle,
+        DowntimeEvent,
+        DowntimeReason,
+        DyeBatch,
+        KnitRoll,
+        OutputLog,
+        ProductionOrder,
+    )
+    from app.services import balancing, engineering
+
+    company_id = organization.id
+    if db.session.scalar(
+        select(DowntimeReason.id).where(DowntimeReason.organization_id == company_id)
+    ):
+        return []
+    today = today or date.today()
+    reasons = {}
+    for code, name, category, rule in DOWNTIME_REASONS:
+        reason = DowntimeReason(
+            organization_id=company_id,
+            code=code,
+            name=name,
+            category=category,
+            efficiency_rule=rule,
+        )
+        db.session.add(reason)
+        reasons[code] = reason
+    db.session.flush()
+
+    released = db.session.scalars(
+        select(ProductionOrder).where(
+            ProductionOrder.organization_id == company_id,
+            ProductionOrder.status == "released",
+        )
+    ).all()
+    by_style = {order.style_id: order for order in released}
+    sams = engineering.bulletin_sams(company_id, [o.bulletin_id for o in released])
+    current = balancing.current_balances(company_id)
+    figures = balancing.summaries(company_id, list(current.values()))
+    from app.models.factory import OperationBulletin, ShiftPattern
+
+    bulletins = {
+        b.id: b
+        for b in db.session.scalars(
+            select(OperationBulletin).where(OperationBulletin.organization_id == company_id)
+        )
+    }
+    patterns = {
+        p.id: p
+        for p in db.session.scalars(
+            select(ShiftPattern).where(ShiftPattern.organization_id == company_id)
+        )
+    }
+    lines = {line.id: line for line in balancing.sewing_lines(company_id)}
+    logs = stops = 0
+    first_log = None
+    for line_id, balance in current.items():
+        line = lines.get(line_id)
+        bulletin = bulletins.get(balance.bulletin_id)
+        order = by_style.get(bulletin.style_id) if bulletin else None
+        if line is None or order is None or balance.id not in figures:
+            continue
+        stations, _, per_day = figures[balance.id]
+        minutes = balancing.productive_minutes(patterns[line.shift_pattern_id])
+        hours = int(minutes // 60)
+        per_hour = per_day / minutes * 60
+        form = Decimal(str(LINE_FORM.get(line.code, 0.97)))
+        for day_index, day in enumerate((today - timedelta(days=1), today)):
+            last_hour = hours if day_index == 0 else min(5, hours)
+            for hour in range(1, last_hour + 1):
+                pace = Decimal(str(_pace(line.code, hour, day_index)))
+                good = int(per_hour * form * pace)
+                rejects = max(0, int(good * Decimal("0.018") * pace) + (hour % 3 == 0))
+                row = OutputLog(
+                    organization_id=company_id,
+                    work_center_id=line.id,
+                    production_order_id=order.id,
+                    day=day,
+                    hour=hour,
+                    good_pieces=good,
+                    rejects=rejects,
+                    operators=stations - (1 if hour == 1 and line.code.endswith("3") else 0),
+                    minutes=60,
+                    sam=Decimal(sams[order.bulletin_id]),
+                    recorded_by_id=member.id,
+                    recorded_at=current_time() - timedelta(days=1 - day_index, hours=12 - hour),
+                )
+                db.session.add(row)
+                logs += 1
+                if first_log is None and day_index == 0 and hour == 3:
+                    first_log = row
+        yesterday = today - timedelta(days=1)
+        if line.code.startswith("PARK"):
+            db.session.add(
+                DowntimeEvent(
+                    organization_id=company_id,
+                    work_center_id=line.id,
+                    reason_id=reasons["PWR"].id,
+                    day=yesterday,
+                    hour=4,
+                    minutes=25,
+                    operators_affected=stations,
+                    note="Grid outage before the generator took over",
+                    recorded_by_id=member.id,
+                )
+            )
+            stops += 1
+        if line.code in LINE_FORM:
+            db.session.add(
+                DowntimeEvent(
+                    organization_id=company_id,
+                    work_center_id=line.id,
+                    reason_id=reasons["NDL"].id,
+                    day=yesterday,
+                    hour=6,
+                    minutes=18,
+                    operators_affected=2,
+                    recorded_by_id=member.id,
+                )
+            )
+            db.session.add(
+                DowntimeEvent(
+                    organization_id=company_id,
+                    work_center_id=line.id,
+                    reason_id=reasons["FEED"].id,
+                    day=today,
+                    hour=2,
+                    minutes=20,
+                    operators_affected=max(1, stations // 3),
+                    note="Waiting for cut bundles from the cutting bay",
+                    recorded_by_id=member.id,
+                )
+            )
+            stops += 2
+    db.session.flush()
+    if first_log is not None:
+        db.session.add(
+            OutputLog(
+                organization_id=company_id,
+                work_center_id=first_log.work_center_id,
+                production_order_id=first_log.production_order_id,
+                day=first_log.day,
+                hour=first_log.hour,
+                good_pieces=first_log.good_pieces + 12,
+                rejects=first_log.rejects,
+                operators=first_log.operators,
+                minutes=60,
+                sam=first_log.sam,
+                corrects_id=first_log.id,
+                note="One bundle was counted on the next hour's sheet",
+                recorded_by_id=member.id,
+            )
+        )
+
+    # Batch cards for the released orders: rolls, dye batches and bundles.
+    knitters = db.session.scalars(
+        select(Machine)
+        .where(Machine.organization_id == company_id, Machine.asset_tag.like("KNT-%"))
+        .order_by(Machine.asset_tag)
+    ).all()
+    vessels = db.session.scalars(
+        select(Machine)
+        .where(
+            Machine.organization_id == company_id,
+            Machine.asset_tag.like("DYE-JET-%"),
+            Machine.status == "active",
+        )
+        .order_by(Machine.rated_value.desc(), Machine.asset_tag)
+    ).all()
+    rolls = batches = bundles = 0
+    sizes = (("S", 0.2), ("M", 0.3), ("L", 0.3), ("XL", 0.2))
+    for index, order in enumerate(sorted(released, key=lambda o: o.reference)):
+        prefix = order.reference.replace("PO-", "")
+        vessel = vessels[index % len(vessels)] if vessels else None
+        batch_rolls = []
+        for number in range(1, 13):
+            roll = KnitRoll(
+                organization_id=company_id,
+                roll_number=f"R{prefix}-{number:03d}",
+                machine_id=knitters[(index * 12 + number) % len(knitters)].id,
+                production_order_id=order.id,
+                knitted_on=today - timedelta(days=4 - (number % 3)),
+                kg=Decimal("22.5") + Decimal(number % 4),
+                grade="B" if number == 7 else "A",
+            )
+            db.session.add(roll)
+            batch_rolls.append(roll)
+            rolls += 1
+        db.session.flush()
+        if vessel is None:
+            continue
+        status = "passed" if index < 2 else "dyeing"
+        started = current_time() - timedelta(days=2, hours=index * 3)
+        loaded = []
+        for roll in batch_rolls[:10]:
+            if sum(r.kg for r in loaded) + roll.kg > vessel.rated_value:
+                break
+            loaded.append(roll)
+        batch = DyeBatch(
+            organization_id=company_id,
+            batch_number=f"DB-{prefix}-1",
+            machine_id=vessel.id,
+            production_order_id=order.id,
+            colour=order.colour,
+            recipe_reference=f"RCP-{prefix[-3:]}-{order.colour[:3].upper()}",
+            status=status,
+            started_at=started,
+            finished_at=started + timedelta(hours=7) if status == "passed" else None,
+        )
+        db.session.add(batch)
+        db.session.flush()
+        for roll in loaded:
+            roll.dye_batch_id = batch.id
+        batches += 1
+        if status != "passed":
+            continue
+        count = 0
+        for lay in (1, 2):
+            for size, share in sizes:
+                pieces = int(360 * share)
+                for chunk in range(0, pieces, 30):
+                    count += 1
+                    state = "sewn" if lay == 1 and count % 4 else ("issued" if lay == 1 else "cut")
+                    line = next(
+                        (
+                            lines[lid]
+                            for lid, b in current.items()
+                            if lid in lines
+                            and bulletins.get(b.bulletin_id)
+                            and bulletins[b.bulletin_id].style_id == order.style_id
+                        ),
+                        None,
+                    )
+                    if line is None:
+                        state = "cut"
+                    issued_at = current_time() - timedelta(hours=20) if state != "cut" else None
+                    db.session.add(
+                        CutBundle(
+                            organization_id=company_id,
+                            bundle_number=f"{order.reference}-{count:04d}",
+                            production_order_id=order.id,
+                            dye_batch_id=batch.id,
+                            lay_number=f"L{prefix}-{lay:02d}",
+                            size=size,
+                            pieces=min(30, pieces - chunk),
+                            status=state,
+                            issued_line_id=line.id if state != "cut" else None,
+                            issued_at=issued_at,
+                            sewn_at=current_time() - timedelta(hours=6)
+                            if state == "sewn"
+                            else None,
+                        )
+                    )
+                    bundles += 1
+    db.session.flush()
+    audit(company_id, "factory.demo_floor_seeded", "output_logs", None, {"count": logs})
+    return [
+        f"Shop floor history: {logs} hourly entries over two days (one corrected), {stops} stops, "
+        f"{rolls} knit rolls, {batches} dye batches and {bundles} cut bundles."
+    ]

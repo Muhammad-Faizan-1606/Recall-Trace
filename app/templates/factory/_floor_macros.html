@@ -1,0 +1,11 @@
+{% macro day_nav(endpoint, day, today, args) %}
+<nav class="pager mb-3" aria-label="Day">
+  <a href="{{ url_for(endpoint, day=day_shift(day, -1), **args) }}">← Previous day</a>
+  <span>{{ day.strftime('%A %d %b %Y') }}{% if day == today %} · today{% endif %}</span>
+  {% if day < today %}<a href="{{ url_for(endpoint, day=day_shift(day, 1), **args) }}">Next day →</a>{% endif %}
+</nav>
+{% endmacro %}
+{% macro eff_tag(value, planned) %}{% if value is none %}<span class="fine-print">—</span>{% else %}<span class="tag {{ 'tag-good' if value >= planned - 5 else ('tag-waiting' if value >= planned - 15 else 'tag-bad') }}">{{ value|cap }}%</span>{% endif %}{% endmacro %}
+{% macro cards_tabs(current, company_id) %}
+<nav aria-label="Batch cards"><ul class="tabs">{% for key, text, endpoint in [('rolls', 'Knit rolls', 'shopfloor.rolls'), ('batches', 'Dye batches', 'shopfloor.batches'), ('bundles', 'Cut bundles', 'shopfloor.bundles')] %}<li><a href="{{ url_for(endpoint, company_id=company_id) }}"{% if key == current %} aria-current="page"{% endif %}>{{ text }}</a></li>{% endfor %}</ul></nav>
+{% endmacro %}

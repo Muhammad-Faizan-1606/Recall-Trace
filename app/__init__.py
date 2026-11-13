@@ -230,6 +230,9 @@ def create_app(config=None):
     from app.blueprints.balancing import bp as balancing_bp
 
     app.register_blueprint(balancing_bp)
+    from app.blueprints.shopfloor import bp as shopfloor_bp
+
+    app.register_blueprint(shopfloor_bp)
     from app.cli import register
 
     register(app)

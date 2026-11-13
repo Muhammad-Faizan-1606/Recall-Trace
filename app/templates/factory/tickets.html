@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Tickets · {{ order.reference }}{% endblock %}
+{% block content %}
+<p class="back-link d-print-none"><a href="{{ url_for('shopfloor.bundles', company_id=company_id, order=order.id) }}">Bundles for {{ order.reference }}</a></p>
+<div class="page-head d-print-none"><div><h1>Bundle tickets · {{ order.reference }}</h1><p>{{ tickets|length }} bundle{{ 's' if tickets|length != 1 }} still at cutting. Print this page and tie each ticket to its bundle; scanning a ticket opens the bundle.</p></div></div>
+<div class="ticket-sheet">
+{% for bundle, qr in tickets %}
+  <article class="ticket-card">
+    <div class="ticket-code">{{ qr }}</div>
+    <div>
+      <p class="ticket-number">{{ bundle.bundle_number }}</p>
+      <p class="mb-0">{{ style.code }} · {{ order.colour }}</p>
+      <p class="mb-0">Size <strong>{{ bundle.size }}</strong> · {{ bundle.pieces }} pcs</p>
+      <p class="fine-print mb-0">Lay {{ bundle.lay_number }}</p>
+    </div>
+  </article>
+{% else %}<p class="empty">No bundles are waiting at cutting for this order.</p>{% endfor %}
+</div>
+{% endblock %}

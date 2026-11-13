@@ -32,8 +32,8 @@ FUNCTIONS = (
 )
 # Column UPDATE(id) permits existing row-locking workflows; the unconditional
 # immutable-history trigger still rejects every actual UPDATE on these tables.
-# 72 Core tables plus 16 Factory Suite tables (migrations f01a01 to f04a01).
-APPLICATION_TABLES = 88
+# 72 Core tables plus 22 Factory Suite tables (migrations f01a01 to f05a01).
+APPLICATION_TABLES = 94
 ROW_LOCK_TABLES = frozenset({"stock_transactions", "trace_runs", "case_comments"})
 IMMUTABLE = frozenset(
     {
@@ -48,6 +48,8 @@ IMMUTABLE = frozenset(
         "trace_runs",
         "trace_results",
         "machine_status_events",
+        "output_logs",
+        "downtime_events",
     }
 )
 
