@@ -30,6 +30,7 @@
   - the MTTR/MTBF/response worked example
   - overdue alerts counting down as jobs are opened
   - screens, and read-only 403
+- **Dependency audit:** CI's pip-audit flagged CVE-2026-128089 in dnspython 2.9.1, a dependency of email-validator; all 571 tests had passed. Both lockfiles now pin the fixed 2.9.2 (`uv pip compile --upgrade-package dnspython`, hashes regenerated); pip-audit is clean locally for both.
 
 ## Factory Suite step 6: alerts and factory dashboard — 13 November 2026
 
