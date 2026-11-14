@@ -293,3 +293,11 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Checks are evidence, so they are append-only.** They use the same restatement pattern as hourly output.
 - **The DHU limit is a constant (7.5).** It becomes a per-buyer or per-style setting once a factory supplies its targets; buyers commonly ask for end-line DHU at or below 5–7.5.
 - **AQL final audits stay in the existing Core inspections**, which work on lots. They connect to factory orders once garments are posted as lots in step 8b.
+
+## 14 November 2026 — Factory Suite step 8b: trace chain
+
+- **The factory posts through the existing operations services, not around them.** Fabric, cut and garment lots are created by ordinary production postings, so the stock journal, idempotency, stock checks, holds and genealogy-cycle rules all apply, and the recall trace and investigations work unchanged. That is the requirement in the plan, and it keeps one source of truth for genealogy.
+- **One factory WIP location.** Work in progress is held in one `FACTORY-WIP` warehouse at the first site. Moves between sites are planned (transit times) but not posted as stock transfers. Genealogy, which is what a recall needs, is complete; site-level WIP stock would need posted transfers between site warehouses.
+- **Knitting and dyeing are posted as one step.** Greige rolls are not separately stocked: yarn lots go straight to the dyed fabric lot. A greige lot can be added when a factory tracks greige stock.
+- **Kilograms per lay come from the style's fabric specification.** The pieces cut × kg per garment is consumed from the batch's fabric lot. A shortfall is refused, not silently cut.
+- **AQL final audits.** Garment lots are ordinary lots, so the existing inspection templates and inspections apply to them directly.

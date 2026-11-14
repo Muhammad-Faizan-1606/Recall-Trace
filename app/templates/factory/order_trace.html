@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ order.reference }} · Traceability{% endblock %}
+{% block content %}
+{% macro lot_link(lot) %}<a href="{{ url_for('master.detail', company_id=company_id, resource='lots', record_id=lot.id) }}">{{ lot.lot_code }}</a>{% endmacro %}
+<p class="back-link"><a href="{{ url_for('planning.order', company_id=company_id, order_id=order.id) }}">{{ order.reference }}</a></p>
+<div class="page-head">
+  <div>
+    <h1>{{ order.reference }} · yarn to carton</h1>
+    <p>Each stage is posted as an ordinary production record, so a recall investigation on any yarn, fabric or cut lot finds the garments and shipments below without extra work. {{ style.code }} — {{ style.name }}, {{ order.colour }}.</p>
+  </div>
+</div>
+
+<ol class="chain" aria-label="Traceability chain">
+  <li class="chain-step">
+    <h2>Yarn</h2>
+    {% for lot in c.yarn.values() %}<p>{{ lot_link(lot) }}{% if lot.supplier_lot_code %}<span class="fine-print"> · spinner lot {{ lot.supplier_lot_code }}</span>{% endif %}</p>{% else %}<p class="fine-print">No yarn lot recorded on the rolls yet.</p>{% endfor %}
+  </li>
+  <li class="chain-step">
+    <h2>Fabric</h2>
+    {% for batch, lot, rolls, yarn_ids in c.batches %}
+      <p><a href="{{ url_for('shopfloor.batch', company_id=company_id, batch_id=batch.id) }}">Batch {{ batch.batch_number }}</a> · {{ rolls }} roll{{ 's' if rolls != 1 }}<br>
+      {% if lot %}<span class="tag tag-good">posted</span> {{ lot_link(lot) }}{% elif batch.status == 'passed' %}<span class="tag tag-waiting">ready to post</span>{% else %}<span class="tag">{{ batch.status.replace('_', ' ') }}</span>{% endif %}</p>
+    {% else %}<p class="fine-print">No dye batch for this order.</p>{% endfor %}
+  </li>
+  <li class="chain-step">
+    <h2>Cut lays</h2>
+    {% for lay, pieces, lot, batch in c.lays %}
+      <p>Lay {{ lay }} · {{ '{:,}'.format(pieces) }} pcs<br>{% if lot %}<span class="tag tag-good">posted</span> {{ lot_link(lot) }}{% else %}<span class="tag tag-waiting">not posted</span>{% if batch %}<span class="fine-print"> from {{ batch.batch_number }}</span>{% endif %}{% endif %}</p>
+    {% else %}<p class="fine-print">Nothing cut yet.</p>{% endfor %}
+    {% if can_post and c.lays and (c.lays|selectattr('2', 'none')|list) %}<form method="post" action="{{ url_for('shopfloor.order_trace_post', company_id=company_id, order_id=order.id, stage='lays') }}">{{ action_form.hidden_tag() }}<button class="btn btn-sm btn-primary" type="submit">Post cut lays</button></form>{% endif %}
+  </li>
+  <li class="chain-step">
+    <h2>Garments</h2>
+    {% for lot, pieces in c.garments %}<p><span class="tag tag-good">packed</span> {{ lot_link(lot) }} · {{ '{:,}'.format(pieces) }} pcs</p>{% else %}<p class="fine-print">Nothing packed yet.</p>{% endfor %}
+    {% if c.sewn_unpacked %}<p class="fine-print">{{ '{:,}'.format(c.sewn_unpacked) }} sewn pieces waiting to be packed.</p>{% if can_post %}<form method="post" action="{{ url_for('shopfloor.order_trace_post', company_id=company_id, order_id=order.id, stage='packing') }}">{{ action_form.hidden_tag() }}<button class="btn btn-sm btn-primary" type="submit">Post packed garments</button></form>{% endif %}{% endif %}
+  </li>
+  <li class="chain-step">
+    <h2>Shipped</h2>
+    {% for shipment, line in c.shipments %}<p>{{ shipment.reference }} · {{ line.quantity|qty }} pcs<br><span class="tag {{ 'tag-good' if shipment.status == 'posted' else '' }}">{{ 'dispatched' if shipment.status == 'posted' else shipment.status }}</span></p>{% else %}<p class="fine-print">Not shipped yet. Ship packed garment lots from <a href="{{ url_for('operations.dashboard', company_id=company_id) }}">Operations</a>.</p>{% endfor %}
+  </li>
+</ol>
+
+<section class="section" aria-labelledby="recall-heading">
+  <div class="section-head"><h2 id="recall-heading">If something goes wrong</h2></div>
+  <p>A spinner warning about a yarn lot, a failed dye test or a needle found in a carton starts an investigation in RecallTrace. Add the affected lot as the source, and the trace follows these postings to every garment lot and shipment.</p>
+  {% if can_trace %}<a class="btn btn-outline-secondary" href="{{ url_for('recall.editor', company_id=company_id) }}">Start an investigation</a>{% endif %}
+</section>
+{% endblock %}

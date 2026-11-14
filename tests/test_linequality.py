@@ -124,7 +124,9 @@ def test_high_end_line_dhu_raises_an_alert(floor):  # noqa: F811
     alerts.scan(company_id, day=TODAY)
     alert = db.session.scalar(select(FactoryAlert).where(FactoryAlert.kind == "quality_dhu"))
     assert alert.title == "L1 end-line DHU 13.3, above 7.5"
-    assert alert.severity == "warning" and "most often skip stitch" in alert.detail
+    assert (
+        alert.severity == "warning" and "most often open seam" in alert.detail
+    )  # tied 4–4; alphabetical
 
 
 def test_quality_screens_and_permissions(floor, client):  # noqa: F811

@@ -27,9 +27,9 @@ from app.models.factory import (
     Style,
     WorkCenter,
 )
-from app.models.master import Site
+from app.models.master import Lot, Site
 from app.policies import allowed, require
-from app.services import alerts, balancing, linequality, shopfloor
+from app.services import alerts, balancing, factory_trace, linequality, shopfloor
 from app.services.business import DomainError, scoped
 
 bp = Blueprint("shopfloor", __name__, url_prefix="/companies/<uuid:company_id>/factory")
@@ -416,6 +416,7 @@ def rolls(company_id):
         )
     }
     machines = machines_in(company_id, "knitting")
+    yarn = factory_trace.yarn_lots(company_id)
     return render_template(
         "factory/rolls.html",
         page=page,
@@ -426,6 +427,8 @@ def rolls(company_id):
         order_names={o.id: o.reference for o in open_orders(company_id)},
         today=date.today(),
         waiting=len(shopfloor.loadable_rolls(company_id)),
+        yarn=yarn,
+        yarn_names={lot.id: lot.lot_code for lot in yarn},
         **ctx,
     )
 
@@ -493,8 +496,23 @@ def batch(company_id, batch_id):
         )
     )
     ctx["action_form"] = ActionForm(version=str(row.version))
+    ctx["can_post"] = allowed(company_id, "factory.manage") and allowed(
+        company_id, "production.post"
+    )
+    yarn_ids = {r.yarn_lot_id for r in rolls_in if r.yarn_lot_id}
+    yarn = (
+        db.session.scalars(
+            select(Lot).where(Lot.organization_id == company_id, Lot.id.in_(yarn_ids))
+        ).all()
+        if yarn_ids
+        else []
+    )
     return render_template(
         "factory/batch.html",
+        fabric_lot=db.session.get(Lot, row.fabric_lot_id) if row.fabric_lot_id else None,
+        yarn=yarn,
+        yarn_names={lot.id: lot.lot_code for lot in yarn},
+        missing_yarn=sum(1 for r in rolls_in if not r.yarn_lot_id),
         batch=row,
         rolls=rolls_in,
         total=sum((r.kg for r in rolls_in), Decimal(0)),
@@ -769,3 +787,67 @@ def check_entry(company_id, check_id):
         running=shopfloor.running_orders(company_id),
         **ctx,
     )
+
+
+# ---------- Traceability: posting the yarn-to-carton chain ----------
+
+
+@bp.get("/orders/<uuid:order_id>/trace")
+@login_required
+def order_trace(company_id, order_id):
+    ctx = floor_context(company_id)
+    order = scoped(ProductionOrder, company_id, order_id)
+    ctx["can_post"] = allowed(company_id, "factory.manage") and allowed(
+        company_id, "production.post"
+    )
+    return render_template(
+        "factory/order_trace.html",
+        order=order,
+        style=scoped(Style, company_id, order.style_id),
+        c=factory_trace.chain(company_id, order.id),
+        can_trace=allowed(company_id, "trace.run") and allowed(company_id, "case.prepare"),
+        **ctx,
+    )
+
+
+def _trace_back(company_id, order_id):
+    return redirect(url_for("shopfloor.order_trace", company_id=company_id, order_id=order_id), 303)
+
+
+@bp.post("/orders/<uuid:order_id>/trace/<any(lays, packing):stage>")
+@login_required
+def order_trace_post(company_id, order_id, stage):
+    context(company_id)
+    require(company_id, "factory.manage")
+    if not ActionForm().validate_on_submit():
+        abort(400)
+    try:
+        if stage == "lays":
+            lots = factory_trace.post_lays(company_id, order_id)
+            message = f"{len(lots)} cut lay{'s' if len(lots) != 1 else ''} posted: " + ", ".join(
+                lot.lot_code for lot in lots
+            )
+        else:
+            lot = factory_trace.post_packing(company_id, order_id)
+            message = f"Packed garments posted as lot {lot.lot_code}; ship it from Operations."
+    except DomainError as exc:
+        flash(str(exc), "danger")
+    else:
+        flash(message, "success")
+    return _trace_back(company_id, order_id)
+
+
+@bp.post("/dye-batches/<uuid:batch_id>/trace")
+@login_required
+def batch_trace(company_id, batch_id):
+    context(company_id)
+    require(company_id, "factory.manage")
+    if not ActionForm().validate_on_submit():
+        abort(400)
+    try:
+        lot = factory_trace.post_batch(company_id, batch_id)
+    except DomainError as exc:
+        flash(str(exc), "danger")
+    else:
+        flash(f"Fabric posted as lot {lot.lot_code}, made from the batch's yarn lots.", "success")
+    return redirect(url_for("shopfloor.batch", company_id=company_id, batch_id=batch_id), 303)

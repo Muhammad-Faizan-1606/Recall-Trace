@@ -81,6 +81,7 @@
         <dt>Fabric relaxation</dt><dd>{{ relaxation }} h</dd>
         <dt>Ex-factory</dt><dd>{{ order.ex_factory_on|day }}</dd>
       </dl>
+      {% if order.status in ('released', 'completed') %}<a href="{{ url_for('shopfloor.order_trace', company_id=company_id, order_id=order.id) }}">Traceability: yarn to carton</a>{% endif %}
     </section>
   </aside>
 </div>

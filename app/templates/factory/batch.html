@@ -24,11 +24,21 @@
   <div><dt>Started · finished</dt><dd>{% if batch.started_at %}{{ batch.started_at|when }}{% else %}—{% endif %}<small class="fine-print">{% if batch.finished_at %} · {{ batch.finished_at|when }}{% endif %}</small></dd></div>
   <div><dt>Bundles cut from it</dt><dd>{{ bundles }}</dd></div>
 </dl>
+<section class="section" aria-labelledby="trace-heading">
+  <div class="section-head"><h2 id="trace-heading">Traceability</h2></div>
+  {% if fabric_lot %}
+  <p>Fabric posted as lot <a href="{{ url_for('master.detail', company_id=company_id, resource='lots', record_id=fabric_lot.id) }}">{{ fabric_lot.lot_code }}</a>, made from yarn lot{{ 's' if yarn|length != 1 }} {% for lot in yarn %}<a href="{{ url_for('master.detail', company_id=company_id, resource='lots', record_id=lot.id) }}">{{ lot.lot_code }}</a>{{ ', ' if not loop.last }}{% endfor %}.{% if order %} <a href="{{ url_for('shopfloor.order_trace', company_id=company_id, order_id=order.id) }}">Whole chain for {{ order.reference }}</a>{% endif %}</p>
+  {% elif batch.status == 'passed' %}
+  <p>When posted, the batch's yarn lots become one fabric lot, <strong>FAB-{{ batch.batch_number }}</strong>, through an ordinary production posting, so a recall on a yarn lot reaches this fabric and everything cut from it.</p>
+  {% if can_post %}<form method="post" action="{{ url_for('shopfloor.batch_trace', company_id=company_id, batch_id=batch.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit"{% if missing_yarn %} disabled{% endif %}>Post fabric to traceability</button></form>{% endif %}
+  {% if missing_yarn %}<p class="fine-print mt-2 mb-0">{{ missing_yarn }} roll{{ 's' if missing_yarn != 1 }} have no yarn lot recorded, so the fabric cannot be traced yet.</p>{% endif %}
+  {% else %}<p class="mb-0">Fabric is posted once the batch passes its shade check.</p>{% endif %}
+</section>
 <section class="section" aria-labelledby="rolls-heading">
   <div class="section-head"><h2 id="rolls-heading">Rolls in this batch</h2></div>
   <div class="table-responsive"><table class="table">
-    <thead><tr><th scope="col">Roll</th><th scope="col">Knitted</th><th scope="col" class="num">kg</th><th scope="col">Grade</th></tr></thead>
-    <tbody>{% for roll in rolls %}<tr><td>{{ roll.roll_number }}</td><td>{{ roll.knitted_on|day }}</td><td class="num">{{ roll.kg|qty }}</td><td>{{ roll.grade }}</td></tr>{% else %}<tr><td colspan="4" class="empty">No rolls; they were moved to a re-dye batch.</td></tr>{% endfor %}</tbody>
+    <thead><tr><th scope="col">Roll</th><th scope="col">Knitted</th><th scope="col" class="num">kg</th><th scope="col">Grade</th><th scope="col">Yarn lot</th></tr></thead>
+    <tbody>{% for roll in rolls %}<tr><td>{{ roll.roll_number }}</td><td>{{ roll.knitted_on|day }}</td><td class="num">{{ roll.kg|qty }}</td><td>{{ roll.grade }}</td><td>{{ yarn_names.get(roll.yarn_lot_id, '—') }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No rolls; they were moved to a re-dye batch.</td></tr>{% endfor %}</tbody>
   </table></div>
 </section>
 {% endblock %}

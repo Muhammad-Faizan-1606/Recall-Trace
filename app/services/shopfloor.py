@@ -564,6 +564,18 @@ def _optional_order(company_id, value):
     return order.id
 
 
+def _yarn_lot(company_id, value):
+    """The yarn lot a roll was knitted from (optional until it is posted to traceability)."""
+    if not value:
+        return None
+    from app.services.factory_trace import yarn_lots
+
+    lot_id = _uuid(value, "Choose a valid yarn lot.")
+    if lot_id not in {lot.id for lot in yarn_lots(company_id)}:
+        raise DomainError("Choose a received yarn lot.")
+    return lot_id
+
+
 def record_roll(company_id, values, today=None):
     require(company_id, PERMISSION)
 
@@ -589,6 +601,7 @@ def record_roll(company_id, values, today=None):
             knitted_on=_day(values.get("knitted_on"), today),
             kg=kg,
             grade=grade,
+            yarn_lot_id=_yarn_lot(company_id, values.get("yarn_lot_id")),
         )
         db.session.add(row)
         db.session.flush()

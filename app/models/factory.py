@@ -589,8 +589,11 @@ class DyeBatch(Owned, db.Model):
     started_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
     note: Mapped[str | None] = mapped_column(db.String(200))
+    # The fabric lot posted when the batch passed (step 8b trace chain).
+    fabric_lot_id: Mapped[uuid.UUID | None] = mapped_column()
     __table_args__ = (
         *identity("batch_number"),
+        tenant_fk("fabric_lot_id", "lots"),
         tenant_fk("machine_id", "machines"),
         tenant_fk("production_order_id", "production_orders"),
         _in("status", DYE_STATUSES),
@@ -616,8 +619,11 @@ class KnitRoll(Owned, db.Model):
     kg: Mapped[Decimal] = mapped_column(db.Numeric(8, 3))
     grade: Mapped[str] = mapped_column(db.String(1), default="A", server_default="A")
     dye_batch_id: Mapped[uuid.UUID | None] = mapped_column()
+    # The received yarn lot the roll was knitted from (step 8b trace chain).
+    yarn_lot_id: Mapped[uuid.UUID | None] = mapped_column()
     __table_args__ = (
         *identity("roll_number"),
+        tenant_fk("yarn_lot_id", "lots"),
         tenant_fk("machine_id", "machines"),
         tenant_fk("production_order_id", "production_orders"),
         tenant_fk("dye_batch_id", "dye_batches"),
@@ -640,8 +646,16 @@ class CutBundle(Owned, db.Model):
     issued_line_id: Mapped[uuid.UUID | None] = mapped_column()
     issued_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
     sewn_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    # Lots posted for the lay this bundle was cut from, and the packed garments it became.
+    cut_lot_id: Mapped[uuid.UUID | None] = mapped_column()
+    garment_lot_id: Mapped[uuid.UUID | None] = mapped_column()
     __table_args__ = (
         *identity("bundle_number"),
+        tenant_fk("cut_lot_id", "lots"),
+        tenant_fk("garment_lot_id", "lots"),
+        CheckConstraint(
+            "garment_lot_id IS NULL OR (status = 'sewn' AND cut_lot_id IS NOT NULL)", name="packed"
+        ),
         tenant_fk("production_order_id", "production_orders"),
         tenant_fk("dye_batch_id", "dye_batches"),
         tenant_fk("issued_line_id", "work_centers"),

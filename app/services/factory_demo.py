@@ -1663,3 +1663,185 @@ def seed_quality(organization, member, today=None):
     db.session.flush()
     audit(company_id, "factory.demo_quality_seeded", "line_quality_checks", None, {"count": checks})
     return [f"Line quality: {checks} fictional checks with {defects_total} defects recorded."]
+
+
+# ---------- Step 8b: fictional yarn-to-carton trace chain ----------
+
+SPINNER = ("SSM", "Sutlej Spinning Mills (demo)")
+YARN_LOTS = (("YRN-2611-A", "SSM-77A1", "1500"), ("YRN-2611-B", "SSM-77B4", "1500"))
+
+
+def seed_trace(organization, member):
+    """Receive yarn, record it on rolls, post fabric, lays and packing, ship one carton lot and
+    open a draft investigation on a yarn lot, all through the ordinary posting services."""
+    from app.models.factory import DyeBatch, KnitRoll, ProductionOrder, Style
+    from app.models.master import Lot, Partner, PartnerRoleAssignment
+    from app.services import factory_trace, recall
+    from app.services import operations as op
+    from app.services.business import DomainError
+
+    company_id = organization.id
+    if db.session.scalar(
+        select(Lot.id).where(Lot.organization_id == company_id, Lot.lot_code == YARN_LOTS[0][0])
+    ):
+        return []
+    master = factory_trace.ensure_master(company_id)
+    yarn_variant = factory_trace.variant(
+        company_id, "YARN-30S-CMB", "30/1 combed cotton yarn", "component", master.kg
+    )
+    spinner = db.session.scalar(
+        select(Partner).where(Partner.organization_id == company_id, Partner.code == SPINNER[0])
+    )
+    if spinner is None:
+        spinner = Partner(organization_id=company_id, code=SPINNER[0], name=SPINNER[1])
+        db.session.add(spinner)
+        db.session.flush()
+        db.session.add(
+            PartnerRoleAssignment(
+                organization_id=company_id, partner_id=spinner.id, role_code="supplier"
+            )
+        )
+    lots = []
+    for code, spinner_lot, _ in YARN_LOTS:
+        lot = Lot(
+            organization_id=company_id,
+            lot_code=code,
+            supplier_lot_code=spinner_lot,
+            variant_id=yarn_variant.id,
+            supplier_id=spinner.id,
+        )
+        db.session.add(lot)
+        lots.append(lot)
+    db.session.commit()
+    report = []
+    purchase = op.create_document(
+        company_id,
+        "purchase-orders",
+        {
+            "reference": "PO-YARN-2611",
+            "supplier_id": spinner.id,
+            "delivery_site_id": master.site.id,
+        },
+    )
+    line = op.add_line(
+        company_id,
+        "purchase-orders",
+        purchase.id,
+        {"variant_id": yarn_variant.id, "quantity": str(sum(int(kg) for *_, kg in YARN_LOTS))},
+    )
+    op.post_document(company_id, "purchase-orders", purchase.id, "demo-yarn-po")
+    receipt = op.create_document(
+        company_id,
+        "receipts",
+        {
+            "reference": "GR-YARN-2611",
+            "supplier_id": spinner.id,
+            "warehouse_id": master.warehouse.id,
+        },
+    )
+    for lot, (_, _, kg) in zip(lots, YARN_LOTS, strict=True):
+        op.add_line(
+            company_id,
+            "receipts",
+            receipt.id,
+            {
+                "purchase_order_line_id": line.id,
+                "lot_id": lot.id,
+                "location_id": master.location.id,
+                "quantity": kg,
+            },
+        )
+    op.post_document(company_id, "receipts", receipt.id, "demo-yarn-receipt")
+    report.append(f"Yarn: {len(lots)} lots received from the fictional spinner into factory WIP.")
+
+    # Every demo roll was knitted from one of the two yarn lots.
+    rolls = db.session.scalars(
+        select(KnitRoll)
+        .where(KnitRoll.organization_id == company_id)
+        .order_by(KnitRoll.roll_number)
+    ).all()
+    for index, roll in enumerate(rolls):
+        roll.yarn_lot_id = lots[0].id if index % 12 < 6 else lots[1].id
+    db.session.commit()
+
+    batches = db.session.scalars(
+        select(DyeBatch).where(DyeBatch.organization_id == company_id, DyeBatch.status == "passed")
+    ).all()
+    for batch in batches:
+        lot = factory_trace.post_batch(company_id, batch.id)
+        report.append(f"Fabric {lot.lot_code} posted from batch {batch.batch_number}.")
+    orders = {
+        o.id: o
+        for o in db.session.scalars(
+            select(ProductionOrder).where(ProductionOrder.organization_id == company_id)
+        )
+    }
+    traced = None
+    for batch in batches:
+        order = orders.get(batch.production_order_id)
+        if order is None:
+            continue
+        try:
+            factory_trace.post_lays(company_id, order.id)
+            factory_trace.post_packing(company_id, order.id)
+            traced = traced or order
+            report.append(f"{order.reference}: cut lays and packed garments posted.")
+        except DomainError as exc:
+            db.session.rollback()
+            report.append(f"{order.reference}: {exc}")
+    if traced is not None:
+        chain = factory_trace.chain(company_id, traced.id)
+        garment_lot, pieces = chain.garments[0]
+        style = db.session.get(Style, traced.style_id)
+        sale = op.create_document(
+            company_id,
+            "sales-orders",
+            {
+                "reference": f"SO-{traced.reference}",
+                "customer_id": style.buyer_id,
+                "destination": "Buyer distribution centre (fictional)",
+            },
+        )
+        sale_line = op.add_line(
+            company_id,
+            "sales-orders",
+            sale.id,
+            {"variant_id": garment_lot.variant_id, "quantity": str(pieces)},
+        )
+        op.post_document(company_id, "sales-orders", sale.id, f"demo-so-{traced.reference}")
+        shipment = op.create_document(
+            company_id,
+            "shipments",
+            {
+                "reference": f"SH-{traced.reference}-1",
+                "sales_order_id": sale.id,
+                "warehouse_id": master.warehouse.id,
+                "tracking_reference": f"CTN-{traced.reference}-001..{max(1, pieces // 40):03d}",
+            },
+        )
+        op.add_line(
+            company_id,
+            "shipments",
+            shipment.id,
+            {
+                "sales_order_line_id": sale_line.id,
+                "lot_id": garment_lot.id,
+                "source_location_id": master.location.id,
+                "quantity": str(pieces),
+            },
+        )
+        op.post_document(company_id, "shipments", shipment.id, f"demo-ship-{traced.reference}")
+        report.append(
+            f"Shipment SH-{traced.reference}-1 dispatched: {pieces} pieces of {garment_lot.lot_code}."
+        )
+        case = recall.save_case(
+            company_id,
+            "RC-YARN-2611-A",
+            "Yarn lot YRN-2611-A: spinner reports a failed restricted-substance test (fictional)",
+            "The fictional spinner flagged lot SSM-77A1. Trace which fabric, garments and "
+            "shipments contain it before deciding on any action.",
+            "high",
+        )
+        recall.source(company_id, case.id, lots[0].id, "Reported by the spinner")
+        report.append("Draft investigation RC-YARN-2611-A opened on yarn lot YRN-2611-A.")
+    return report

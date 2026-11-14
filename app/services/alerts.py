@@ -335,7 +335,9 @@ def quality_findings(company_id, day):
         dhu = quality.dhu("endline")
         if dhu is None or quality.pieces["endline"] < 50 or dhu <= linequality.DHU_LIMIT:
             continue
-        worst = max(quality.by_code.items(), key=lambda pair: pair[1], default=(None, 0))[0]
+        # Most frequent defect; ties go to the alphabetically first so the text is stable.
+        ranked = sorted(quality.by_code.items(), key=lambda pair: (-pair[1], pair[0]))
+        worst = ranked[0][0] if ranked else None
         found.append(
             Finding(
                 "quality_dhu",

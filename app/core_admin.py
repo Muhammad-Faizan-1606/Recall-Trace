@@ -290,6 +290,7 @@ def seed_factory_demo(owner_email, owner_of):
         seed_orders,
         seed_quality,
         seed_styles,
+        seed_trace,
     )
 
     with current_app.test_request_context():
@@ -305,6 +306,7 @@ def seed_factory_demo(owner_email, owner_of):
         report += seed_maintenance(organization, member)
         report += seed_quality(organization, member)
         report += seed_alerts(organization, member)
+        report += seed_trace(organization, member)
         db.session.commit()
     click.echo(f"{NAME}: {'created' if created else 'already present'}; owner access confirmed.")
     for line in report or ["Factory register already present; nothing changed."]:

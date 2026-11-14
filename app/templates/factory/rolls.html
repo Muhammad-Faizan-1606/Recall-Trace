@@ -9,7 +9,7 @@
     <section class="section" aria-labelledby="rolls-heading">
       <div class="section-head"><h2 id="rolls-heading">Knit rolls</h2><span class="section-note">{{ waiting }} waiting for dyeing</span></div>
       <div class="table-responsive"><table class="table">
-        <thead><tr><th scope="col">Roll</th><th scope="col">Machine</th><th scope="col">Knitted</th><th scope="col" class="num">kg</th><th scope="col">Grade</th><th scope="col">Order</th><th scope="col">Dye batch</th></tr></thead>
+        <thead><tr><th scope="col">Roll</th><th scope="col">Machine</th><th scope="col">Knitted</th><th scope="col" class="num">kg</th><th scope="col">Grade</th><th scope="col">Yarn lot</th><th scope="col">Order</th><th scope="col">Dye batch</th></tr></thead>
         <tbody>{% for roll in page.items %}
           <tr>
             <td><strong>{{ roll.roll_number }}</strong></td>
@@ -17,10 +17,11 @@
             <td>{{ roll.knitted_on|day }}</td>
             <td class="num">{{ roll.kg|qty }}</td>
             <td><span class="tag {{ 'tag-good' if roll.grade == 'A' else ('tag-waiting' if roll.grade == 'B' else 'tag-bad') }}">{{ roll.grade }}</span></td>
+            <td>{{ yarn_names.get(roll.yarn_lot_id, '—') }}</td>
             <td>{{ order_names.get(roll.production_order_id, '—') }}</td>
             <td>{% if roll.dye_batch_id %}<a href="{{ url_for('shopfloor.batch', company_id=company_id, batch_id=roll.dye_batch_id) }}">{{ batches[roll.dye_batch_id].batch_number if roll.dye_batch_id in batches else 'Batch' }}</a>{% else %}<span class="fine-print">Not loaded</span>{% endif %}</td>
           </tr>
-        {% else %}<tr><td colspan="7" class="empty">No rolls recorded yet.</td></tr>{% endfor %}</tbody>
+        {% else %}<tr><td colspan="8" class="empty">No rolls recorded yet.</td></tr>{% endfor %}</tbody>
       </table></div>
       {% if page.pages > 1 %}<nav class="pager" aria-label="Pages">{% if page.has_prev %}<a href="{{ url_for('shopfloor.rolls', company_id=company_id, page=page.prev_num) }}">← Newer</a>{% endif %}<span>Page {{ page.page }} of {{ page.pages }}</span>{% if page.has_next %}<a href="{{ url_for('shopfloor.rolls', company_id=company_id, page=page.next_num) }}">Older →</a>{% endif %}</nav>{% endif %}
     </section>
@@ -39,6 +40,9 @@
           <div class="col-6"><label class="form-label" for="grade">Grade</label><select class="form-select" id="grade" name="grade"><option>A</option><option>B</option><option>C</option></select></div>
         </div>
         <label class="form-label mt-2" for="knitted_on">Knitted on</label><input class="form-control mb-2" id="knitted_on" name="knitted_on" type="date" value="{{ today.isoformat() }}" required>
+        <label class="form-label" for="yarn_lot_id">Yarn lot</label>
+        <select class="form-select mb-2" id="yarn_lot_id" name="yarn_lot_id"><option value="">Not recorded</option>{% for lot in yarn %}<option value="{{ lot.id }}">{{ lot.lot_code }}{% if lot.supplier_lot_code %} · spinner {{ lot.supplier_lot_code }}{% endif %}</option>{% endfor %}</select>
+        <div class="form-text mb-2">Needed to post the fabric to traceability.</div>
         <label class="form-label" for="production_order_id">Order (optional)</label>
         <select class="form-select mb-3" id="production_order_id" name="production_order_id"><option value="">None yet</option>{% for o in orders %}<option value="{{ o.id }}">{{ o.reference }}</option>{% endfor %}</select>
         <button class="btn btn-primary w-100" type="submit">Save roll</button>

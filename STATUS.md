@@ -1,5 +1,31 @@
 # RecallTrace implementation status
 
+## Factory Suite step 8b: yarn-to-carton trace chain — 14 November 2026
+
+- **Data:** migration `f09a01` adds lot links to existing factory records: `knit_rolls.yarn_lot_id`, `dye_batches.fabric_lot_id`, `cut_bundles.cut_lot_id` and `cut_bundles.garment_lot_id`. A check enforces that only sewn bundles with a cut lot can be packed. No new tables: still 99.
+- **Posting** (`app/services/factory_trace.py`): each stage is an ordinary Core production run created and posted through `app.services.operations`. That means the same stock journal, idempotency, stock checks and genealogy cycle rules as the Operations screens:
+  - **Knit and dye:** the yarn lots on a passed batch's rolls → fabric lot `FAB-<batch>`, by kilograms.
+  - **Cut:** a lay's fabric (pieces × the style's kg per garment) → cut lot `CUT-<order>-<lay>`, refused clearly when the batch has too little fabric left.
+  - **Sew and pack:** sewn, unpacked bundles → garment lot `<order>-G<n>`, linking the style to its finished item the first time.
+  - **Shipping:** garment lots ship through the existing sales order and shipment workflow.
+- **Retries and setup:** the run reference is the idempotency key, so a retried posting resumes safely. Units (KG, PCS), item variants and one factory WIP warehouse and location are created on first use.
+- **Recall:** the existing trace is unchanged. Started from a yarn lot, it finds the fabric, cut panels and garments and the dispatched quantity.
+- **Screens:**
+  - Rolls record their yarn lot.
+  - A passed batch can be posted to traceability.
+  - The order page links to a yarn-to-carton chain page, with "Post cut lays" and "Post packed garments" buttons and a "Start an investigation" link.
+- **Demo:**
+  - 2 fictional yarn lots are received from a fictional spinner by purchase order and receipt.
+  - Rolls carry their yarn lots, and both passed batches are posted as fabric.
+  - PO-27006 is cut, packed (270 pieces) and shipped as SH-PO-27006-1.
+  - PO-27010's lay is refused because its batch has 240 kg and the lay needs 270 kg. This is left on purpose to show the stock check.
+  - A draft investigation, RC-YARN-2611-A, is opened on yarn lot YRN-2611-A. Locally, the unchanged trace reported 270 garments dispatched.
+- **Verification:** `tests/test_factory_trace.py` passes 3 tests:
+  - the full chain: yarn received, rolls, batch, fabric 80 kg, two lays posted and a third refused for 15 kg against 5 kg left, packing 100 pieces, a sales order and shipment, and the existing recall trace reporting 100 dispatched
+  - yarn lot validation
+  - screens, and read-only 403
+- **Also:** a nondeterministic tie in the DHU alert text (CI failure on the 8a commit; all other tests had passed) is fixed: ties go to the alphabetically first defect.
+
 ## Factory Suite step 8a: line quality — 14 November 2026
 
 - **Data:** migration `f08a01` adds `line_quality_checks` and `line_check_defects`, and adds `quality_dhu` to the alert kinds. The schema is now 99 tables: 72 Core plus 27 Factory.
