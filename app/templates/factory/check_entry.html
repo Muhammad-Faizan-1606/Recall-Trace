@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Quality check · {{ line.name }}{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=line.id, day=current.day.isoformat()) }}">{{ line.name }} · {{ current.day.strftime('%d %b') }}</a></p>
+<div class="page-head"><div><h1>{{ 'End-line' if current.stage == 'endline' else 'In-line' }} check, hour {{ current.hour }}</h1><p>Checks are never changed or deleted. A correction restates the check, and the newest entry counts.</p></div></div>
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="hist-heading">
+      <div class="section-head"><h2 id="hist-heading">History</h2></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Recorded</th><th scope="col" class="num">Checked</th><th scope="col" class="num">Defective</th><th scope="col" class="num">Defects</th><th scope="col">Found</th><th scope="col">Note</th></tr></thead>
+        <tbody>{% for row in rows %}<tr><td>{{ row.recorded_at|when }}{% if row.id == current.id %} <span class="tag tag-good">counts</span>{% endif %}</td><td class="num">{{ row.pieces_checked }}</td><td class="num">{{ row.defective_pieces }}</td><td class="num">{{ row.defects }}</td><td>{% for d in defects.get(row.id, []) %}<div>{{ d.count }} × {{ d.defect_code.replace('_', ' ') }}{% if d.bulletin_operation_id in operation_names %} · {{ operation_names[d.bulletin_operation_id].name }}{% endif %}</div>{% endfor %}</td><td>{{ row.note or '' }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+  <aside class="rail" aria-label="Correct">
+    {% if can_record %}
+    <section class="panel next-step" aria-labelledby="fix-title">
+      <h2 id="fix-title">Correct this check</h2>
+      <form method="post">
+        {{ action_form.hidden_tag() }}<input type="hidden" name="stage" value="{{ current.stage }}"><input type="hidden" name="hour" value="{{ current.hour }}">
+        <label class="form-label" for="production_order_id">Order</label>
+        <select class="form-select mb-2" id="production_order_id" name="production_order_id">{% for o in running %}<option value="{{ o.id }}"{% if o.id == current.production_order_id %} selected{% endif %}>{{ o.reference }}</option>{% endfor %}</select>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" for="pieces">Pieces checked</label><input class="form-control" id="pieces" name="pieces_checked" type="number" min="1" max="10000" value="{{ current.pieces_checked }}" required></div>
+          <div class="col-6"><label class="form-label" for="defective">With defects</label><input class="form-control" id="defective" name="defective_pieces" type="number" min="0" value="{{ current.defective_pieces }}" required></div>
+        </div>
+        <fieldset class="mt-2"><legend class="form-label">Defects found</legend>
+        {% set existing = defects.get(current.id, []) %}
+        {% for n in range(1, 4) %}{% set d = existing[n - 1] if existing|length >= n else none %}
+          <div class="defect-row">
+            <select class="form-select form-select-sm" name="defect_code_{{ n }}" aria-label="Defect {{ n }}"><option value="">Defect…</option>{% for code in defect_codes %}<option value="{{ code }}"{% if d and d.defect_code == code %} selected{% endif %}>{{ code.replace('_', ' ')|capitalize }}</option>{% endfor %}</select>
+            <select class="form-select form-select-sm" name="operation_{{ n }}" aria-label="Operation for defect {{ n }}"><option value="">Operation…</option>{% for o in operations %}<option value="{{ o.id }}"{% if d and d.bulletin_operation_id == o.id %} selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
+            <input class="form-control form-control-sm" name="defect_count_{{ n }}" type="number" min="1" max="10000" placeholder="Count" value="{{ d.count if d else '' }}" aria-label="Count for defect {{ n }}">
+          </div>
+        {% endfor %}
+        </fieldset>
+        <label class="form-label mt-2" for="note">Why it is corrected</label>
+        <input class="form-control mb-3" id="note" name="note" maxlength="200" required>
+        <button class="btn btn-primary w-100" type="submit">Save correction</button>
+      </form>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

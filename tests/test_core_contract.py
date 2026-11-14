@@ -42,6 +42,8 @@ FACTORY_TABLES = {
     "factory_alerts",
     "maintenance_plans",
     "maintenance_tickets",
+    "line_quality_checks",
+    "line_check_defects",
 }
 
 

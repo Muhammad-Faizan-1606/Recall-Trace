@@ -1558,3 +1558,108 @@ def seed_maintenance(organization, member, today=None):
         f"Maintenance: {len(plans)} preventive plans, {len(tickets)} fictional tickets "
         f"({len(BREAKDOWNS)} past breakdowns, open tickets for machines already down)."
     ]
+
+
+# ---------- Step 8a: fictional line quality checks ----------
+
+# Lines whose end-line quality is poor in the fictional history (defects per 100 checked).
+QUALITY_FORM = {"QIE2-L03": 11, "PARK-L06": 6}
+DEMO_DEFECTS = ("skip_stitch", "open_seam", "puckering", "uneven_hem", "needle_hole", "oil_stain")
+
+
+def seed_quality(organization, member, today=None):
+    """End-line checks every hour and in-line checks every other hour, once."""
+    from app.models.factory import (
+        BulletinOperation,
+        LineCheckDefect,
+        LineQualityCheck,
+        OutputLog,
+        ProductionOrder,
+    )
+
+    company_id = organization.id
+    if db.session.scalar(
+        select(LineQualityCheck.id).where(LineQualityCheck.organization_id == company_id)
+    ):
+        return []
+    logs = db.session.scalars(
+        select(OutputLog).where(
+            OutputLog.organization_id == company_id, OutputLog.corrects_id.is_(None)
+        )
+    ).all()
+    if not logs:
+        return []
+    orders = {
+        o.id: o
+        for o in db.session.scalars(
+            select(ProductionOrder).where(ProductionOrder.organization_id == company_id)
+        )
+    }
+    operations = {}
+    for op in db.session.scalars(
+        select(BulletinOperation)
+        .where(BulletinOperation.organization_id == company_id)
+        .order_by(BulletinOperation.sequence)
+    ):
+        operations.setdefault(op.bulletin_id, []).append(op)
+    codes = {
+        w.id: w.code
+        for w in db.session.scalars(
+            select(WorkCenter).where(WorkCenter.organization_id == company_id)
+        )
+    }
+    checks = defects_total = 0
+    for log in logs:
+        code = codes.get(log.work_center_id, "")
+        rate = QUALITY_FORM.get(code, 3 + (log.hour + len(code)) % 3)
+        ops = operations.get(orders[log.production_order_id].bulletin_id, [])
+        for stage, pieces in (("endline", 30), ("inline", 15)):
+            if stage == "inline" and log.hour % 2:
+                continue
+            found = max(0, round(pieces * rate / 100 + ((log.hour * 7) % 3 - 1) * 0.4))
+            rows = []
+            if found:
+                first = found - found // 3
+                for index, count in enumerate((first, found - first)):
+                    if count <= 0:
+                        continue
+                    op = ops[(log.hour + index * 3) % len(ops)] if ops else None
+                    rows.append(
+                        (
+                            DEMO_DEFECTS[(log.hour + index + len(code)) % len(DEMO_DEFECTS)],
+                            op,
+                            count,
+                        )
+                    )
+            if len({(c, o.id if o else None) for c, o, _ in rows}) != len(rows):
+                rows = rows[:1]
+            check = LineQualityCheck(
+                organization_id=company_id,
+                work_center_id=log.work_center_id,
+                production_order_id=log.production_order_id,
+                day=log.day,
+                hour=log.hour,
+                stage=stage,
+                pieces_checked=pieces,
+                defective_pieces=max(0, sum(c for *_, c in rows) - (1 if found > 3 else 0)),
+                defects=sum(c for *_, c in rows),
+                recorded_by_id=member.id,
+                recorded_at=log.recorded_at,
+            )
+            db.session.add(check)
+            db.session.flush()
+            for defect_code, op, count in rows:
+                db.session.add(
+                    LineCheckDefect(
+                        organization_id=company_id,
+                        check_id=check.id,
+                        defect_code=defect_code,
+                        bulletin_operation_id=op.id if op else None,
+                        count=count,
+                    )
+                )
+            checks += 1
+            defects_total += check.defects
+    db.session.flush()
+    audit(company_id, "factory.demo_quality_seeded", "line_quality_checks", None, {"count": checks})
+    return [f"Line quality: {checks} fictional checks with {defects_total} defects recorded."]

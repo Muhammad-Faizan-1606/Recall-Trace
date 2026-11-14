@@ -286,3 +286,10 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Calendar-based reliability.** MTBF uses calendar hours in service, because machine run-hour meters are not connected (IoT is out of scope). With counters, MTBF would switch to running hours.
 - **Day-based preventive intervals.** Intervals are in days for the same reason; run-hour intervals need counter data.
 - **One alert per overdue plan.** A plan covering a thousand sewing stations must not open hundreds of alerts. The alert carries the count and the first few asset tags.
+
+## 14 November 2026 — Factory Suite step 8a: line quality
+
+- **Defects name the operation, not a person.** Each defect points at the bulletin operation (and optionally the station) that caused it. The balance shows who works that station, so no operator names are stored, which keeps personal data out of quality records.
+- **Checks are evidence, so they are append-only.** They use the same restatement pattern as hourly output.
+- **The DHU limit is a constant (7.5).** It becomes a per-buyer or per-style setting once a factory supplies its targets; buyers commonly ask for end-line DHU at or below 5–7.5.
+- **AQL final audits stay in the existing Core inspections**, which work on lots. They connect to factory orders once garments are posted as lots in step 8b.

@@ -665,6 +665,7 @@ ALERT_KINDS = (
     "line_starving",
     "relaxation_breach",
     "maintenance_overdue",
+    "quality_dhu",
 )
 ALERT_SEVERITIES = ("info", "warning", "critical")
 ALERT_STATUSES = ("open", "acknowledged", "resolved")
@@ -803,4 +804,80 @@ class MaintenanceTicket(Owned, db.Model):
             postgresql_where=db.text("status <> 'closed'"),
         ),
         db.Index("ix_maintenance_tickets_machine", "organization_id", "machine_id", "reported_at"),
+    )
+
+
+# ---------- Step 8: line quality ----------
+
+CHECK_STAGES = ("inline", "endline")
+DEFECT_CODES = (
+    "skip_stitch",
+    "broken_stitch",
+    "open_seam",
+    "puckering",
+    "uneven_hem",
+    "needle_hole",
+    "oil_stain",
+    "shade_variation",
+    "measurement",
+    "label_wrong",
+    "other",
+)
+
+
+class LineQualityCheck(Owned, db.Model):
+    """One quality check on a sewing line: pieces checked, pieces with defects, defects found.
+
+    Append-only like hourly output: a correction restates the check and points at the original.
+    DHU (defects per hundred units) = defects ÷ pieces checked × 100.
+    """
+
+    __tablename__ = "line_quality_checks"
+    work_center_id: Mapped[uuid.UUID] = mapped_column()
+    production_order_id: Mapped[uuid.UUID] = mapped_column()
+    day: Mapped[date] = mapped_column(db.Date)
+    hour: Mapped[int] = mapped_column()
+    stage: Mapped[str] = mapped_column(db.String(10))
+    pieces_checked: Mapped[int] = mapped_column()
+    defective_pieces: Mapped[int] = mapped_column()
+    defects: Mapped[int] = mapped_column()
+    corrects_id: Mapped[uuid.UUID | None] = mapped_column()
+    note: Mapped[str | None] = mapped_column(db.String(200))
+    recorded_by_id: Mapped[uuid.UUID | None] = mapped_column()
+    recorded_at: Mapped[datetime] = mapped_column(db.DateTime(timezone=True), default=now)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id"),
+        tenant_fk("work_center_id", "work_centers"),
+        tenant_fk("production_order_id", "production_orders"),
+        tenant_fk("corrects_id", "line_quality_checks"),
+        tenant_fk("recorded_by_id", "memberships"),
+        _in("stage", CHECK_STAGES),
+        CheckConstraint("hour BETWEEN 1 AND 24", name="hour"),
+        CheckConstraint("pieces_checked BETWEEN 1 AND 10000", name="pieces_checked"),
+        CheckConstraint(
+            "defective_pieces >= 0 AND defective_pieces <= pieces_checked", name="defective"
+        ),
+        CheckConstraint("defects >= defective_pieces AND defects <= 100000", name="defects"),
+        db.Index("ix_line_quality_checks_center_day", "organization_id", "work_center_id", "day"),
+    )
+
+
+class LineCheckDefect(Owned, db.Model):
+    """Defects of one kind found in a check, traced to the operation (and station) at fault."""
+
+    __tablename__ = "line_check_defects"
+    check_id: Mapped[uuid.UUID] = mapped_column()
+    defect_code: Mapped[str] = mapped_column(db.String(20))
+    bulletin_operation_id: Mapped[uuid.UUID | None] = mapped_column()
+    station_number: Mapped[int | None] = mapped_column()
+    count: Mapped[int] = mapped_column()
+    __table_args__ = (
+        *identity("check_id", "defect_code", "bulletin_operation_id"),
+        tenant_fk("check_id", "line_quality_checks"),
+        tenant_fk("bulletin_operation_id", "bulletin_operations"),
+        _in("defect_code", DEFECT_CODES),
+        CheckConstraint("count BETWEEN 1 AND 10000", name="count"),
+        CheckConstraint(
+            "station_number IS NULL OR station_number BETWEEN 1 AND 200", name="station"
+        ),
     )

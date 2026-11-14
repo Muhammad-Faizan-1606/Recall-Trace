@@ -1,6 +1,6 @@
 # Factory Suite (MCM) — module plan
 
-Status: approved by the owner on 13 November 2026. Steps 1 (factory model and machine register), 2 (styles and SAM), 3 (orders and capacity planning) 4 (line balancing), 5 (shop floor execution), 6 (alerts and dashboard) and 7 (maintenance) are implemented; see STATUS.md. Step 3 needed no `plan_scenarios` table (what-ifs run in memory). Step 4 uses the existing sewing work centres as lines (no `sewing_lines` table) and adds `line_balances`, `line_stations` and `station_operations`. Step 5 adds the six execution tables; stenter runs and lot posting move to step 8. Step 6 adds `factory_alerts` (OEE is per site for sewing; see DECISIONS.md). Later steps are not started.
+Status: approved by the owner on 13 November 2026. Steps 1 (factory model and machine register), 2 (styles and SAM), 3 (orders and capacity planning) 4 (line balancing), 5 (shop floor execution), 6 (alerts and dashboard), 7 (maintenance) and 8a (line quality) are implemented; see STATUS.md. Step 8b (yarn-to-carton trace chain through the existing posting workflows) is next. Step 3 needed no `plan_scenarios` table (what-ifs run in memory). Step 4 uses the existing sewing work centres as lines (no `sewing_lines` table) and adds `line_balances`, `line_stations` and `station_operations`. Step 5 adds the six execution tables; stenter runs and lot posting move to step 8. Step 6 adds `factory_alerts` (OEE is per site for sewing; see DECISIONS.md). Later steps are not started.
 
 ## 1. Purpose and decisions
 

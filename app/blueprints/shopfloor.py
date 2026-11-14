@@ -13,11 +13,14 @@ from app.blueprints.factory import context
 from app.extensions import db
 from app.forms import ActionForm
 from app.models.factory import (
+    DEFECT_CODES,
     CutBundle,
     DowntimeEvent,
     DowntimeReason,
     DyeBatch,
     KnitRoll,
+    LineCheckDefect,
+    LineQualityCheck,
     Machine,
     OutputLog,
     ProductionOrder,
@@ -26,7 +29,7 @@ from app.models.factory import (
 )
 from app.models.master import Site
 from app.policies import allowed, require
-from app.services import alerts, balancing, shopfloor
+from app.services import alerts, balancing, linequality, shopfloor
 from app.services.business import DomainError, scoped
 
 bp = Blueprint("shopfloor", __name__, url_prefix="/companies/<uuid:company_id>/factory")
@@ -102,6 +105,7 @@ def floor(company_id):
             day, fallback = latest, True
     lines = balancing.sewing_lines(company_id)
     days = shopfloor.floor(company_id, day, [line.id for line in lines])
+    quality = linequality.floor(company_id, day, [line.id for line in lines])
     targets = shopfloor.line_targets(company_id, lines)
     sites = {
         s.id: s for s in db.session.scalars(select(Site).where(Site.organization_id == company_id))
@@ -112,7 +116,7 @@ def floor(company_id):
         figures = days[line.id]
         target = targets[line.id]
         grouped.setdefault(line.site_id, []).append(
-            (line, figures, target, expected(figures, target[2]))
+            (line, figures, target, expected(figures, target[2]), quality[line.id])
         )
         total.good += figures.good
         total.rejects += figures.rejects
@@ -130,6 +134,7 @@ def floor(company_id):
         reporting=reporting,
         lines=len(lines),
         fallback=fallback,
+        dhu_limit=linequality.DHU_LIMIT,
         **ctx,
     )
 
@@ -187,6 +192,8 @@ def line_day(company_id, line_id):
         else next((o.id for o in orders if style is not None and o.style_id == style.id), None)
     )
     target_so_far = expected(figures, per_hour)
+    quality = linequality.line_day(company_id, line.id, day)
+    operations = linequality.order_operations(company_id, default_order) if default_order else []
     return render_template(
         "factory/line_day.html",
         line=line,
@@ -214,6 +221,13 @@ def line_day(company_id, line_id):
         default_order=default_order,
         default_operators=last.operators if last else (stations or 20),
         next_hour=next_hour,
+        quality=quality,
+        operations=operations,
+        operation_names=linequality.operation_names(
+            company_id, list(quality.by_operation) + [o.id for o in operations]
+        ),
+        defect_codes=DEFECT_CODES,
+        dhu_limit=linequality.DHU_LIMIT,
         reasons=reasons,
         machines=machines,
         target_so_far=target_so_far,
@@ -694,3 +708,64 @@ def bundle_step(company_id, bundle_id, step):
             "success",
         )
     return redirect(url_for("shopfloor.bundle", company_id=company_id, bundle_id=bundle_id), 303)
+
+
+@bp.post("/floor/<uuid:line_id>/quality")
+@login_required
+def check_new(company_id, line_id):
+    _record_guard(company_id)
+    values = request.form.to_dict()
+    try:
+        check = linequality.record_check(company_id, line_id, values)
+    except DomainError as exc:
+        flash(str(exc), "danger")
+    else:
+        alerts.scan_quietly(company_id)
+        dhu = check.defects / check.pieces_checked * 100
+        flash(
+            f"{check.stage.replace('line', '-line').capitalize()} check saved: {check.defects} "
+            f"defects in {check.pieces_checked} pieces (DHU {dhu:.1f}).",
+            "success",
+        )
+    return _back_to_line(company_id, line_id, values.get("day") or date.today().isoformat())
+
+
+@bp.route("/floor/quality/<uuid:check_id>", methods=["GET", "POST"])
+@login_required
+def check_entry(company_id, check_id):
+    ctx = floor_context(company_id)
+    row = scoped(LineQualityCheck, company_id, check_id)
+    original_id = row.corrects_id or row.id
+    if request.method == "POST":
+        _record_guard(company_id)
+        try:
+            linequality.correct_check(company_id, original_id, request.form.to_dict())
+        except DomainError as exc:
+            flash(str(exc), "danger")
+            return redirect(request.url, 303)
+        alerts.scan_quietly(company_id)
+        flash("Check corrected. The original is kept in its history.", "success")
+        return _back_to_line(company_id, row.work_center_id, row.day.isoformat())
+    rows = shopfloor.history(company_id, LineQualityCheck, original_id)
+    current = shopfloor.effective(rows)[original_id]
+    defects = {}
+    for defect in db.session.scalars(
+        select(LineCheckDefect).where(
+            LineCheckDefect.organization_id == company_id,
+            LineCheckDefect.check_id.in_([r.id for r in rows]),
+        )
+    ):
+        defects.setdefault(defect.check_id, []).append(defect)
+    operations = linequality.order_operations(company_id, current.production_order_id)
+    return render_template(
+        "factory/check_entry.html",
+        line=scoped(WorkCenter, company_id, row.work_center_id),
+        rows=rows,
+        current=current,
+        defects=defects,
+        operations=operations,
+        operation_names={o.id: o for o in operations},
+        defect_codes=DEFECT_CODES,
+        running=shopfloor.running_orders(company_id),
+        **ctx,
+    )

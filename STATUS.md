@@ -1,5 +1,28 @@
 # RecallTrace implementation status
 
+## Factory Suite step 8a: line quality — 14 November 2026
+
+- **Data:** migration `f08a01` adds `line_quality_checks` and `line_check_defects`, and adds `quality_dhu` to the alert kinds. The schema is now 99 tables: 72 Core plus 27 Factory.
+  - A check records stage (in-line or end-line), hour, order, pieces checked, pieces with defects and total defects.
+  - Defect rows are per type, naming the bulletin operation (and optionally the station) at fault.
+  - Both tables are append-only quality evidence: the immutable-history trigger applies, the runtime has SELECT and INSERT only, and corrections restate a check.
+- **Rules** (`app/services/linequality.py`):
+  - Checks are only for released orders.
+  - Defects ≥ pieces with defects ≤ pieces checked.
+  - Defect operations must belong to the order's bulletin; each type is listed once per operation.
+  - A correction needs a reason.
+- **Figures:** DHU = defects ÷ pieces checked × 100; defect rate = defective pieces ÷ checked.
+- **Alert:** end-line DHU above 7.5 over at least 50 checked pieces (critical above 15), naming the most frequent defect.
+- **Screens:**
+  - The tablet line page gains quality checks with in-line and end-line DHU, defects ranked by operation, a check form with three defect rows, and a correction page with history.
+  - The floor overview gains an end-line DHU column.
+- **Demo:** about 460 fictional checks on the lines running released orders; QIE2-L03 (DHU around 11) and PARK-L06 run worse than the rest.
+- **Verification:** `tests/test_linequality.py` passes 4 tests:
+  - the DHU worked example (4 defects in 30 = 13.3), defects by operation, correction, and immutability of both tables
+  - validation
+  - the DHU alert
+  - screens, and read-only 403
+
 ## Factory Suite step 7: maintenance — 14 November 2026
 
 - **Data:** migration `f07a01` adds `maintenance_plans` and `maintenance_tickets`, and adds `maintenance_overdue` to the factory alert kinds. The schema is now 97 tables: 72 Core plus 25 Factory.

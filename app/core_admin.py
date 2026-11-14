@@ -288,6 +288,7 @@ def seed_factory_demo(owner_email, owner_of):
         seed_floor,
         seed_maintenance,
         seed_orders,
+        seed_quality,
         seed_styles,
     )
 
@@ -302,6 +303,7 @@ def seed_factory_demo(owner_email, owner_of):
         report += seed_balances(organization, member)
         report += seed_floor(organization, member)
         report += seed_maintenance(organization, member)
+        report += seed_quality(organization, member)
         report += seed_alerts(organization, member)
         db.session.commit()
     click.echo(f"{NAME}: {'created' if created else 'already present'}; owner access confirmed.")

@@ -23,8 +23,8 @@
 <section class="section" aria-labelledby="site-{{ loop.index }}">
   <div class="section-head"><h2 id="site-{{ loop.index }}">{{ site.name if site else 'Unknown site' }}</h2></div>
   <div class="table-responsive"><table class="table">
-    <thead><tr><th scope="col">Line</th><th scope="col">Running</th><th scope="col" class="num">Hours</th><th scope="col" class="num">Good · plan</th><th scope="col" class="num">Efficiency</th><th scope="col" class="num">Rejects</th><th scope="col" class="num">Down min</th></tr></thead>
-    <tbody>{% for line, f, target, plan in items %}{% set balance, style, per_hour, planned, slots = target %}
+    <thead><tr><th scope="col">Line</th><th scope="col">Running</th><th scope="col" class="num">Hours</th><th scope="col" class="num">Good · plan</th><th scope="col" class="num">Efficiency</th><th scope="col" class="num">Rejects</th><th scope="col" class="num">End-line DHU</th><th scope="col" class="num">Down min</th></tr></thead>
+    <tbody>{% for line, f, target, plan, q in items %}{% set balance, style, per_hour, planned, slots = target %}
       <tr data-href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=line.id, day=day.isoformat()) }}">
         <td><a href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=line.id, day=day.isoformat()) }}">{{ line.name }}</a><div class="fine-print">{{ line.code }}</div></td>
         <td>{{ style.code if style else '—' }}</td>
@@ -32,6 +32,7 @@
         <td class="num">{{ '{:,}'.format(f.good) }}{% if plan %}<div class="fine-print">{{ plan|cap }}</div>{% endif %}</td>
         <td class="num">{{ eff_tag(f.efficiency, planned) }}<div class="fine-print">plan {{ planned|cap }}%</div></td>
         <td class="num">{% if f.reject_rate is not none %}{{ f.reject_rate|two }}%{% else %}—{% endif %}</td>
+        <td class="num">{% set d = q.dhu('endline') %}{% if d is not none %}<span class="tag {{ 'tag-bad' if d > dhu_limit else ('tag-waiting' if d > 4 else 'tag-good') }}">{{ '%.1f'|format(d) }}</span>{% else %}—{% endif %}</td>
         <td class="num">{{ f.downtime_minutes or '—' }}</td>
       </tr>
     {% endfor %}</tbody>

@@ -11,6 +11,8 @@ Rules (blueprint section 3.6):
     line starving   a line sewing today that works from bundle tickets, whose work in
                     progress (bundles issued and not sewn) is below one hour of planned output
     relaxation      bundles cut from a dye batch before the fabric's relaxation time passed
+    quality         a line whose end-line DHU today is above the limit (7.5) over at least
+                    50 checked pieces (critical above twice the limit)
     maintenance     preventive jobs past their due date with no ticket opened, one alert per
                     plan carrying the count (critical once any is two weeks overdue)
 
@@ -322,9 +324,38 @@ def maintenance_findings(company_id, day):
     return found
 
 
+def quality_findings(company_id, day):
+    from app.services import linequality
+
+    lines = balancing.sewing_lines(company_id)
+    days = linequality.floor(company_id, day, [line.id for line in lines])
+    found = []
+    for line in lines:
+        quality = days[line.id]
+        dhu = quality.dhu("endline")
+        if dhu is None or quality.pieces["endline"] < 50 or dhu <= linequality.DHU_LIMIT:
+            continue
+        worst = max(quality.by_code.items(), key=lambda pair: pair[1], default=(None, 0))[0]
+        found.append(
+            Finding(
+                "quality_dhu",
+                "critical" if dhu > linequality.DHU_LIMIT * 2 else "warning",
+                f"dhu:{line.id}:{day.isoformat()}",
+                f"{line.code} end-line DHU {dhu:.1f}, above {linequality.DHU_LIMIT}",
+                f"{quality.defects['endline']} defects in {quality.pieces['endline']} pieces "
+                f"checked on {day:%d %b}"
+                + (f"; most often {worst.replace('_', ' ')}" if worst else "")
+                + ". Check the operations named on the line page.",
+                work_center_id=line.id,
+            )
+        )
+    return found
+
+
 def findings(company_id, day, moment):
     return (
-        maintenance_findings(company_id, day)
+        quality_findings(company_id, day)
+        + maintenance_findings(company_id, day)
         + order_findings(company_id)
         + relaxation_findings(company_id)
         + machine_findings(company_id, moment, day)

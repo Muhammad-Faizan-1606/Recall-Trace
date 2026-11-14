@@ -36,7 +36,7 @@ Run relevant unit, PostgreSQL integration/concurrency and browser tests, depende
 
 ## M8 Factory Suite (MCM) — proposed
 
-On 13 November 2026 the owner asked to grow the product into a general factory management suite centred on Machine Capacity Management for vertically integrated knitwear exporters (first prospect: Style Textile, Lahore). The module plan, data additions, demo dataset and delivery order are in documentation/docs/14_Factory_Suite_MCM_Plan.md. Status: approved; steps 1 (factory model, machine register), 2 (styles, SAM), 3 (orders, capacity planning), 4 (line balancing), 5 (shop floor execution), 6 (alerts, dashboard) and 7 (maintenance) implemented; step 8 pending. RecallTrace remains intact as the traceability module, and demo data stays fictional ("Lahore Knit Mills (demo)").
+On 13 November 2026 the owner asked to grow the product into a general factory management suite centred on Machine Capacity Management for vertically integrated knitwear exporters (first prospect: Style Textile, Lahore). The module plan, data additions, demo dataset and delivery order are in documentation/docs/14_Factory_Suite_MCM_Plan.md. Status: approved; steps 1 (factory model, machine register), 2 (styles, SAM), 3 (orders, capacity planning), 4 (line balancing), 5 (shop floor execution), 6 (alerts, dashboard), 7 (maintenance) and 8a (line quality) implemented; step 8b (trace chain) pending. RecallTrace remains intact as the traceability module, and demo data stays fictional ("Lahore Knit Mills (demo)").
 
 ## Open grading clarification
 

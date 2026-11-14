@@ -58,6 +58,28 @@
         {% else %}<tr><td colspan="6" class="empty">No stops recorded.</td></tr>{% endfor %}</tbody>
       </table></div>
     </section>
+    <section class="section" aria-labelledby="qc-heading">
+      <div class="section-head"><h2 id="qc-heading">Quality checks</h2><span class="section-note">DHU = defects ÷ pieces checked × 100 · end-line limit {{ dhu_limit }}</span></div>
+      <dl class="facts facts-compact">
+        {% for stage, label in [('inline', 'In-line DHU'), ('endline', 'End-line DHU')] %}{% set v = quality.dhu(stage) %}
+        <div class="{{ 'is-alert' if v is not none and stage == 'endline' and v > dhu_limit }}"><dt>{{ label }}</dt><dd>{% if v is not none %}{{ '%.1f'|format(v) }}<small class="fine-print"> · {{ quality.pieces[stage] }} checked</small>{% else %}—{% endif %}</dd></div>
+        {% endfor %}
+      </dl>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Hour</th><th scope="col">Stage</th><th scope="col" class="num">Checked</th><th scope="col" class="num">Defective</th><th scope="col" class="num">Defects</th><th scope="col" class="num">DHU</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>{% for original, c, corrected in quality.checks %}{% set d = c.defects / c.pieces_checked * 100 %}
+          <tr><td>Hour {{ c.hour }}</td><td>{{ 'End-line' if c.stage == 'endline' else 'In-line' }}</td><td class="num">{{ c.pieces_checked }}</td><td class="num">{{ c.defective_pieces }}</td><td class="num">{{ c.defects }}</td><td class="num"><span class="tag {{ 'tag-bad' if d > dhu_limit else ('tag-waiting' if d > 4 else 'tag-good') }}">{{ '%.1f'|format(d) }}</span></td><td class="text-end"><a href="{{ url_for('shopfloor.check_entry', company_id=company_id, check_id=original) }}">{{ 'Corrected' if corrected else ('Correct' if can_record else 'History') }}</a></td></tr>
+        {% else %}<tr><td colspan="7" class="empty">No checks recorded.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% if quality.by_operation %}
+      <h3 class="h6 mt-3">Defects by operation</h3>
+      <div class="table-responsive"><table class="table stations">
+        <thead><tr><th scope="col">Operation</th><th scope="col" class="num">Defects</th><th scope="col" class="load-col"><span class="visually-hidden">Share</span></th></tr></thead>
+        {% set top = quality.by_operation.values()|max %}
+        <tbody>{% for op_id, count in quality.by_operation.items()|sort(attribute='1', reverse=true) %}<tr><td>{{ operation_names[op_id].name if op_id in operation_names else '—' }}</td><td class="num">{{ count }}</td><td class="load-col"><span class="load-track"><span class="load-bar lb-{{ ((count / top) * 20)|round|int }}"></span></span></td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% endif %}
+    </section>
   </div>
 
   <aside class="rail" aria-label="Record">
@@ -102,6 +124,30 @@
         <button class="btn btn-outline-secondary w-100" type="submit">Save stop</button>
       </form>
       {% else %}<p class="mb-0">Add downtime reasons under Factory setup first.</p>{% endif %}
+    </section>
+    <section class="panel floor-entry" aria-labelledby="qc-title">
+      <h2 id="qc-title">Record a quality check</h2>
+      {% if orders %}
+      <form method="post" action="{{ url_for('shopfloor.check_new', company_id=company_id, line_id=line.id) }}">
+        {{ action_form.hidden_tag() }}<input type="hidden" name="day" value="{{ day.isoformat() }}"><input type="hidden" name="production_order_id" value="{{ default_order or orders[0].id }}">
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" for="qc-stage">Stage</label><select class="form-select" id="qc-stage" name="stage"><option value="endline">End-line</option><option value="inline">In-line</option></select></div>
+          <div class="col-6"><label class="form-label" for="qc-hour">Hour</label><input class="form-control" id="qc-hour" name="hour" type="number" min="1" max="24" value="{{ (next_hour or 2) - 1 if (next_hour or 2) > 1 else 1 }}" required></div>
+          <div class="col-6"><label class="form-label" for="qc-pieces">Pieces checked</label><input class="form-control" id="qc-pieces" name="pieces_checked" type="number" inputmode="numeric" min="1" max="10000" required></div>
+          <div class="col-6"><label class="form-label" for="qc-defective">With defects</label><input class="form-control" id="qc-defective" name="defective_pieces" type="number" inputmode="numeric" min="0" value="0" required></div>
+        </div>
+        <fieldset class="mt-2"><legend class="form-label">Defects found</legend>
+        {% for n in range(1, 4) %}
+          <div class="defect-row">
+            <select class="form-select form-select-sm" name="defect_code_{{ n }}" aria-label="Defect {{ n }}"><option value="">Defect…</option>{% for code in defect_codes %}<option value="{{ code }}">{{ code.replace('_', ' ')|capitalize }}</option>{% endfor %}</select>
+            <select class="form-select form-select-sm" name="operation_{{ n }}" aria-label="Operation for defect {{ n }}"><option value="">Operation…</option>{% for o in operations %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select>
+            <input class="form-control form-control-sm" name="defect_count_{{ n }}" type="number" min="1" max="10000" placeholder="Count" aria-label="Count for defect {{ n }}">
+          </div>
+        {% endfor %}
+        </fieldset>
+        <button class="btn btn-outline-secondary w-100 mt-2" type="submit">Save check</button>
+      </form>
+      {% else %}<p class="mb-0">No orders are released to the floor.</p>{% endif %}
     </section>
     {% endif %}
   </aside>

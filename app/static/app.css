@@ -765,6 +765,9 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .hour-empty th, .hour-empty td { color: var(--muted); background: transparent; }
 .is-current-row > * { background: var(--good-wash) !important; }
 .scan-form { max-width: 520px; }
+.defect-row { display: grid; grid-template-columns: 1fr 5.5rem; grid-auto-flow: dense; gap: .375rem; margin-bottom: .625rem; }
+.defect-row select[name^="operation"] { grid-column: 1 / -1; }
+.facts-compact > div { padding-top: .5rem; padding-bottom: .5rem; }
 .check-list { max-height: 260px; overflow-y: auto; padding: .5rem .75rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .check-list .form-check { display: flex; gap: .5rem; align-items: center; min-height: 36px; margin: 0; }
 .ticket-code svg.qr { display: block; width: 168px; height: 168px; flex: none; background: #fff; padding: 6px; border-radius: 8px; }
