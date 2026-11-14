@@ -11,6 +11,8 @@ Rules (blueprint section 3.6):
     line starving   a line sewing today that works from bundle tickets, whose work in
                     progress (bundles issued and not sewn) is below one hour of planned output
     relaxation      bundles cut from a dye batch before the fabric's relaxation time passed
+    maintenance     preventive jobs past their due date with no ticket opened, one alert per
+                    plan carrying the count (critical once any is two weeks overdue)
 
 `scan` is idempotent: one unresolved alert per condition, refreshed while it persists and
 marked cleared when it goes away. People acknowledge, assign and resolve alerts.
@@ -294,9 +296,36 @@ def relaxation_findings(company_id):
     return found
 
 
+def maintenance_findings(company_id, day):
+    from app.services import maintenance
+
+    overdue = {}
+    for item in maintenance.schedule(company_id, today=day, horizon_days=0):
+        if item.due_on < day and item.open_ticket is None:
+            overdue.setdefault(item.plan.id, []).append(item)
+    found = []
+    for items in overdue.values():
+        plan = items[0].plan
+        worst = max(item.days_left(day) * -1 for item in items)
+        tags = ", ".join(item.machine.asset_tag for item in items[:6])
+        more = f" and {len(items) - 6} more" if len(items) > 6 else ""
+        found.append(
+            Finding(
+                "maintenance_overdue",
+                "critical" if worst >= 14 else "warning",
+                f"pm:{plan.id}",
+                f"{len(items)} machine{'s' if len(items) != 1 else ''} overdue for {plan.name}",
+                f"Up to {worst} days late: {tags}{more}. Plan the jobs from the maintenance "
+                "page; overdue servicing raises breakdown risk.",
+            )
+        )
+    return found
+
+
 def findings(company_id, day, moment):
     return (
-        order_findings(company_id)
+        maintenance_findings(company_id, day)
+        + order_findings(company_id)
         + relaxation_findings(company_id)
         + machine_findings(company_id, moment, day)
         + efficiency_findings(company_id, day)

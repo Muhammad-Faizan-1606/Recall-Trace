@@ -119,7 +119,7 @@ def test_apply_is_atomic_idempotent_and_check_can_run_readonly(policy):
         policy["connection"].execute("SET TRANSACTION READ ONLY")
         report = access.check_access(policy["connection"], policy["runtime"], policy["migration"])
     assert report["findings"] == []
-    assert report["core_tables"] == 95
+    assert report["core_tables"] == 97
 
 
 def test_runtime_bootstrap_and_ordinary_writes_work(policy):

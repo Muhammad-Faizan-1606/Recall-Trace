@@ -40,6 +40,8 @@ FACTORY_TABLES = {
     "knit_rolls",
     "cut_bundles",
     "factory_alerts",
+    "maintenance_plans",
+    "maintenance_tickets",
 }
 
 

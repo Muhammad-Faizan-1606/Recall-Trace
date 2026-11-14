@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}{{ t.number }} · Maintenance{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('maintenance.overview', company_id=company_id) }}">Maintenance</a></p>
+<div class="record-head">
+  <div>
+    <h1>{{ t.number }} · {{ machine.asset_tag }}</h1>
+    <p class="record-meta">{{ t.status|tag }}<span>{{ t.kind|capitalize }}</span><span>{{ center.name }} ({{ center.code }})</span><a href="{{ url_for('maintenance.machine', company_id=company_id, machine_id=machine.id) }}">Machine history</a></p>
+  </div>
+  {% if can_record and t.status == 'open' %}
+  <div class="page-actions"><form class="m-0" method="post" action="{{ url_for('maintenance.ticket_action', company_id=company_id, ticket_id=t.id, action='start') }}">{{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Start work</button></form></div>
+  {% endif %}
+</div>
+<dl class="facts">
+  <div><dt>Reported</dt><dd>{{ t.reported_at.strftime('%d %b %H:%M') }}</dd></div>
+  <div><dt>Response</dt><dd>{% if t.started_at %}{{ '%.0f'|format(hours(t.started_at - t.reported_at) * 60) }}<small class="fine-print"> min</small>{% else %}—{% endif %}</dd></div>
+  <div><dt>{{ 'Down for' if t.kind == 'breakdown' else 'Took' }}</dt><dd>{% if t.finished_at %}{{ '%.1f'|format(hours(t.finished_at - (t.reported_at if t.kind == 'breakdown' else t.started_at))) }}{% elif t.status != 'open' or t.kind == 'breakdown' %}{{ '%.1f'|format(hours(moment - (t.reported_at if t.kind == 'breakdown' else t.started_at))) }}{% else %}—{% endif %}<small class="fine-print"> h{% if not t.finished_at and (t.status != 'open' or t.kind == 'breakdown') %} so far{% endif %}</small></dd></div>
+  <div><dt>Machine now</dt><dd>{{ machine.status }}</dd></div>
+</dl>
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="what-heading">
+      <div class="section-head"><h2 id="what-heading">{{ 'Problem' if t.kind == 'breakdown' else 'Job' }}</h2></div>
+      <p>{{ t.description }}</p>
+      {% if plan %}<p class="fine-print">Plan {{ plan.code }}: every {{ plan.interval_days }} days, about {{ plan.duration_minutes }} minutes.</p>{% endif %}
+      {% if t.status == 'closed' %}
+      <dl class="kv">
+        <dt>Work done</dt><dd>{{ t.work_done }}</dd>
+        <dt>Parts used</dt><dd>{{ t.parts_used or 'None' }}</dd>
+        <dt>Finished</dt><dd>{{ t.finished_at|when }}</dd>
+      </dl>
+      {% endif %}
+    </section>
+  </div>
+  <aside class="rail" aria-label="Close">
+    {% if can_record and t.status == 'in_progress' %}
+    <section class="panel next-step floor-entry" aria-labelledby="close-title">
+      <h2 id="close-title">Close the ticket</h2>
+      <form method="post" action="{{ url_for('maintenance.ticket_action', company_id=company_id, ticket_id=t.id, action='close') }}">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="work_done">Work done</label>
+        <textarea class="form-control mb-2" id="work_done" name="work_done" rows="3" maxlength="400" required></textarea>
+        <label class="form-label" for="parts_used">Parts used</label>
+        <input class="form-control mb-3" id="parts_used" name="parts_used" maxlength="200">
+        <button class="btn btn-success w-100" type="submit">Close and return to service</button>
+      </form>
+    </section>
+    {% elif t.status == 'open' and t.kind == 'preventive' %}
+    <section class="panel" aria-labelledby="pm-title"><h2 id="pm-title">Not started</h2><p class="mb-0">The machine keeps running until the technician starts the job.</p></section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

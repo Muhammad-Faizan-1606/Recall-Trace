@@ -119,6 +119,12 @@ def context(company_id, resource=None):
 # ---------- Forms built from the resource specification ----------
 
 
+def column_length(resource, name):
+    """The database column's length, so forms and the schema agree."""
+    model = spec(resource)[0]
+    return getattr(model.__table__.c[name].type, "length", None) or 120
+
+
 def build_form(resource):
     _, _, fields = spec(resource)
 
@@ -130,7 +136,7 @@ def build_form(resource):
         if item.kind == "text":
             field = StringField(
                 item.label,
-                validators=[*check, Length(max=200 if item.name == "note" else 120)],
+                validators=[*check, Length(max=column_length(resource, item.name))],
                 filters=[lambda value: trimmed(str(value)) if value is not None else value],
                 description=item.help,
             )
@@ -256,6 +262,12 @@ COLUMNS = {
             "Efficiency",
             lambda r, x: "Left out" if r.efficiency_rule == "off_standard" else "Counts",
         ),
+    ),
+    "maintenance-plans": (
+        ("Plan", lambda r, x: label(r)),
+        ("Machine class", lambda r, x: x["classes"].get(r.machine_class_id, "—")),
+        ("Every", lambda r, x: f"{r.interval_days} days"),
+        ("Takes", lambda r, x: f"{r.duration_minutes} min"),
     ),
     "transit": (
         ("Route", lambda r, x: label(r)),

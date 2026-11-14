@@ -279,3 +279,10 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Starving checks only lines that use bundle tickets.** A line with no tickets has no recorded work in progress, so the system cannot know it is starving and does not pretend to.
 - **OEE is reported per site for sewing.** The plan said "by machine class". Sewing lines record people-time rather than machine-time, so availability, performance and quality are computed from line output per site. Machine-level OEE needs counter data (out of scope: IoT).
 - **QR rendering without Markup.** The QR matrix is turned into SVG path numbers and rendered through normal Jinja escaping, so nothing bypasses auto-escaping.
+
+## 14 November 2026 — Factory Suite step 7: maintenance
+
+- **Tickets drive machine status.** A breakdown makes the machine unavailable at once, and closing the ticket restores it. Both changes write the same immutable status events as a manual change, so capacity, alerts and history agree without a second source of truth.
+- **Calendar-based reliability.** MTBF uses calendar hours in service, because machine run-hour meters are not connected (IoT is out of scope). With counters, MTBF would switch to running hours.
+- **Day-based preventive intervals.** Intervals are in days for the same reason; run-hour intervals need counter data.
+- **One alert per overdue plan.** A plan covering a thousand sewing stations must not open hundreds of alerts. The alert carries the count and the first few asset tags.

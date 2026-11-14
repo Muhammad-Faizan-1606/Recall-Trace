@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}{{ machine.asset_tag }} · Maintenance{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('factory.detail', company_id=company_id, resource='machines', record_id=machine.id) }}">{{ machine.asset_tag }}</a></p>
+<div class="record-head">
+  <div>
+    <h1>{{ machine.asset_tag }} · maintenance</h1>
+    <p class="record-meta">{{ machine.status|tag }}<span>{{ machine.make_model }}</span><span>{{ center.name }} ({{ center.code }})</span></p>
+  </div>
+</div>
+<dl class="facts">
+  <div><dt>Breakdowns, {{ window }} days</dt><dd>{{ stats.breakdowns if stats else 0 }}</dd></div>
+  <div><dt>MTBF</dt><dd>{% if stats %}{{ '%.0f'|format(stats.mtbf / 24) }}<small class="fine-print"> days</small>{% else %}—{% endif %}</dd></div>
+  <div><dt>MTTR</dt><dd>{% if stats and stats.mttr is not none %}{{ '%.1f'|format(stats.mttr) }}<small class="fine-print"> h</small>{% else %}—{% endif %}</dd></div>
+  <div><dt>Next preventive</dt><dd>{% if due %}{% set d = due[0] %}{{ d.due_on.strftime('%d %b') }}{% if d.due_on < today %}<small class="fine-print"> · overdue</small>{% endif %}{% else %}—{% endif %}</dd></div>
+</dl>
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="hist-heading">
+      <div class="section-head"><h2 id="hist-heading">Tickets</h2></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Ticket</th><th scope="col">Reported</th><th scope="col">Problem or job</th><th scope="col" class="num">Hours</th><th scope="col">Status</th></tr></thead>
+        <tbody>{% for t in tickets %}
+          <tr data-href="{{ url_for('maintenance.ticket', company_id=company_id, ticket_id=t.id) }}">
+            <td><a href="{{ url_for('maintenance.ticket', company_id=company_id, ticket_id=t.id) }}">{{ t.number }}</a><div class="fine-print">{{ t.kind }}</div></td>
+            <td>{{ t.reported_at|day }}</td>
+            <td>{{ t.description|truncate(70) }}</td>
+            <td class="num">{% if t.finished_at %}{{ '%.1f'|format(hours(t.finished_at - t.reported_at)) }}{% else %}—{% endif %}</td>
+            <td>{{ t.status|tag }}</td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty">No maintenance recorded for this machine.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+  <aside class="rail" aria-label="Plans">
+    {% if can_record and machine.status not in ('decommissioned',) and not (tickets and tickets[0].status != 'closed') %}
+    <section class="panel next-step floor-entry" aria-labelledby="rep-title">
+      <h2 id="rep-title">Report a breakdown</h2>
+      <form method="post" action="{{ url_for('maintenance.breakdown', company_id=company_id) }}">
+        {{ action_form.hidden_tag() }}<input type="hidden" name="machine_id" value="{{ machine.id }}">
+        <label class="form-label" for="description">What is wrong</label>
+        <textarea class="form-control mb-3" id="description" name="description" rows="3" maxlength="400" required></textarea>
+        <button class="btn btn-primary w-100" type="submit">Report breakdown</button>
+      </form>
+    </section>
+    {% endif %}
+    <section class="panel" aria-labelledby="plans-title">
+      <h2 id="plans-title" class="mb-2">Preventive plans</h2>
+      {% for p in plans %}<p class="mb-2"><strong>{{ p.name }}</strong><br><span class="fine-print">Every {{ p.interval_days }} days · {{ p.tasks }}</span></p>{% else %}<p class="mb-0">No plan covers this kind of machine.</p>{% endfor %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

@@ -5,7 +5,7 @@
 <div class="record-head">
   <div>
     <h1>{{ label(record) }}</h1>
-    <p class="record-meta">{% if record.status is defined %}{{ record.status|tag }}{% endif %}{% if record.archived_at is defined and record.archived_at %} <span class="tag">archived</span>{% endif %}</p>
+    <p class="record-meta">{% if record.status is defined %}{{ record.status|tag }}{% endif %}{% if record.archived_at is defined and record.archived_at %} <span class="tag">archived</span>{% endif %}{% if resource == 'machines' %}<a href="{{ url_for('maintenance.machine', company_id=company_id, machine_id=record.id) }}">Maintenance history</a>{% endif %}</p>
   </div>
   {% if can_manage and not (record.archived_at is defined and record.archived_at) %}
   <div class="page-actions">

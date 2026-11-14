@@ -46,10 +46,11 @@
       {{ nav_link(url_for('balancing.lines', company_id=company_id), 'Line balancing', 'ruler', [pbase ~ 'lines', pbase ~ 'balances']) }}
       {{ nav_link(url_for('shopfloor.floor', company_id=company_id), 'Shop floor', 'monitor-smartphone', [pbase ~ 'floor']) }}
       {{ nav_link(url_for('shopfloor.bundles', company_id=company_id), 'Batch cards', 'tag', [pbase ~ 'rolls', pbase ~ 'dye-batches', pbase ~ 'bundles']) }}
+      {{ nav_link(url_for('maintenance.overview', company_id=company_id), 'Maintenance', 'key-round', [pbase ~ 'maintenance']) }}
       {{ nav_link(url_for('factory.listing', company_id=company_id, resource='machines'), 'Machines', 'boxes') }}
       {{ nav_link(url_for('factory.listing', company_id=company_id, resource='work-centers'), 'Work centres', 'layers') }}
       {% set sbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('factory.listing', company_id=company_id, resource='styles'), 'Styles & SAM', 'list-checks', [sbase ~ 'styles', sbase ~ 'fabric-specs', sbase ~ 'bulletins']) }}
-      {% set fbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('factory.setup', company_id=company_id), 'Factory setup', 'database', [fbase ~ 'setup', fbase ~ 'machine-classes', fbase ~ 'shift-patterns', fbase ~ 'calendar', fbase ~ 'transit', fbase ~ 'downtime-reasons']) }}
+      {% set fbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('factory.setup', company_id=company_id), 'Factory setup', 'database', [fbase ~ 'setup', fbase ~ 'machine-classes', fbase ~ 'shift-patterns', fbase ~ 'calendar', fbase ~ 'transit', fbase ~ 'downtime-reasons', fbase ~ 'maintenance-plans']) }}
     </div>
     {% endif %}
     <div class="side-group">
@@ -84,7 +85,7 @@
     {% if company is defined %}
     <button class="icon-button menu-button" type="button" data-sidebar-open aria-controls="sidebar" aria-label="Open menu">{{ icon('menu') }}</button>
     {{ brand_mark(url_for('overview.overview', company_id=company_id)) }}
-    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'planning': 'Planning', 'balancing': 'Line balancing', 'shopfloor': 'Shop floor', 'insights': 'Factory dashboard', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
+    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'planning': 'Planning', 'balancing': 'Line balancing', 'shopfloor': 'Shop floor', 'insights': 'Factory dashboard', 'maintenance': 'Maintenance', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
     <ol class="crumbs" aria-label="You are here">
       <li><a href="{{ url_for('overview.overview', company_id=company_id) }}">{{ company.name }}</a></li>
       <li><span aria-current="location">{{ 'Search' if request.endpoint == 'overview.search' else sections.get(request.blueprint, 'Workspace') }}</span></li>

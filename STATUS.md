@@ -1,5 +1,36 @@
 # RecallTrace implementation status
 
+## Factory Suite step 7: maintenance — 14 November 2026
+
+- **Data:** migration `f07a01` adds `maintenance_plans` and `maintenance_tickets`, and adds `maintenance_overdue` to the factory alert kinds. The schema is now 97 tables: 72 Core plus 25 Factory.
+  - **Plans:** preventive work per machine class (interval in days, duration, tasks), maintained in Factory setup.
+  - **Tickets:** breakdown or preventive, open → in progress → closed. Database checks enforce the time order (reported ≤ started ≤ finished), that closing requires the work done, and that only preventive tickets have a plan. A partial unique index allows one unfinished ticket per machine.
+- **Machine status follows tickets** (`app/services/maintenance.py`), and every change is an immutable machine status event, so planned capacity follows automatically:
+  - Reporting a breakdown puts the machine into maintenance immediately.
+  - A preventive job keeps the machine running until work starts.
+  - Closing a ticket returns it to service.
+- **Schedule:** a plan is due `interval_days` after its last closed job on each machine, or after commissioning.
+- **Reliability over 90 days:**
+  - MTTR = average report-to-repair hours.
+  - MTBF = hours in service ÷ breakdowns.
+  - Response = report-to-start time.
+- **Alert:** one per plan for overdue jobs that have no ticket open. It carries the machine count, and becomes critical once any job is 14 days late.
+- **Screens:**
+  - **Maintenance overview:** unfinished tickets; jobs due by plan, with overdue and 14-day counts and an "Open job" button per machine; the machines that fail most; and a breakdown report by asset tag.
+  - **Ticket page:** start, then close with the work done and parts.
+  - **Machine maintenance history:** reached from each machine's page, with MTBF and MTTR.
+- **Demo:**
+  - 9 plans across knitting, dyeing, finishing, cutting and sewing.
+  - A preventive history spread so about 5% of jobs are overdue: 3 alerts covering 13, 14 and 17 sewing stations.
+  - 17 past breakdowns, including a repeat offender (KNT-SJ-03), and in-progress tickets for the 6 machines that were already down.
+  - Machines are dated as commissioned on 1 March 2024 (fictional).
+- **Verification:** `tests/test_maintenance.py` passes 5 tests:
+  - capacity drops and recovers with a breakdown, one unfinished ticket per machine, and the start/close rules
+  - the schedule after a preventive job
+  - the MTTR/MTBF/response worked example
+  - overdue alerts counting down as jobs are opened
+  - screens, and read-only 403
+
 ## Factory Suite step 6: alerts and factory dashboard — 13 November 2026
 
 - **Data:** migration `f06a01` adds `factory_alerts`. The schema is now 95 tables: 72 Core plus 23 Factory.

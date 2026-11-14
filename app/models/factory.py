@@ -664,6 +664,7 @@ ALERT_KINDS = (
     "order_late",
     "line_starving",
     "relaxation_breach",
+    "maintenance_overdue",
 )
 ALERT_SEVERITIES = ("info", "warning", "critical")
 ALERT_STATUSES = ("open", "acknowledged", "resolved")
@@ -725,4 +726,81 @@ class FactoryAlert(Owned, db.Model):
             postgresql_where=db.text("status <> 'resolved'"),
         ),
         db.Index("ix_factory_alerts_status", "organization_id", "status"),
+    )
+
+
+# ---------- Step 7: maintenance ----------
+
+TICKET_KINDS = ("breakdown", "preventive")
+TICKET_STATUSES = ("open", "in_progress", "closed")
+
+
+class MaintenancePlan(Owned, db.Model):
+    """Preventive work every machine of a class needs at a fixed interval."""
+
+    __tablename__ = "maintenance_plans"
+    code: Mapped[str] = mapped_column(db.String(40))
+    name: Mapped[str] = mapped_column(db.String(120))
+    machine_class_id: Mapped[uuid.UUID] = mapped_column()
+    interval_days: Mapped[int] = mapped_column()
+    duration_minutes: Mapped[int] = mapped_column()
+    tasks: Mapped[str] = mapped_column(db.String(400))
+    archived_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    __table_args__ = (
+        *identity("code"),
+        tenant_fk("machine_class_id", "machine_classes"),
+        CheckConstraint("interval_days BETWEEN 1 AND 730", name="interval_days"),
+        CheckConstraint("duration_minutes BETWEEN 5 AND 2880", name="duration_minutes"),
+    )
+
+
+class MaintenanceTicket(Owned, db.Model):
+    """One breakdown or preventive job on one machine, from report to close.
+
+    Response time = started − reported; repair (down) time = finished − reported. A machine
+    has at most one unfinished ticket; while it is open the machine is in maintenance and
+    therefore out of planned capacity.
+    """
+
+    __tablename__ = "maintenance_tickets"
+    number: Mapped[str] = mapped_column(db.String(40))
+    machine_id: Mapped[uuid.UUID] = mapped_column()
+    kind: Mapped[str] = mapped_column(db.String(20))
+    plan_id: Mapped[uuid.UUID | None] = mapped_column()
+    status: Mapped[str] = mapped_column(db.String(20), default="open", server_default="open")
+    description: Mapped[str] = mapped_column(db.String(400))
+    reported_at: Mapped[datetime] = mapped_column(db.DateTime(timezone=True), default=now)
+    reported_by_id: Mapped[uuid.UUID | None] = mapped_column()
+    started_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(db.DateTime(timezone=True))
+    closed_by_id: Mapped[uuid.UUID | None] = mapped_column()
+    work_done: Mapped[str | None] = mapped_column(db.String(400))
+    parts_used: Mapped[str | None] = mapped_column(db.String(200))
+    __table_args__ = (
+        *identity("number"),
+        tenant_fk("machine_id", "machines"),
+        tenant_fk("plan_id", "maintenance_plans"),
+        tenant_fk("reported_by_id", "memberships"),
+        tenant_fk("closed_by_id", "memberships"),
+        _in("kind", TICKET_KINDS),
+        _in("status", TICKET_STATUSES),
+        CheckConstraint("(kind = 'preventive') = (plan_id IS NOT NULL)", name="plan"),
+        CheckConstraint("started_at IS NULL OR started_at >= reported_at", name="started"),
+        CheckConstraint(
+            "finished_at IS NULL OR (started_at IS NOT NULL AND finished_at >= started_at)",
+            name="finished",
+        ),
+        CheckConstraint(
+            "(status = 'closed') = (finished_at IS NOT NULL AND work_done IS NOT NULL)",
+            name="closed",
+        ),
+        CheckConstraint("(status = 'open') = (started_at IS NULL)", name="open_unstarted"),
+        db.Index(
+            "uq_maintenance_tickets_one_unfinished",
+            "organization_id",
+            "machine_id",
+            unique=True,
+            postgresql_where=db.text("status <> 'closed'"),
+        ),
+        db.Index("ix_maintenance_tickets_machine", "organization_id", "machine_id", "reported_at"),
     )

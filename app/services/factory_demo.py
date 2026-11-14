@@ -14,7 +14,7 @@ per row, and it is safe because the company is new and private to the seeding ow
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.extensions import db
 from app.models import Membership, MembershipRole, Organization, Role
@@ -1295,3 +1295,266 @@ def seed_alerts(organization, member):
     if first is not None:
         alerts.acknowledge(company_id, first.id, first.version, member.id)
     return [f"Factory checks run: {raised} alerts raised from the fictional history."]
+
+
+# ---------- Step 7: fictional maintenance history ----------
+
+# plan code, name, machine class, every (days), minutes, tasks
+PLANS = [
+    (
+        "PM-KSJ-30",
+        "Single jersey frame service",
+        "KNIT-SJ",
+        30,
+        120,
+        "Clean feeders and sinkers, oil cylinder, replace worn needles, check yarn tension",
+    ),
+    (
+        "PM-KIN-30",
+        "Interlock frame service",
+        "KNIT-INT",
+        30,
+        120,
+        "Clean feeders and sinkers, oil cylinder, replace worn needles, check yarn tension",
+    ),
+    (
+        "PM-KFL-30",
+        "Fleece frame service",
+        "KNIT-FLC",
+        30,
+        150,
+        "Clean loop-raising zone, oil cylinder, check sinker cams and needles",
+    ),
+    (
+        "PM-JET-14",
+        "Jet vessel service",
+        "DYE-JET",
+        14,
+        180,
+        "Check pump seal and nozzle, clean filters and heat exchanger, calibrate temperature probe",
+    ),
+    (
+        "PM-STN-30",
+        "Stenter service",
+        "STENTER",
+        30,
+        240,
+        "Clean burners and chain, lubricate chain rails, check pins and clips",
+    ),
+    (
+        "PM-CUT-60",
+        "CNC cutter service",
+        "CUT-CNC",
+        60,
+        180,
+        "Sharpen and check blade, clean vacuum bed, check bristle blocks",
+    ),
+    (
+        "PM-SOL-90",
+        "Overlock station service",
+        "SEW-OL",
+        90,
+        30,
+        "Clean and oil, check loopers and knives, replace needle plate if worn",
+    ),
+    (
+        "PM-SFL-90",
+        "Flatlock station service",
+        "SEW-FL",
+        90,
+        30,
+        "Clean and oil, check spreader and loopers, check differential feed",
+    ),
+    (
+        "PM-SLS-90",
+        "Lockstitch station service",
+        "SEW-LS",
+        90,
+        30,
+        "Clean and oil, check hook timing and thread trimmer",
+    ),
+]
+# (machine asset tag, days ago, response minutes, repair hours, problem, work done)
+BREAKDOWNS = [
+    ("KNT-SJ-03", 81, 25, 3.5, "Dropped stitches across the tube", "Replaced 14 broken needles"),
+    ("KNT-SJ-03", 47, 15, 2.0, "Dropped stitches again", "Replaced needles, adjusted cam"),
+    ("KNT-SJ-03", 12, 30, 5.0, "Holes in fabric, needle breakage", "Replaced needle bed section"),
+    ("KNT-SJ-11", 66, 20, 1.5, "Yarn feeder not storing", "Replaced feeder belt"),
+    ("KNT-IN-05", 58, 40, 6.0, "Cylinder drive overheating", "Replaced drive belt, cleaned fan"),
+    ("KNT-FL-02", 33, 10, 1.0, "Fabric take-down slipping", "Adjusted take-down tension"),
+    ("DYE-JET-04", 74, 45, 8.0, "Pump cavitation, uneven shade", "Replaced impeller"),
+    ("DYE-JET-04", 21, 35, 4.5, "Temperature overshoot", "Replaced steam valve actuator"),
+    ("DYE-JET-11", 40, 20, 2.5, "Door seal leaking", "Replaced door gasket"),
+    ("STN-02", 52, 30, 3.0, "Chain jumping at the entry", "Replaced worn chain links"),
+    ("CUT-PK-02", 29, 15, 1.5, "Blade sensor fault", "Replaced blade sensor"),
+    ("PARK-L02-S03", 18, 10, 0.75, "Skipped stitches", "Retimed looper"),
+    ("PARK-L02-S03", 5, 8, 0.5, "Skipped stitches", "Replaced needle plate"),
+    ("QIE2-L03-S07", 26, 12, 1.0, "Knife not cutting cleanly", "Replaced upper knife"),
+    ("QIE2-L03-S16", 9, 15, 0.75, "Differential feed noisy", "Replaced feed dog spring"),
+    ("RWD-L02-S21", 44, 20, 1.25, "Thread trimmer not firing", "Replaced trimmer solenoid"),
+    ("SUN-L04-S02", 15, 6, 0.5, "Needle breaking repeatedly", "Reset needle bar height"),
+]
+COMMISSIONED = date(2024, 3, 1)
+
+
+def seed_maintenance(organization, member, today=None):
+    """Plans, a year of preventive history and 90 days of breakdowns, once."""
+    from datetime import datetime, time
+
+    from app.models import now as current_time
+    from app.models.factory import MaintenancePlan, MaintenanceTicket
+
+    company_id = organization.id
+    if db.session.scalar(
+        select(MaintenancePlan.id).where(MaintenancePlan.organization_id == company_id)
+    ):
+        return []
+    today = today or date.today()
+    moment = current_time()
+    zone = moment.tzinfo
+    classes = {
+        c.code: c
+        for c in db.session.scalars(
+            select(MachineClass).where(MachineClass.organization_id == company_id)
+        )
+    }
+    machines = db.session.scalars(
+        select(Machine).where(Machine.organization_id == company_id).order_by(Machine.asset_tag)
+    ).all()
+    by_tag = {m.asset_tag: m for m in machines}
+    # The fictional floor has been running since early 2024.
+    for machine in machines:
+        if machine.commissioned_on is None:
+            machine.commissioned_on = COMMISSIONED
+    tickets = []
+    plans = []
+    for code, name, class_code, every, minutes, tasks in PLANS:
+        if class_code not in classes:
+            continue
+        plan = MaintenancePlan(
+            organization_id=company_id,
+            code=code,
+            name=name,
+            machine_class_id=classes[class_code].id,
+            interval_days=every,
+            duration_minutes=minutes,
+            tasks=tasks,
+        )
+        db.session.add(plan)
+        plans.append(plan)
+    db.session.flush()
+    for plan in plans:
+        for index, machine in enumerate(
+            m for m in machines if m.machine_class_id == plan.machine_class_id
+        ):
+            # Spread last jobs over a little more than one interval: about 5% overdue.
+            days_ago = (index * 37 + len(plan.code)) % int(plan.interval_days * 1.05 + 1)
+            done = datetime.combine(today - timedelta(days=days_ago), time(14, 0), zone)
+            done = min(done, moment - timedelta(hours=2))
+            started = done - timedelta(minutes=plan.duration_minutes)
+            tickets.append(
+                dict(
+                    machine_id=machine.id,
+                    kind="preventive",
+                    plan_id=plan.id,
+                    description=f"{plan.name}: {plan.tasks}"[:400],
+                    reported_at=started - timedelta(days=1),
+                    started_at=started,
+                    finished_at=done,
+                    status="closed",
+                    work_done="Done as per plan",
+                )
+            )
+    events = []
+    for tag, days_ago, response, repair, problem, work in BREAKDOWNS:
+        machine = by_tag.get(tag)
+        if machine is None:
+            continue
+        reported = datetime.combine(today - timedelta(days=days_ago), time(10, 30), zone)
+        finished = reported + timedelta(hours=repair)
+        tickets.append(
+            dict(
+                machine_id=machine.id,
+                kind="breakdown",
+                description=problem,
+                reported_at=reported,
+                started_at=reported + timedelta(minutes=response),
+                finished_at=finished,
+                status="closed",
+                work_done=work,
+                parts_used=None,
+            )
+        )
+        events += [
+            (machine.id, "active", "maintenance", f"Breakdown: {problem}", reported),
+            (machine.id, "maintenance", "active", "Repaired", finished),
+        ]
+    # Machines already in maintenance get the breakdown tickets they would have had.
+    down_since = dict(
+        db.session.execute(
+            select(MachineStatusEvent.machine_id, func.max(MachineStatusEvent.occurred_at))
+            .where(
+                MachineStatusEvent.organization_id == company_id,
+                MachineStatusEvent.to_status == "maintenance",
+            )
+            .group_by(MachineStatusEvent.machine_id)
+        ).all()
+    )
+    for machine in machines:
+        if machine.status != "maintenance":
+            continue
+        reported = down_since.get(machine.id) or (moment - timedelta(hours=3))
+        reason = db.session.scalar(
+            select(MachineStatusEvent.reason)
+            .where(
+                MachineStatusEvent.organization_id == company_id,
+                MachineStatusEvent.machine_id == machine.id,
+            )
+            .order_by(MachineStatusEvent.occurred_at.desc())
+            .limit(1)
+        )
+        tickets.append(
+            dict(
+                machine_id=machine.id,
+                kind="breakdown",
+                description=reason or "Out of service",
+                reported_at=reported,
+                started_at=min(reported + timedelta(minutes=20), moment),
+                status="in_progress",
+            )
+        )
+    tickets.sort(key=lambda t: t["reported_at"])
+    for number, values in enumerate(tickets, 1):
+        db.session.add(
+            MaintenanceTicket(
+                organization_id=company_id,
+                number=f"MT-{number:05d}",
+                reported_by_id=member.id,
+                closed_by_id=member.id if values["status"] == "closed" else None,
+                **values,
+            )
+        )
+    for machine_id, before, after, reason, at in events:
+        db.session.add(
+            MachineStatusEvent(
+                organization_id=company_id,
+                machine_id=machine_id,
+                from_status=before,
+                to_status=after,
+                reason=reason,
+                actor_id=member.id,
+                occurred_at=at,
+            )
+        )
+    db.session.flush()
+    audit(
+        company_id,
+        "factory.demo_maintenance_seeded",
+        "maintenance_tickets",
+        None,
+        {"count": len(tickets)},
+    )
+    return [
+        f"Maintenance: {len(plans)} preventive plans, {len(tickets)} fictional tickets "
+        f"({len(BREAKDOWNS)} past breakdowns, open tickets for machines already down)."
+    ]

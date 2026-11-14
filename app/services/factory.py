@@ -33,6 +33,7 @@ from app.models.factory import (
     Machine,
     MachineClass,
     MachineStatusEvent,
+    MaintenancePlan,
     ShiftPattern,
     SiteTransitTime,
     Style,
@@ -342,6 +343,35 @@ RESOURCES = {
             ),
         ),
     ),
+    "maintenance-plans": (
+        MaintenancePlan,
+        "Maintenance plans",
+        (
+            Field("code", "Code", help="Short and unique, e.g. PM-JET-14D."),
+            Field("name", "Name"),
+            Field("machine_class_id", "Machine class", "parent", parent=MachineClass),
+            Field(
+                "interval_days",
+                "Every (days)",
+                "int",
+                minimum=dec(1),
+                maximum=dec(730),
+                help="Days between jobs on each machine of the class.",
+            ),
+            Field(
+                "duration_minutes",
+                "Takes (minutes)",
+                "int",
+                minimum=dec(5),
+                maximum=dec(2880),
+            ),
+            Field(
+                "tasks",
+                "Tasks",
+                help="What the technician does, e.g. clean feeders, oil cylinder, check needles.",
+            ),
+        ),
+    ),
 }
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 # Identity that history depends on cannot change once something refers to the record.
@@ -350,6 +380,7 @@ FROZEN = {
     "machine-classes": ("capacity_basis", "department"),
     "work-centers": ("site_id", "department"),
     "fabric-specs": ("style_id",),
+    "maintenance-plans": ("machine_class_id",),
 }
 
 

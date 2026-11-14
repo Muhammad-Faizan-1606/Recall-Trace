@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}Maintenance · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Maintenance</h1>
+    <p>Breakdowns being repaired, preventive jobs coming due, and which machines fail most. A machine with an open breakdown is out of planned capacity until its ticket is closed.</p>
+  </div>
+</div>
+<dl class="facts">
+  <div class="{{ 'is-alert' if open_tickets }}"><dt>Unfinished tickets</dt><dd>{{ open_tickets|length }}</dd></div>
+  <div class="{{ 'is-alert' if overdue }}"><dt>Preventive overdue</dt><dd>{{ overdue|length }}<small class="fine-print"> · {{ due|length - overdue|length }} due in 14 days</small></dd></div>
+  <div><dt>Breakdowns, {{ window }} days</dt><dd>{{ breakdowns }}<small class="fine-print"> · {{ down_hours|round|int }} h down</small></dd></div>
+  <div><dt>Mean time to repair</dt><dd>{% if mttr is not none %}{{ '%.1f'|format(mttr) }}<small class="fine-print"> h</small>{% else %}—{% endif %}</dd></div>
+</dl>
+
+<div class="split">
+  <div>
+    <section class="section" aria-labelledby="open-heading">
+      <div class="section-head"><h2 id="open-heading">Unfinished tickets</h2></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Ticket</th><th scope="col">Machine</th><th scope="col">Problem</th><th scope="col">Status</th><th scope="col" class="num">Waiting</th></tr></thead>
+        <tbody>{% for t in open_tickets %}{% set m = machines.get(t.machine_id) %}
+          <tr data-href="{{ url_for('maintenance.ticket', company_id=company_id, ticket_id=t.id) }}">
+            <td><a href="{{ url_for('maintenance.ticket', company_id=company_id, ticket_id=t.id) }}">{{ t.number }}</a><div class="fine-print">{{ t.kind }}</div></td>
+            <td>{{ m.asset_tag if m else '—' }}<div class="fine-print">{{ centers.get(m.work_center_id, '') if m else '' }}</div></td>
+            <td>{{ t.description|truncate(70) }}</td>
+            <td>{{ t.status|tag }}</td>
+            <td class="num">{{ '%.1f'|format(hours(moment - t.reported_at)) }} h</td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty">Nothing waiting for a technician.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+
+    <section class="section" aria-labelledby="due-heading">
+      <div class="section-head"><h2 id="due-heading">Preventive jobs due</h2><span class="section-note">Overdue and the next 14 days, by plan</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Plan</th><th scope="col" class="num">Overdue</th><th scope="col" class="num">Due in 14 days</th><th scope="col"><span class="visually-hidden">Show</span></th></tr></thead>
+        <tbody>{% for plan, late, soon, first in plan_summary %}<tr{% if chosen == plan.id|string %} class="is-current-row"{% endif %}><td>{{ plan.name }}<div class="fine-print">every {{ plan.interval_days }} days · {{ plan.duration_minutes }} min</div></td><td class="num">{% if late %}<span class="tag tag-bad">{{ late }}</span>{% else %}0{% endif %}</td><td class="num">{{ soon }}</td><td class="text-end"><a href="{{ url_for('maintenance.overview', company_id=company_id, plan=plan.id) }}#due-list">Show machines</a></td></tr>{% else %}<tr><td colspan="4" class="empty">No preventive work due in the next 14 days.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      <h3 class="h6 mt-3" id="due-list">{% if chosen %}Machines for the chosen plan · <a href="{{ url_for('maintenance.overview', company_id=company_id) }}#due-list">show all overdue</a>{% else %}Overdue machines{% endif %}</h3>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Machine</th><th scope="col">Plan</th><th scope="col">Last done</th><th scope="col">Due</th>{% if can_record %}<th scope="col"><span class="visually-hidden">Action</span></th>{% endif %}</tr></thead>
+        <tbody>{% for d in shown[:60] %}{% set left = d.days_left(today) %}
+          <tr>
+            <td><a href="{{ url_for('maintenance.machine', company_id=company_id, machine_id=d.machine.id) }}">{{ d.machine.asset_tag }}</a><div class="fine-print">{{ classes.get(d.machine.machine_class_id, '') }}</div></td>
+            <td>{{ d.plan.name }}<div class="fine-print">every {{ d.plan.interval_days }} days · {{ d.plan.duration_minutes }} min</div></td>
+            <td>{{ d.last_done|day if d.last_done else 'Never' }}</td>
+            <td>{% if left < 0 %}<span class="tag tag-bad">{{ -left }} day{{ 's' if left != -1 }} overdue</span>{% elif left == 0 %}<span class="tag tag-waiting">today</span>{% else %}{{ d.due_on|day }}<div class="fine-print">in {{ left }} day{{ 's' if left != 1 }}</div>{% endif %}</td>
+            {% if can_record %}<td class="text-end">{% if d.open_ticket %}<a href="{{ url_for('maintenance.ticket', company_id=company_id, ticket_id=d.open_ticket.id) }}">{{ d.open_ticket.number }}</a>{% else %}<form class="m-0" method="post" action="{{ url_for('maintenance.plan_job', company_id=company_id) }}">{{ action_form.hidden_tag() }}<input type="hidden" name="plan_id" value="{{ d.plan.id }}"><input type="hidden" name="machine_id" value="{{ d.machine.id }}"><button class="btn btn-sm btn-outline-secondary" type="submit">Open job</button></form>{% endif %}</td>{% endif %}
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty">{% if chosen %}Nothing due for this plan.{% else %}No preventive job is overdue.{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% if shown|length > 60 %}<p class="fine-print">Showing the first 60 of {{ shown|length }}.</p>{% endif %}
+    </section>
+
+    <section class="section" aria-labelledby="rel-heading">
+      <div class="section-head"><h2 id="rel-heading">Machines that fail most</h2><span class="section-note">Last {{ window }} days</span></div>
+      <div class="table-responsive"><table class="table">
+        <thead><tr><th scope="col">Machine</th><th scope="col" class="num">Breakdowns</th><th scope="col" class="num">MTBF</th><th scope="col" class="num">MTTR</th><th scope="col" class="num">Response</th></tr></thead>
+        <tbody>{% for r in worst %}
+          <tr data-href="{{ url_for('maintenance.machine', company_id=company_id, machine_id=r.machine.id) }}">
+            <td><a href="{{ url_for('maintenance.machine', company_id=company_id, machine_id=r.machine.id) }}">{{ r.machine.asset_tag }}</a><div class="fine-print">{{ classes.get(r.machine.machine_class_id, '') }}</div></td>
+            <td class="num">{{ r.breakdowns }}</td>
+            <td class="num">{{ '%.0f'|format(r.mtbf / 24) }} days</td>
+            <td class="num">{% if r.mttr is not none %}{{ '%.1f'|format(r.mttr) }} h{% else %}—{% endif %}</td>
+            <td class="num">{% if r.response is not none %}{{ '%.0f'|format(r.response * 60) }} min{% else %}—{% endif %}</td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty">No breakdowns recorded in the last {{ window }} days.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      <p class="fine-print">MTBF = hours in service ÷ breakdowns. MTTR = average hours from report to repair. Response = time from report until work started.</p>
+    </section>
+  </div>
+
+  <aside class="rail" aria-label="Breakdowns and plans">
+    {% if can_record %}
+    <section class="panel next-step floor-entry" aria-labelledby="report-title">
+      <h2 id="report-title">Report a breakdown</h2>
+      <form method="post" action="{{ url_for('maintenance.breakdown', company_id=company_id) }}">
+        {{ action_form.hidden_tag() }}
+        <label class="form-label" for="asset_tag">Machine asset tag</label>
+        <input class="form-control mb-2" id="asset_tag" name="asset_tag" placeholder="KNT-SJ-07" maxlength="40" autocomplete="off" required>
+        <label class="form-label" for="description">What is wrong</label>
+        <textarea class="form-control mb-3" id="description" name="description" rows="3" maxlength="400" required></textarea>
+        <button class="btn btn-primary w-100" type="submit">Report breakdown</button>
+      </form>
+      <p class="fine-print mt-2 mb-0">The machine goes into maintenance at once, so planning stops counting its capacity.</p>
+    </section>
+    {% endif %}
+    <section class="panel" aria-labelledby="plans-title">
+      <h2 id="plans-title" class="mb-2">Plans</h2>
+      <p class="mb-2">Preventive work is scheduled from maintenance plans per machine class.</p>
+      <a href="{{ url_for('factory.listing', company_id=company_id, resource='maintenance-plans') }}">Maintenance plans</a>
+    </section>
+  </aside>
+</div>
+{% endblock %}
