@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import login_required
-from sqlalchemy import select
+from sqlalchemy import func, select
 from wtforms import DecimalField, IntegerField, SelectField, StringField
 from wtforms.fields.choices import SelectChoice
 from wtforms.validators import DataRequired, InputRequired, Length, NumberRange, Optional
@@ -84,7 +84,7 @@ def style_names(company_id, bulletin_ids):
 @bp.get("/lines")
 @login_required
 def lines(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="planning")
     rows = balancing.sewing_lines(company_id)
     current = balancing.current_balances(company_id)
     drafts = {
@@ -132,7 +132,7 @@ def lines(company_id):
 def line(company_id, line_id):
     from app.services.factory import machines_by_center
 
-    ctx = context(company_id)
+    ctx = context(company_id, area="planning")
     row = scoped(WorkCenter, company_id, line_id)
     if row.department != "sewing":
         abort(404)
@@ -177,8 +177,8 @@ def line(company_id, line_id):
 @bp.post("/lines/<uuid:line_id>/balances")
 @login_required
 def balance_new(company_id, line_id):
-    context(company_id)
-    require(company_id, "factory.manage")
+    context(company_id, area="planning")
+    require(company_id, "factory.plan")
     form = BalanceForm()
     form.bulletin_id.choices = bulletin_choices(company_id)
     if not form.validate_on_submit():
@@ -216,7 +216,7 @@ def flash_short(short, message):
 @bp.get("/balances/<uuid:balance_id>")
 @login_required
 def balance(company_id, balance_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="planning")
     row = scoped(LineBalance, company_id, balance_id)
     view = balancing.layout(company_id, row)
     site = db.session.get(Site, view.line.site_id)
@@ -235,8 +235,8 @@ def balance(company_id, balance_id):
 
 
 def _guarded(company_id):
-    context(company_id)
-    require(company_id, "factory.manage")
+    context(company_id, area="planning")
+    require(company_id, "factory.plan")
     form = ActionForm()
     if not form.validate_on_submit():
         abort(400)
@@ -321,3 +321,52 @@ def balance_discard(company_id, balance_id):
         return _back(company_id, balance_id)
     flash("Draft balance discarded.", "success")
     return redirect(url_for("balancing.line", company_id=company_id, line_id=line_id), 303)
+
+
+@bp.get("/lines/<uuid:line_id>/visual")
+@login_required
+def visual(company_id, line_id):
+    """The line drawn as its machines: status, work, load, and drag-to-move on a draft."""
+    from datetime import date as day_type
+
+    from app.models.factory import OutputLog
+    from app.services import shopfloor
+
+    ctx = context(company_id, area="lines")
+    row = scoped(WorkCenter, company_id, line_id)
+    if row.department != "sewing":
+        abort(404)
+    draft = db.session.scalar(
+        select(LineBalance).where(
+            LineBalance.organization_id == company_id,
+            LineBalance.work_center_id == row.id,
+            LineBalance.status == "draft",
+        )
+    )
+    current = balancing.current_balances(company_id).get(row.id)
+    shown = draft or current
+    view = balancing.layout(company_id, shown) if shown else None
+    latest = db.session.scalar(
+        select(func.max(OutputLog.day)).where(
+            OutputLog.organization_id == company_id,
+            OutputLog.work_center_id == row.id,
+            OutputLog.day <= day_type.today(),
+        )
+    )
+    today = shopfloor.line_day(company_id, row.id, latest) if latest else None
+    return render_template(
+        "factory/line_visual.html",
+        line=row,
+        site=db.session.get(Site, row.site_id),
+        view=view,
+        balance=shown,
+        draft=draft,
+        current=current,
+        latest=latest,
+        today=today,
+        editable=bool(draft) and ctx["can_manage"],
+        today_date=day_type.today(),
+        action_form=ActionForm(version=str(shown.version) if shown else "0"),
+        hundred=Decimal(100),
+        **ctx,
+    )

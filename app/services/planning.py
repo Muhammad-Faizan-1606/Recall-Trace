@@ -395,9 +395,9 @@ def simulate(company_id, today=None, overrides=None):
 
 def replan(company_id, today=None):
     """Re-plan every draft and planned order and store the bookings. Returns the plans."""
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
     company_lock(company_id)
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
     plans, candidates, _ = simulate(company_id, today)
     ids = [o.id for o in candidates]
     if ids:
@@ -503,10 +503,10 @@ def _clean(company_id, values):
 
 def save_order(company_id, values, order_id=None, version=None, today=None):
     """Create or change an order, then re-plan everything so priorities stay consistent."""
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
     try:
         company_lock(company_id)
-        require(company_id, "factory.manage")
+        require(company_id, "factory.plan")
         if order_id:
             order = scoped(ProductionOrder, company_id, order_id, lock=True)
             if version is not None and order.version != version:
@@ -548,14 +548,14 @@ TRANSITIONS = {
 
 def transition(company_id, order_id, action, version, today=None):
     """release: freeze the plan · complete: finish · cancel: free the capacity."""
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
     if action not in TRANSITIONS:
         raise DomainError("Unknown order action.")
     allowed, target = TRANSITIONS[action]
     allowed = (allowed,) if isinstance(allowed, str) else allowed
     try:
         company_lock(company_id)
-        require(company_id, "factory.manage")
+        require(company_id, "factory.plan")
         order = scoped(ProductionOrder, company_id, order_id, lock=True)
         if order.version != version:
             raise DomainError("This order changed; reload and try again.")

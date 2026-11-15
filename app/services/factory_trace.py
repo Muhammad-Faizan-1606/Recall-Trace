@@ -220,10 +220,10 @@ def post_run(company_id, reference, site_id, inputs, outputs):
 
 
 def _begin(company_id):
-    require(company_id, "factory.manage")
+    require(company_id, "factory.record")
     require(company_id, "production.post")
     company_lock(company_id)
-    require(company_id, "factory.manage")
+    require(company_id, "factory.record")
 
 
 # ---------- Stage postings ----------

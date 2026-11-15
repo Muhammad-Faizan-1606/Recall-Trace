@@ -141,7 +141,7 @@ def slack(order):
 @bp.get("/planning")
 @login_required
 def board(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="planning")
     try:
         offset = max(0, min(int(request.args.get("week", 0)), 26))
     except ValueError:
@@ -210,7 +210,7 @@ def board(company_id):
 @bp.get("/planning/<department>")
 @login_required
 def department(company_id, department):
-    ctx = context(company_id)
+    ctx = context(company_id, area="planning")
     if department not in planning.DEPARTMENT_UNIT:
         abort(404)
     try:
@@ -239,8 +239,8 @@ def department(company_id, department):
 @bp.post("/planning/replan")
 @login_required
 def replan(company_id):
-    context(company_id)
-    require(company_id, "factory.manage")
+    context(company_id, area="planning")
+    require(company_id, "factory.plan")
     if not ActionForm().validate_on_submit():
         abort(400)
     try:
@@ -261,7 +261,7 @@ def replan(company_id):
 @bp.get("/orders")
 @login_required
 def orders(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="planning")
     rows = db.session.scalars(
         select(ProductionOrder)
         .where(ProductionOrder.organization_id == company_id)
@@ -283,8 +283,8 @@ def orders(company_id):
 
 
 def order_editor(company_id, order_id=None):
-    ctx = context(company_id)
-    require(company_id, "factory.manage")
+    ctx = context(company_id, area="planning")
+    require(company_id, "factory.plan")
     order = scoped(ProductionOrder, company_id, order_id) if order_id else None
     if order is not None and order.status not in ("draft", "planned"):
         flash("Released, completed and cancelled orders cannot be edited.", "danger")
@@ -375,7 +375,7 @@ def what_if(company_id, order):
 @bp.get("/orders/<uuid:order_id>")
 @login_required
 def order(company_id, order_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="planning")
     row = scoped(ProductionOrder, company_id, order_id)
     style = scoped(Style, company_id, row.style_id)
     loads, relaxation, sam = planning.loads_for(company_id, row)
@@ -451,8 +451,8 @@ def order(company_id, order_id):
 @login_required
 def order_apply(company_id, order_id):
     """Apply a previewed what-if (sewing lines and priority) and re-plan."""
-    context(company_id)
-    require(company_id, "factory.manage")
+    context(company_id, area="planning")
+    require(company_id, "factory.plan")
     form = ActionForm()
     if not form.validate_on_submit():
         abort(400)
@@ -472,8 +472,8 @@ def order_apply(company_id, order_id):
 @bp.post("/orders/<uuid:order_id>/<any(release, complete, cancel):action>")
 @login_required
 def order_action(company_id, order_id, action):
-    context(company_id)
-    require(company_id, "factory.manage")
+    context(company_id, area="planning")
+    require(company_id, "factory.plan")
     form = ActionForm()
     if not form.validate_on_submit():
         abort(400)

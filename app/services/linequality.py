@@ -25,7 +25,10 @@ from app.models.factory import (
 from app.services import shopfloor
 from app.services.audit import record as audit
 from app.services.business import DomainError, scoped
+from app.services.jobroles import require_any
 
+# Supervisors and quality inspectors both record checks.
+CHECKERS = ("factory.record", "quality.inspect")
 # End-line DHU above this raises an alert (a common knitwear target is 5 or lower).
 DHU_LIMIT = Decimal("7.5")
 MAX_DEFECT_ROWS = 6
@@ -195,12 +198,10 @@ def _write(company_id, check, rows):
 
 
 def record_check(company_id, line_id, values, today=None):
-    from app.policies import require
-
-    require(company_id, shopfloor.PERMISSION)
+    require_any(company_id, *CHECKERS)
 
     def action():
-        member_id = shopfloor._start(company_id)
+        member_id = shopfloor._start(company_id, CHECKERS)
         line = shopfloor._sewing_line(company_id, line_id)
         day = shopfloor._day(values.get("day"), today)
         _, clean, rows = _check_values(company_id, values, today)
@@ -225,12 +226,10 @@ def record_check(company_id, line_id, values, today=None):
 
 
 def correct_check(company_id, check_id, values, today=None):
-    from app.policies import require
-
-    require(company_id, shopfloor.PERMISSION)
+    require_any(company_id, *CHECKERS)
 
     def action():
-        member_id = shopfloor._start(company_id)
+        member_id = shopfloor._start(company_id, CHECKERS)
         row = scoped(LineQualityCheck, company_id, check_id)
         original = scoped(LineQualityCheck, company_id, row.corrects_id) if row.corrects_id else row
         shopfloor._day(original.day, today)

@@ -146,7 +146,7 @@ def test_quality_screens_and_permissions(floor, client):  # noqa: F811
     assert entry.status_code == 200 and "Correct this check" in entry.text
     assert "End-line DHU" in client.get(f"{base}/floor").text
 
-    grant(company_id, codes=("factory.read",), role_code="auditor")
+    grant(company_id, codes=("factory.read", "factory.read_all"), role_code="auditor")
     client.post("/logout", data={"csrf_token": csrf(page)})
     login(client, "auditor@aurora.test")
     page = client.get(f"{base}/floor/{floor.center.id}")

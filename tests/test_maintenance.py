@@ -205,7 +205,7 @@ def test_maintenance_screens_and_permissions(shop, client):
     assert "Maintenance history" in client.get(f"{base}/machines/{machine('OL-3').id}").text
     assert client.get(f"{base}/maintenance-plans").status_code == 200
 
-    grant(company_id, codes=("factory.read",), role_code="auditor")
+    grant(company_id, codes=("factory.read", "factory.read_all"), role_code="auditor")
     client.post("/logout", data={"csrf_token": csrf(page)})
     login(client, "auditor@aurora.test")
     page = client.get(f"{base}/maintenance")

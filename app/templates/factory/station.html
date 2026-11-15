@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }} · Factory map{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('insights.map', company_id=company_id) }}">Factory map</a></p>
+<div class="page-head">
+  <div>
+    <h1>{{ title }}</h1>
+    <p>Each square is one machine. Hover or tap it for its tag and status.{% if key == 'sewing' %} Open a line to see its stations and who does what.{% endif %}</p>
+  </div>
+</div>
+<dl class="facts">
+  <div><dt>Running</dt><dd>{{ counts['active'] }}</dd></div>
+  <div><dt>Idle</dt><dd>{{ counts['idle'] }}</dd></div>
+  <div class="{{ 'is-alert' if counts['maintenance'] }}"><dt>Down</dt><dd>{{ counts['maintenance'] }}</dd></div>
+  <div><dt>Work centres</dt><dd>{{ centers|length }}</dd></div>
+</dl>
+<div class="machine-floor">
+{% for center, machines in centers %}
+  <section class="machine-group" aria-labelledby="wc-{{ center.id }}">
+    <div class="machine-group-head">
+      <h2 id="wc-{{ center.id }}">{{ center.name }}</h2>
+      <span class="fine-print">{{ center.code }}{% if key == 'sewing' %} · <a href="{{ url_for('balancing.visual', company_id=company_id, line_id=center.id) }}">Open line</a>{% endif %}</span>
+    </div>
+    <ul class="machine-grid" aria-label="Machines in {{ center.name }}">
+      {% for machine, class_name in machines %}
+      <li><a class="machine-dot status-{{ machine.status }}" href="{{ url_for('maintenance.machine', company_id=company_id, machine_id=machine.id) if sees(company_id, 'maintenance') else url_for('factory.detail', company_id=company_id, resource='machines', record_id=machine.id) if sees(company_id, 'machines') else '#' }}" title="{{ machine.asset_tag }} · {{ class_name }} · {{ machine.status }}"><span class="visually-hidden">{{ machine.asset_tag }}, {{ machine.status }}</span></a></li>
+      {% else %}<li class="fine-print">No machines registered.</li>{% endfor %}
+    </ul>
+  </section>
+{% endfor %}
+</div>
+<p class="map-legend fine-print"><span class="machine-dot status-active"></span> running <span class="machine-dot status-idle"></span> idle <span class="machine-dot status-maintenance"></span> in maintenance</p>
+{% endblock %}

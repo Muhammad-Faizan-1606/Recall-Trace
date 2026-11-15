@@ -47,6 +47,9 @@ CORE_PERMISSIONS = {
     "factory.read": "Read the factory model, machines and capacity",
     "factory.manage": "Maintain work centres, machines, shifts, calendar and transit times",
     "factory.record": "Record shop-floor output, downtime and batch cards",
+    "factory.plan": "Plan production orders, the planning board and line balances",
+    "factory.maintain": "Report breakdowns and carry out maintenance jobs",
+    "factory.read_all": "See every factory screen without changing anything",
 }
 
 
@@ -299,6 +302,11 @@ def seed_factory_demo(owner_email, owner_of):
         initialize(organization)
         forget_authorization()
         report = seed(organization, member)
+        from app.services import jobroles
+
+        created, _, _ = jobroles.install(organization.id)
+        if created:
+            report.append("Job roles added: " + ", ".join(created) + ".")
         report += seed_styles(organization, member)
         report += seed_orders(organization, member)
         report += seed_balances(organization, member)

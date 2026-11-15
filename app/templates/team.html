@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Team · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Team and access</h1>
+    <p>Give each person one job role. They only see the screens that job needs; an owner sees everything.</p>
+  </div>
+  <div class="page-actions"><a class="btn btn-outline-secondary" href="{{ url_for('access.dashboard', company_id=company_id) }}">Advanced access settings</a></div>
+</div>
+
+{% if missing %}
+<div class="alert alert-info" role="status">
+  <form method="post" action="{{ url_for('home.install_roles', company_id=company_id) }}" class="d-flex flex-wrap gap-2 align-items-center m-0">
+    {{ form.hidden_tag() }}
+    <span>Ready-made job roles not set up yet: {{ missing|join(', ') }}.</span>
+    <button class="btn btn-sm btn-primary" type="submit">Add job roles</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="split">
+  <div>
+    <ul class="people" aria-label="People">
+    {% for member, user in rows %}{% set current = role_names.get(assigned.get(member.id)) %}
+      <li class="person{{ ' is-inactive' if member.status != 'active' }}">
+        <span class="avatar avatar-lg" aria-hidden="true">{{ (user.display_name or 'U')[:1] }}</span>
+        <div class="person-main">
+          <strong>{{ user.display_name }}{% if member.id == me %} <span class="fine-print">(you)</span>{% endif %}</strong>
+          <span class="fine-print">{{ user.email }}{% if member.status != 'active' %} · access paused{% endif %}</span>
+          {% if current %}<span class="person-role">{{ current.name }}<span class="fine-print"> — {{ descriptions.get(current.code, '') }}</span></span>{% endif %}
+        </div>
+        <form method="post" action="{{ url_for('home.change_role', company_id=company_id, membership_id=member.id) }}" class="person-form">
+          {{ form.hidden_tag() }}<input type="hidden" name="version" value="{{ member.version }}">
+          <label class="visually-hidden" for="role-{{ member.id }}">Job role for {{ user.display_name }}</label>
+          <select class="form-select" id="role-{{ member.id }}" name="role_id">{% for role in roles %}<option value="{{ role.id }}"{% if current and role.id == current.id %} selected{% endif %}>{{ role.name }}</option>{% endfor %}</select>
+          <label class="visually-hidden" for="status-{{ member.id }}">Access for {{ user.display_name }}</label>
+          <select class="form-select" id="status-{{ member.id }}" name="status"><option value="active"{% if member.status == 'active' %} selected{% endif %}>Can sign in</option><option value="inactive"{% if member.status != 'active' %} selected{% endif %}>Paused</option></select>
+          <button class="btn btn-outline-secondary" type="submit">Save</button>
+        </form>
+      </li>
+    {% endfor %}
+    </ul>
+  </div>
+  <aside class="rail" aria-label="Invite">
+    <section class="panel next-step" aria-labelledby="invite-title">
+      <h2 id="invite-title">Add a person</h2>
+      <form method="post" action="{{ url_for('home.invite', company_id=company_id) }}">
+        {{ form.hidden_tag() }}
+        <label class="form-label" for="email">Email address</label>
+        <input class="form-control mb-2" id="email" name="email" type="email" autocomplete="off" required>
+        <label class="form-label" for="invite-role">Job role</label>
+        <select class="form-select mb-3" id="invite-role" name="role_id">{% for role in roles %}<option value="{{ role.id }}">{{ role.name }}</option>{% endfor %}</select>
+        <button class="btn btn-primary w-100" type="submit">Send invitation</button>
+      </form>
+      <p class="fine-print mt-2 mb-0">They get an email to set their password. Invitations need account email delivery to be configured.</p>
+    </section>
+    <section class="panel" aria-labelledby="roles-title">
+      <h2 id="roles-title" class="mb-2">Job roles</h2>
+      <dl class="kv">{% for role in roles if role.code in descriptions %}<dt>{{ role.name }}</dt><dd>{{ descriptions[role.code] }}</dd>{% endfor %}</dl>
+    </section>
+  </aside>
+</div>
+{% endblock %}

@@ -21,7 +21,11 @@ from app.services.factory_demo import SLUG
 D = Decimal
 
 
-def grant(company_id, codes=("factory.read", "factory.manage"), role_code="catalog-editor"):
+def grant(
+    company_id,
+    codes=("factory.read", "factory.manage", "factory.plan", "factory.maintain"),
+    role_code="catalog-editor",
+):
     role = db.session.scalar(
         select(Role).where(Role.organization_id == company_id, Role.code == role_code)
     )
@@ -350,7 +354,7 @@ def test_factory_pages_need_permission(app, records, client):
     company_id = records["companies"]["aurora"]
     login(client)
     assert client.get(f"/companies/{company_id}/factory").status_code == 403
-    grant(company_id, codes=("factory.read",))
+    grant(company_id, codes=("factory.read", "factory.read_all"))
     assert client.get(f"/companies/{company_id}/factory").status_code == 200
     form = client.get(f"/companies/{company_id}/factory/machines")
     assert form.status_code == 200

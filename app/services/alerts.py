@@ -45,6 +45,7 @@ from app.policies import allowed, membership_for, require
 from app.services import balancing, shopfloor
 from app.services.audit import record as audit
 from app.services.business import DomainError, company_lock, scoped
+from app.services.jobroles import ALERT_ACTORS, require_any
 
 EFFICIENCY_BAND = Decimal(5)
 DOWN_MINUTES = 30
@@ -460,7 +461,7 @@ def scan_quietly(company_id):
 
 def _locked(company_id, alert_id, version):
     company_lock(company_id)
-    require(company_id, "factory.record")
+    require_any(company_id, *ALERT_ACTORS)
     alert = scoped(FactoryAlert, company_id, alert_id, lock=True)
     if alert.version != version:
         raise DomainError("This alert changed; reload before continuing.")
@@ -471,7 +472,7 @@ def _locked(company_id, alert_id, version):
 
 def acknowledge(company_id, alert_id, version, owner_id=None):
     """Mark an alert seen, optionally giving it an owner (who is notified in the app)."""
-    require(company_id, "factory.record")
+    require_any(company_id, *ALERT_ACTORS)
 
     def action():
         alert = _locked(company_id, alert_id, version)
@@ -508,7 +509,7 @@ def acknowledge(company_id, alert_id, version, owner_id=None):
 
 
 def resolve(company_id, alert_id, version, note):
-    require(company_id, "factory.record")
+    require_any(company_id, *ALERT_ACTORS)
     note = str(note or "").strip()
     if not note or len(note) > 400 or "\x00" in note:
         raise DomainError("Say what was done, in up to 400 characters.")

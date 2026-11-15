@@ -239,6 +239,9 @@ def create_app(config=None):
     from app.blueprints.maintenance import bp as maintenance_bp
 
     app.register_blueprint(maintenance_bp)
+    from app.blueprints.home import bp as home_bp
+
+    app.register_blueprint(home_bp)
     from app.cli import register
 
     register(app)

@@ -19,7 +19,7 @@ bp = Blueprint("maintenance", __name__, url_prefix="/companies/<uuid:company_id>
 
 
 def page_context(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="maintenance")
     ctx["can_record"] = allowed(company_id, maintenance.PERMISSION)
     ctx["action_form"] = ActionForm(version="0")
     return ctx
@@ -38,7 +38,7 @@ def machine_names(company_id, ids):
 
 
 def _guard(company_id):
-    context(company_id)
+    context(company_id, area="maintenance")
     require(company_id, maintenance.PERMISSION)
     form = ActionForm()
     if not form.validate_on_submit():

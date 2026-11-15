@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}{{ line.name }} · Line view{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('insights.station', company_id=company_id, key='sewing') }}">Sewing on the factory map</a></p>
+<div class="record-head">
+  <div>
+    <h1>{{ line.name }} · {{ site.name if site }}</h1>
+    <p class="record-meta"><span>{{ line.code }}</span>{% if view %}<span>{{ view.style.code }} — {{ view.style.name }}</span>{{ balance.status|tag }}<span>Revision {{ balance.revision }}</span>{% else %}<span>No balance yet</span>{% endif %}</p>
+  </div>
+  <div class="page-actions">
+    {% if sees(company_id, 'floor') %}<a class="btn btn-outline-secondary" href="{{ url_for('shopfloor.line_day', company_id=company_id, line_id=line.id) }}">Record output</a>{% endif %}
+    {% if can_manage and current and not draft %}<form class="m-0" method="post" action="{{ url_for('balancing.balance_revise', company_id=company_id, balance_id=current.id) }}">{{ action_form.hidden_tag() }}<button class="btn btn-primary" type="submit">Rearrange the line</button></form>{% endif %}
+    {% if draft and can_manage %}<a class="btn btn-primary" href="{{ url_for('balancing.balance', company_id=company_id, balance_id=draft.id) }}">Review and publish</a>{% endif %}
+  </div>
+</div>
+
+{% if view %}{% set m = view.metrics %}
+<dl class="facts">
+  <div><dt>Stations</dt><dd>{{ m.stations }}</dd></div>
+  <div class="{{ 'is-alert' if m.balance_efficiency < 85 }}"><dt>Balance</dt><dd>{{ m.balance_efficiency|cap }}%</dd></div>
+  <div><dt>Plan</dt><dd>{{ m.per_hour|cap }}<small class="fine-print"> pieces/h</small></dd></div>
+  <div><dt>{{ 'Today' if latest and latest == today_date else (latest.strftime('%a %d %b') if latest else 'Output') }}</dt><dd>{% if today %}{{ '{:,}'.format(today.good) }}<small class="fine-print"> good{% if today.efficiency is not none %} · {{ today.efficiency|cap }}%{% endif %}</small>{% else %}—{% endif %}</dd></div>
+</dl>
+
+{% if draft %}<div class="alert alert-info" role="status">{% if editable %}You are rearranging a draft. <strong>Drag an operation onto another station</strong>, check the move below, then press Move. The line keeps running its published balance until you publish.{% else %}A draft rearrangement is open; the line runs its published balance until it is published.{% endif %}</div>{% endif %}
+
+<ol class="line-floor{{ ' is-editable' if editable }}" aria-label="Stations in sewing order">
+{% for r in m.rows %}{% set st = r.station %}{% set mstatus = st.machine.status if st.machine else ('manual' if not st.class_id else 'missing') %}
+  <li class="station-tile station-{{ r.state }} machine-{{ mstatus }}" data-station="{{ st.number }}">
+    <div class="station-top">
+      <span class="station-no">{{ st.number }}</span>
+      <span class="station-machine" title="{{ st.class_name }}">{% if st.machine %}{{ st.machine.asset_tag.split('-')[-1] }}{% elif st.class_id %}—{% else %}manual{% endif %}</span>
+      <span class="station-status">{{ {'active': 'running', 'idle': 'idle', 'maintenance': 'down', 'manual': 'helper', 'missing': 'no machine'}.get(mstatus, mstatus) }}</span>
+    </div>
+    <ul class="op-chips">{% for op, share in st.work %}
+      <li><button type="button" class="op-chip"{% if editable %} draggable="true"{% endif %} data-from="{{ st.number }}" data-op="{{ op.id }}" data-name="{{ op.name }}" title="{{ op.name }}: {{ (op.sam * share)|two }} min">{{ op.name }}{% if share < 1 %} <span>{{ (share * hundred)|cap }}%</span>{% endif %}</button></li>
+    {% endfor %}</ul>
+    <span class="load-track"><span class="load-bar lb-{{ r.bar }}"></span><span class="pitch-mark"></span></span>
+    <span class="station-load">{{ r.load|two }} min · {{ r.percent|cap }}%{% if r.state == 'bottleneck' %} · bottleneck{% endif %}</span>
+  </li>
+{% endfor %}
+</ol>
+<p class="map-legend fine-print"><span class="machine-dot status-active"></span> machine running <span class="machine-dot status-idle"></span> idle <span class="machine-dot status-maintenance"></span> down · bar = minutes per piece, line = pitch time ({{ m.pitch|two }} min)</p>
+
+{% if editable %}
+<section class="panel move-panel" aria-labelledby="move-title">
+  <h2 id="move-title">Move</h2>
+  <form method="post" action="{{ url_for('balancing.balance_move', company_id=company_id, balance_id=draft.id) }}" class="move-form" data-move-form>
+    {{ action_form.hidden_tag() }}
+    <label class="form-label" for="work">Work</label>
+    <select class="form-select" id="work" name="work" required>{% for r in m.rows %}{% for op, share in r.station.work %}<option value="{{ r.station.number }}:{{ op.id }}">Station {{ r.station.number }} · {{ op.name }}{% if share < 1 %} ({{ (share * hundred)|cap }}%){% endif %}</option>{% endfor %}{% endfor %}</select>
+    <label class="form-label" for="to_station">To</label>
+    <select class="form-select" id="to_station" name="to_station">{% for r in m.rows %}<option value="{{ r.station.number }}">Station {{ r.station.number }} · {{ r.station.class_name }}</option>{% endfor %}<option value="new">A new station</option></select>
+    <label class="form-label" for="percent">How much</label>
+    <div class="input-group"><input class="form-control" id="percent" name="percent" type="number" min="1" max="100" value="100" required><span class="input-group-text">%</span></div>
+    <button class="btn btn-primary" type="submit">Move</button>
+  </form>
+</section>
+<script src="{{ url_for('static', filename='line.js') }}" defer></script>
+{% endif %}
+{% else %}
+<div class="panel"><p class="mb-0">This line has no balance yet.{% if can_manage %} <a href="{{ url_for('balancing.line', company_id=company_id, line_id=line.id) }}">Balance a style on it</a> to see its stations here.{% endif %}</p></div>
+{% endif %}
+{% endblock %}

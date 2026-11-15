@@ -301,3 +301,12 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Knitting and dyeing are posted as one step.** Greige rolls are not separately stocked: yarn lots go straight to the dyed fabric lot. A greige lot can be added when a factory tracks greige stock.
 - **Kilograms per lay come from the style's fabric specification.** The pieces cut × kg per garment is consumed from the batch's fabric lot. A shortfall is refused, not silently cut.
 - **AQL final audits.** Garment lots are ordinary lots, so the existing inspection templates and inspections apply to them directly.
+
+## 15 November 2026 — Job roles, simple mode and the visual factory
+
+- **Areas, not page-by-page rules.** Each factory screen declares one area, and each area lists the permissions that open it. That keeps "who sees what" in one table (`jobroles.AREAS`) that can be explained and tested, while every action still checks its own permission in the service.
+- **Finer factory permissions.** Planning (`factory.plan`) and maintenance (`factory.maintain`) are separated from setup and floor recording, so a technician cannot replan orders and a planner cannot edit machines. Quality inspectors record line checks with their existing `quality.inspect`.
+- **Simple mode is for factory-only jobs.** People without catalog access (supervisors, technicians, viewers, planners) land on big tiles. Office staff keep the existing workspace, so nothing changes for current Core users.
+- **Preview, not test accounts.** Admins preview a job role's menu and Home in their own session. No extra logins or passwords are created for demos, and the preview never changes real permissions.
+- **The map shows recorded data only.** Station figures and flows come from machines, bookings, rolls, batches, bundles, lots and shipments; nothing is simulated. "Live" means a 30-second refresh of what has been recorded. Live machine counters would make it truly real-time and remain out of scope.
+- **Dragging prepares a move; it does not commit it.** A drop fills the move form, and the person presses Move. Accidental drags never change a line, and the same form works without a mouse.

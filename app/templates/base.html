@@ -27,46 +27,65 @@
   </div>
   <a class="company-chip" href="{{ url_for('catalog.companies') }}" title="Switch company"><span class="company-initial" aria-hidden="true">{{ company.name[:1] }}</span><span><strong>{{ company.name }}</strong><small>Switch company</small></span></a>
   <nav aria-label="Workspace sections">
+    {% set fbase = '/companies/' ~ company_id ~ '/factory/' %}
     <div class="side-group">
-      {{ nav_link(url_for('overview.overview', company_id=company_id), 'Overview', 'layout-dashboard') }}
+      {{ nav_link(url_for('home.index', company_id=company_id), 'Home', 'layout-dashboard') }}
+      {% if shows(company_id, 'catalog.read') %}{{ nav_link(url_for('overview.overview', company_id=company_id), 'Recall overview', 'scan-search') }}{% endif %}
     </div>
-    <div class="side-group">
-      <p class="side-heading">Recall</p>
-      {{ nav_link(url_for('recall.dashboard', company_id=company_id), 'Investigations', 'scan-search') }}
-      {{ nav_link(url_for('notices.listing', company_id=company_id), 'Notices', 'megaphone') }}
-    </div>
-    {% if can_use_factory(company_id) %}
+    {% if sees(company_id, 'dashboard') %}
     <div class="side-group">
       <p class="side-heading">Factory</p>
-      {{ nav_link(url_for('insights.board', company_id=company_id), 'Dashboard', 'layout-dashboard', ['/companies/' ~ company_id ~ '/factory/dashboard']) }}
-      {% set alert_count = factory_alert_count(company_id) %}<a class="side-link{{ ' is-current' if request.path.startswith('/companies/' ~ company_id ~ '/factory/alerts') }}" href="{{ url_for('insights.listing', company_id=company_id) }}"{% if request.path.startswith('/companies/' ~ company_id ~ '/factory/alerts') %} aria-current="page"{% endif %}>{{ icon('alert-triangle') }}<span>Alerts</span>{% if alert_count %}<span class="count-pill side-count">{{ alert_count }}<span class="visually-hidden"> unresolved</span></span>{% endif %}</a>
-      {{ nav_link(url_for('factory.overview', company_id=company_id), 'Capacity', 'activity', '/companies/' ~ company_id ~ '/factory/__none__') }}
-      {% set pbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('planning.board', company_id=company_id), 'Planning board', 'calendar', [pbase ~ 'planning']) }}
-      {{ nav_link(url_for('planning.orders', company_id=company_id), 'Production orders', 'clipboard-check', [pbase ~ 'orders']) }}
-      {{ nav_link(url_for('balancing.lines', company_id=company_id), 'Line balancing', 'ruler', [pbase ~ 'lines', pbase ~ 'balances']) }}
-      {{ nav_link(url_for('shopfloor.floor', company_id=company_id), 'Shop floor', 'monitor-smartphone', [pbase ~ 'floor']) }}
-      {{ nav_link(url_for('shopfloor.bundles', company_id=company_id), 'Batch cards', 'tag', [pbase ~ 'rolls', pbase ~ 'dye-batches', pbase ~ 'bundles']) }}
-      {{ nav_link(url_for('maintenance.overview', company_id=company_id), 'Maintenance', 'key-round', [pbase ~ 'maintenance']) }}
+      {{ nav_link(url_for('insights.map', company_id=company_id), 'Factory map', 'activity', [fbase ~ 'map']) }}
+      {{ nav_link(url_for('insights.board', company_id=company_id), 'Dashboard', 'layout-dashboard', [fbase ~ 'dashboard']) }}
+      {% set alert_count = factory_alert_count(company_id) %}<a class="side-link{{ ' is-current' if request.path.startswith(fbase ~ 'alerts') }}" href="{{ url_for('insights.listing', company_id=company_id) }}"{% if request.path.startswith(fbase ~ 'alerts') %} aria-current="page"{% endif %}>{{ icon('alert-triangle') }}<span>Alerts</span>{% if alert_count %}<span class="count-pill side-count">{{ alert_count }}<span class="visually-hidden"> unresolved</span></span>{% endif %}</a>
+      {% if sees(company_id, 'planning') %}
+      {{ nav_link(url_for('planning.board', company_id=company_id), 'Planning board', 'calendar', [fbase ~ 'planning']) }}
+      {{ nav_link(url_for('planning.orders', company_id=company_id), 'Production orders', 'clipboard-check', [fbase ~ 'orders']) }}
+      {{ nav_link(url_for('balancing.lines', company_id=company_id), 'Line balancing', 'ruler', [fbase ~ 'lines', fbase ~ 'balances']) }}
+      {{ nav_link(url_for('factory.overview', company_id=company_id), 'Capacity', 'layers', fbase ~ '__none__') }}
+      {% endif %}
+      {% if sees(company_id, 'floor') %}
+      {{ nav_link(url_for('shopfloor.floor', company_id=company_id), 'Shop floor', 'monitor-smartphone', [fbase ~ 'floor']) }}
+      {{ nav_link(url_for('shopfloor.bundles', company_id=company_id), 'Batch cards', 'tag', [fbase ~ 'rolls', fbase ~ 'dye-batches', fbase ~ 'bundles']) }}
+      {% endif %}
+      {% if sees(company_id, 'maintenance') %}{{ nav_link(url_for('maintenance.overview', company_id=company_id), 'Maintenance', 'key-round', [fbase ~ 'maintenance']) }}{% endif %}
+      {% if sees(company_id, 'machines') %}
       {{ nav_link(url_for('factory.listing', company_id=company_id, resource='machines'), 'Machines', 'boxes') }}
       {{ nav_link(url_for('factory.listing', company_id=company_id, resource='work-centers'), 'Work centres', 'layers') }}
-      {% set sbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('factory.listing', company_id=company_id, resource='styles'), 'Styles & SAM', 'list-checks', [sbase ~ 'styles', sbase ~ 'fabric-specs', sbase ~ 'bulletins']) }}
-      {% set fbase = '/companies/' ~ company_id ~ '/factory/' %}{{ nav_link(url_for('factory.setup', company_id=company_id), 'Factory setup', 'database', [fbase ~ 'setup', fbase ~ 'machine-classes', fbase ~ 'shift-patterns', fbase ~ 'calendar', fbase ~ 'transit', fbase ~ 'downtime-reasons', fbase ~ 'maintenance-plans']) }}
+      {% endif %}
+      {% if sees(company_id, 'engineering') %}{{ nav_link(url_for('factory.listing', company_id=company_id, resource='styles'), 'Styles & SAM', 'list-checks', [fbase ~ 'styles', fbase ~ 'fabric-specs', fbase ~ 'bulletins']) }}{% endif %}
+      {% if sees(company_id, 'setup') %}{{ nav_link(url_for('factory.setup', company_id=company_id), 'Factory setup', 'database', [fbase ~ 'setup', fbase ~ 'machine-classes', fbase ~ 'shift-patterns', fbase ~ 'calendar', fbase ~ 'transit', fbase ~ 'downtime-reasons', fbase ~ 'maintenance-plans']) }}{% endif %}
+    </div>
+    {% endif %}
+    {% if shows(company_id, 'case.prepare', 'trace.run', 'case.approve', 'case.close', 'notice.prepare', 'notice.approve', 'recovery.record') %}
+    <div class="side-group">
+      <p class="side-heading">Recall</p>
+      {% if shows(company_id, 'case.prepare', 'trace.run', 'case.approve', 'case.close', 'recovery.record') %}{{ nav_link(url_for('recall.dashboard', company_id=company_id), 'Investigations', 'scan-search') }}{% endif %}
+      {% if shows(company_id, 'notice.prepare', 'notice.approve') %}{{ nav_link(url_for('notices.listing', company_id=company_id), 'Notices', 'megaphone') }}{% endif %}
+    </div>
+    {% endif %}
+    {% if shows(company_id, 'inventory.receive', 'inventory.transfer', 'inventory.dispatch', 'quality.inspect', 'quality.hold', 'quality.release') %}
+    <div class="side-group">
+      <p class="side-heading">Stock and quality</p>
+      {% if shows(company_id, 'inventory.receive', 'inventory.transfer', 'inventory.dispatch') %}{{ nav_link(url_for('operations.dashboard', company_id=company_id), 'Operations', 'boxes') }}{% endif %}
+      {% if shows(company_id, 'quality.inspect', 'quality.hold', 'quality.release') %}{{ nav_link(url_for('quality.dashboard', company_id=company_id), 'Quality', 'shield-check') }}{% endif %}
+    </div>
+    {% endif %}
+    {% if shows(company_id, 'catalog.read', 'evidence.read', 'reports.export') %}
+    <div class="side-group">
+      <p class="side-heading">Records</p>
+      {% if shows(company_id, 'catalog.read') %}
+      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='items'), 'Catalog', 'tag', '/companies/' ~ company_id ~ '/catalog') }}
+      {{ nav_link(url_for('master.dashboard', company_id=company_id), 'Master data', 'database') }}
+      {% endif %}
+      {% if shows(company_id, 'evidence.read', 'reports.export') %}{{ nav_link(url_for('evidence.listing', company_id=company_id), 'Evidence & reports', 'folder-lock') }}{% endif %}
     </div>
     {% endif %}
     <div class="side-group">
-      <p class="side-heading">Stock and quality</p>
-      {{ nav_link(url_for('operations.dashboard', company_id=company_id), 'Operations', 'boxes') }}
-      {{ nav_link(url_for('quality.dashboard', company_id=company_id), 'Quality', 'shield-check') }}
-    </div>
-    <div class="side-group">
-      <p class="side-heading">Records</p>
-      {{ nav_link(url_for('catalog.listing', company_id=company_id, kind='items'), 'Catalog', 'tag', '/companies/' ~ company_id ~ '/catalog') }}
-      {{ nav_link(url_for('master.dashboard', company_id=company_id), 'Master data', 'database') }}
-      {{ nav_link(url_for('evidence.listing', company_id=company_id), 'Evidence & reports', 'folder-lock') }}
-    </div>
-    <div class="side-group">
-      <p class="side-heading">Administration</p>
-      {% if can_access_company(company_id) %}{{ nav_link(url_for('access.dashboard', company_id=company_id), 'Company access', 'users') }}{% endif %}
+      <p class="side-heading">Account</p>
+      {% if can_access_company(company_id) and admin_view(company_id) %}
+      {{ nav_link(url_for('home.team', company_id=company_id), 'Team and access', 'users', ['/companies/' ~ company_id ~ '/team', '/companies/' ~ company_id ~ '/access']) }}
+      {% endif %}
       {{ nav_link(url_for('security.index'), 'Account security', 'key-round') }}
     </div>
   </nav>
@@ -85,7 +104,7 @@
     {% if company is defined %}
     <button class="icon-button menu-button" type="button" data-sidebar-open aria-controls="sidebar" aria-label="Open menu">{{ icon('menu') }}</button>
     {{ brand_mark(url_for('overview.overview', company_id=company_id)) }}
-    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'planning': 'Planning', 'balancing': 'Line balancing', 'shopfloor': 'Shop floor', 'insights': 'Factory dashboard', 'maintenance': 'Maintenance', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
+    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'planning': 'Planning', 'balancing': 'Line balancing', 'shopfloor': 'Shop floor', 'insights': 'Factory dashboard', 'home': 'Home', 'maintenance': 'Maintenance', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
     <ol class="crumbs" aria-label="You are here">
       <li><a href="{{ url_for('overview.overview', company_id=company_id) }}">{{ company.name }}</a></li>
       <li><span aria-current="location">{{ 'Search' if request.endpoint == 'overview.search' else sections.get(request.blueprint, 'Workspace') }}</span></li>
@@ -103,6 +122,7 @@
     {% if config.APP_ENV != 'preview' %}<button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch between dark and light theme" title="Switch theme"><span class="theme-dark-icon">{{ icon('moon') }}</span><span class="theme-light-icon">{{ icon('sun') }}</span></button>{% endif %}
   </header>
   <main id="main" class="content">
+    {% if company is defined and previewing(company_id) %}<form class="preview-strip" method="post" action="{{ url_for('home.preview', company_id=company_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><span>{{ icon('monitor-smartphone') }} Previewing as <strong>{{ previewing(company_id) }}</strong>: the menu and home page show only what this job sees.</span><button class="btn btn-sm btn-outline-secondary" type="submit" name="role" value="">Back to my own view</button></form>{% endif %}
     {% if config.get('SCANNER_MODE') == 'unconfigured' %}<p class="notice-strip" role="note">University demonstration deployment: malware scanning is not configured, so every uploaded evidence file stays quarantined and cannot be downloaded or accepted.</p>{% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert alert-{{ category }}" role="status">{{ message }}</div>{% endfor %}{% endwith %}
     {% block content %}{% endblock %}

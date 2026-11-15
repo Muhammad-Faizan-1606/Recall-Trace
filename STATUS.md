@@ -1,5 +1,40 @@
 # RecallTrace implementation status
 
+## Job roles, simple mode, live factory map and visual lines — 15 November 2026
+
+- **Permissions:** three new ones.
+  - `factory.plan`: orders, planning board and line balancing. These actions moved here from `factory.manage`, which now means factory setup and engineering.
+  - `factory.maintain`: breakdowns and maintenance jobs, moved from `factory.record`.
+  - `factory.read_all`: see every factory screen without changing anything.
+- **Who records what:** quality checks accept `factory.record` or `quality.inspect`. Posting to traceability needs `factory.record` plus `production.post`. Alerts can be acted on by any factory job (not viewers).
+- **Areas** (`app/services/jobroles.py`): every factory page belongs to an area (dashboard, planning, floor, maintenance, machines, engineering, setup, lines) and checks it on the server. The sidebar shows only the areas and Core sections a person can use.
+- **Ready-made job roles:**
+  - Planner
+  - Floor supervisor
+  - Maintenance technician
+  - Quality inspector
+  - Manager (dashboard only)
+  - Installation is idempotent and only grants permissions the installing admin holds. The demo seed installs them.
+- **Simple mode:**
+  - People without catalog access (factory-only jobs) land on a big-tile Home with only their job's actions, and the sidebar shows only those screens.
+  - Admins can preview any job role: only the menu and Home change, never their real permissions. A banner offers the way back.
+- **Team and access:** one person, one job role, with a pause switch, an invite form and plain descriptions of each role, built on the existing access services and their rules (grant only what you hold, keep an active owner, sign out on change). The advanced access screen is still linked.
+- **Live factory map** (`app/services/factorymap.py`):
+  - Yarn store → knitting → dyeing → finishing → cutting → sewing → packing → shipped.
+  - Each station shows machines running, idle and down, today's booked load, and a live figure (yarn kg, batches in vessels, pieces cut waiting, good pieces, pieces to pack, shipped this week), coloured green, amber or red.
+  - Animated flows show work waiting between stations and run only when something is waiting.
+  - Figures refresh every 30 seconds from a JSON endpoint (`static/map.js`, paused while the tab is hidden).
+  - Each station drills down to every machine as a coloured square, grouped by work centre.
+- **Visual line view:** each sewing line drawn as station tiles, showing the machine and its status, the operation chips with shares, the load bar against pitch time, and the bottleneck. On a draft balance, dragging an operation onto another station fills in the move form (press Move to confirm). Click or keyboard selection works too (`static/line.js`). "Rearrange the line" opens a draft from the published balance.
+- **Verification:** `tests/test_jobroles.py` passes 12 tests:
+  - each of the 5 job roles opens only its areas (403 elsewhere), and simple-mode landing and tiles
+  - a planner refused output and breakdowns, and an inspector who can record checks but not output
+  - admin preview without a permission change
+  - a team role change, and a non-admin refused from team
+  - the map JSON, station drill-down, the line view's drag form
+  - The 64 existing factory tests were updated to the new permissions; the read-only tests now use `factory.read_all`.
+  - The tests caught a real gap: quality inspectors were refused at the check routes. Fixed.
+
 ## Factory Suite step 8b: yarn-to-carton trace chain — 14 November 2026
 
 - **Data:** migration `f09a01` adds lot links to existing factory records: `knit_rolls.yarn_lot_id`, `dye_batches.fabric_lot_id`, `cut_bundles.cut_lot_id` and `cut_bundles.garment_lot_id`. A check enforces that only sewn bundles with a cut lot can be packed. No new tables: still 99.

@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import login_required
 from sqlalchemy import func, select
 
@@ -18,9 +18,10 @@ from app.models.factory import (
     ProductionOrder,
     WorkCenter,
 )
-from app.policies import allowed, require
-from app.services import alerts, dashboard
+from app.policies import allowed
+from app.services import alerts, dashboard, factorymap
 from app.services.business import DomainError
+from app.services.jobroles import ALERT_ACTORS, require_any
 
 bp = Blueprint("insights", __name__, url_prefix="/companies/<uuid:company_id>/factory")
 
@@ -67,7 +68,7 @@ def members(company_id):
 @bp.get("/alerts")
 @login_required
 def listing(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="dashboard")
     show = request.args.get("show", "open")
     if show not in ("open", "resolved"):
         abort(404)
@@ -106,7 +107,7 @@ def listing(company_id):
         batches=names(company_id, DyeBatch, [a.dye_batch_id for a in rows], "batch_number"),
         people=people,
         member_choices=list(people.items()),
-        can_record=allowed(company_id, "factory.record"),
+        can_record=any(allowed(company_id, code) for code in ALERT_ACTORS),
         last_check=last_check,
         age=alerts.age_text,
         moment=now(),
@@ -118,7 +119,7 @@ def listing(company_id):
 @bp.post("/alerts/check")
 @login_required
 def check(company_id):
-    context(company_id)
+    context(company_id, area="dashboard")
     if not ActionForm().validate_on_submit():
         abort(400)
     try:
@@ -137,8 +138,8 @@ def check(company_id):
 @bp.post("/alerts/<uuid:alert_id>/<any(acknowledge, resolve):action>")
 @login_required
 def act(company_id, alert_id, action):
-    context(company_id)
-    require(company_id, "factory.record")
+    context(company_id, area="dashboard")
+    require_any(company_id, *ALERT_ACTORS)
     form = ActionForm()
     if not form.validate_on_submit():
         abort(400)
@@ -161,7 +162,7 @@ def act(company_id, alert_id, action):
 @bp.get("/dashboard")
 @login_required
 def board(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="dashboard")
     today = date.today()
     latest = db.session.scalar(
         select(func.max(OutputLog.day)).where(
@@ -182,5 +183,61 @@ def board(company_id):
         latest=latest,
         alerts=open_alerts[:6],
         counts=alerts.open_counts(company_id),
+        **ctx,
+    )
+
+
+# ---------- The live factory map ----------
+
+
+@bp.get("/map")
+@login_required
+def map(company_id):  # noqa: A001 - the page is the factory map
+    ctx = context(company_id, area="dashboard")
+    stations, flows, latest = factorymap.build(company_id)
+    links = {
+        key: url_for("insights.station", company_id=company_id, key=key)
+        for key, _, departments in factorymap.STATIONS
+        if departments
+    }
+    return render_template(
+        "factory/map.html",
+        stations=stations,
+        flows={f.source: f for f in flows},
+        links=links,
+        latest=latest,
+        **ctx,
+    )
+
+
+@bp.get("/map.json")
+@login_required
+def map_data(company_id):
+    context(company_id, area="dashboard")
+    stations, flows, _ = factorymap.build(company_id)
+    response = jsonify(factorymap.as_json(stations, flows))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.get("/map/<key>")
+@login_required
+def station(company_id, key):
+    ctx = context(company_id, area="dashboard")
+    found = next((s for s in factorymap.STATIONS if s[0] == key and s[2]), None)
+    if found is None:
+        abort(404)
+    _, title, departments = found
+    centers = factorymap.department_machines(company_id, departments)
+    counts = {"active": 0, "idle": 0, "maintenance": 0, "decommissioned": 0}
+    for _, machines in centers:
+        for machine, _ in machines:
+            counts[machine.status] = counts.get(machine.status, 0) + 1
+    return render_template(
+        "factory/station.html",
+        title=title,
+        key=key,
+        centers=centers,
+        counts=counts,
         **ctx,
     )

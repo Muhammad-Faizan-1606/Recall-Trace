@@ -353,7 +353,7 @@ def test_read_only_members_cannot_change_work_content(app, records, client):
         style = a_style(company_id)
     finally:
         context.pop()
-    grant(company_id, codes=("factory.read",), role_code="auditor")
+    grant(company_id, codes=("factory.read", "factory.read_all"), role_code="auditor")
     login(client, "auditor@aurora.test")
     page = client.get(f"/companies/{company_id}/factory/styles/{style.id}")
     assert page.status_code == 200 and "Start revision 1</button>" not in page.text

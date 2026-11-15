@@ -535,7 +535,7 @@ def _transaction(action):
 
 def _locked(company_id, balance_id, version=None, draft=True):
     company_lock(company_id)
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
     balance = scoped(LineBalance, company_id, balance_id, lock=True)
     if version is not None and balance.version != version:
         raise DomainError("This balance changed; reload before saving.")
@@ -634,7 +634,7 @@ def _line_machines(company_id, line):
 
 def create_balance(company_id, work_center_id, bulletin_id, operators, efficiency, note=None):
     """Open a draft balance for a style on a line, laid out automatically."""
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
     operators = _operators(operators)
     efficiency = _efficiency(efficiency)
     note = (str(note).strip() or None) if note else None
@@ -643,7 +643,7 @@ def create_balance(company_id, work_center_id, bulletin_id, operators, efficienc
 
     def action():
         company_lock(company_id)
-        require(company_id, "factory.manage")
+        require(company_id, "factory.plan")
         line = _sewing_line(company_id, work_center_id)
         bulletin = scoped(OperationBulletin, company_id, bulletin_id)
         if bulletin.status != "published":
@@ -689,7 +689,7 @@ def create_balance(company_id, work_center_id, bulletin_id, operators, efficienc
 
 def rebalance(company_id, balance_id, operators, version):
     """Throw away the draft's layout and lay it out again for `operators`."""
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
     operators = _operators(operators)
 
     def action():
@@ -711,7 +711,7 @@ def rebalance(company_id, balance_id, operators, version):
 
 def move(company_id, balance_id, from_number, op_id, to_number, percent, version):
     """Move `percent` of one station's share of an operation to another or a new station."""
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
     try:
         from_number = int(from_number)
         percent = int(percent)
@@ -768,7 +768,7 @@ def move(company_id, balance_id, from_number, op_id, to_number, percent, version
 
 
 def publish(company_id, balance_id, version):
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
 
     def action():
         balance = _locked(company_id, balance_id, version)
@@ -800,11 +800,11 @@ def publish(company_id, balance_id, version):
 
 def start_revision(company_id, balance_id):
     """Copy a published balance into a new draft for the same line and style."""
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
 
     def action():
         company_lock(company_id)
-        require(company_id, "factory.manage")
+        require(company_id, "factory.plan")
         source = scoped(LineBalance, company_id, balance_id)
         existing = db.session.scalar(
             select(LineBalance).where(
@@ -851,7 +851,7 @@ def start_revision(company_id, balance_id):
 
 
 def discard(company_id, balance_id, version):
-    require(company_id, "factory.manage")
+    require(company_id, "factory.plan")
 
     def action():
         balance = _locked(company_id, balance_id, version)

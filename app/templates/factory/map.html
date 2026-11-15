@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Factory map · {{ company.name }}{% endblock %}
+{% block content %}
+{% set glyphs = {'yarn': 'package', 'knitting': 'layers', 'dyeing': 'activity', 'finishing': 'ruler', 'cutting': 'tag', 'sewing': 'monitor-smartphone', 'packing': 'boxes', 'shipped': 'truck'} %}
+<div class="page-head">
+  <div>
+    <h1>Factory map</h1>
+    <p>Every department from yarn to shipment, its machines and the work moving between them. Tap a department to see each machine.</p>
+  </div>
+  <p class="live-badge" aria-live="polite"><span class="live-dot" aria-hidden="true"></span><span data-map-updated>Live · updates every 30 seconds</span></p>
+</div>
+
+<ol class="factory-map" data-map-source="{{ url_for('insights.map_data', company_id=company_id) }}" aria-label="Factory process">
+{% for s in stations %}
+  <li class="map-station state-{{ s.state }}" data-station="{{ s.key }}">
+    {% set inner %}
+      <span class="map-icon">{{ icon(glyphs.get(s.key, 'activity')) }}</span>
+      <span class="map-title">{{ s.title }}</span>
+      <span class="map-figure" data-field="figure">{{ s.figure }}</span>
+      <span class="map-note" data-field="note">{{ s.note }}</span>
+      {% if s.running or s.idle or s.down %}
+      <span class="map-machines" aria-label="Machines"><span class="m-run" data-field="running">{{ s.running }}</span> running<span class="m-idle" data-field="idle">{{ s.idle }}</span> idle<span class="m-down" data-field="down">{{ s.down }}</span> down</span>
+      {% endif %}
+      {% if s.load is not none %}
+      <span class="map-load"><span class="load-track"><span class="load-bar lb-{{ [(s.load / 100 * 14)|round|int, 20]|min }}" data-field="loadbar"></span><span class="pitch-mark"></span></span><span class="fine-print"><span data-field="load">{{ s.load|round|int }}</span>% of today's capacity booked</span></span>
+      {% endif %}
+      {% if s.sites %}<span class="map-sites">{% for site, count in s.sites %}{{ site.split(' — ')[0] }}{{ ' · ' if not loop.last }}{% endfor %}</span>{% endif %}
+    {% endset %}
+    {% if links.get(s.key) %}<a class="map-card" href="{{ links[s.key] }}">{{ inner }}</a>{% else %}<div class="map-card">{{ inner }}</div>{% endif %}
+    {% set f = flows.get(s.key) %}
+    {% if f %}<div class="map-flow{{ ' is-moving' if f.moving }}" data-flow="{{ f.source }}" aria-label="{{ f.label }}: {{ f.amount }}"><span class="flow-line" aria-hidden="true"></span><span class="flow-text"><strong data-field="amount">{{ f.amount }}</strong> {{ f.label }}</span></div>{% endif %}
+  </li>
+{% endfor %}
+</ol>
+<p class="map-legend fine-print"><span class="state-dot state-ok"></span> running normally <span class="state-dot state-busy"></span> busy or a machine down <span class="state-dot state-alert"></span> critical alert <span class="state-dot state-quiet"></span> nothing running{% if latest %} · sewing figures from {{ latest.strftime('%A %d %b') }}{% endif %}</p>
+<script src="{{ url_for('static', filename='map.js') }}" defer></script>
+{% endblock %}

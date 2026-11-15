@@ -389,7 +389,7 @@ def test_balancing_screens_and_actions(line, client):
 def test_read_only_members_see_but_cannot_change_balances(line, client):
     company_id = line.company_id
     balance, _ = balancing.create_balance(company_id, line.center.id, line.bulletin.id, 6, D(100))
-    grant(company_id, codes=("factory.read",), role_code="auditor")
+    grant(company_id, codes=("factory.read", "factory.read_all"), role_code="auditor")
     login(client, "auditor@aurora.test")
     base = f"/companies/{company_id}/factory"
     screen = client.get(f"{base}/balances/{balance.id}")

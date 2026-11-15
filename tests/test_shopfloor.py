@@ -491,7 +491,7 @@ def test_floor_screens_record_and_print(mill, client):
 
 def test_recording_needs_the_record_permission(mill, client):
     company_id = mill.company_id
-    grant(company_id, codes=("factory.read",), role_code="auditor")
+    grant(company_id, codes=("factory.read", "factory.read_all"), role_code="auditor")
     login(client, "auditor@aurora.test")
     base = f"/companies/{company_id}/factory"
     page = client.get(f"{base}/floor/{mill.center.id}")

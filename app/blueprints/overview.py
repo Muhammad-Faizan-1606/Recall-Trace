@@ -1,6 +1,6 @@
 """Company overview: what needs attention, in one screen."""
 
-from flask import Blueprint, render_template, request, url_for
+from flask import Blueprint, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import func, select
 
@@ -12,6 +12,7 @@ from app.models.quality import Nonconformance, QualityHold
 from app.models.recall import CaseTask, RecallCase
 from app.models.security import AuditEvent
 from app.policies import membership_for, require
+from app.services import jobroles
 from app.services.master import lot_name
 
 bp = Blueprint("overview", __name__)
@@ -118,6 +119,10 @@ def describe(event):
 @bp.get("/companies/<uuid:company_id>/overview")
 @login_required
 def overview(company_id):
+    # Factory-only jobs (and an admin previewing one) land on the simple Home page.
+    membership_for(company_id)
+    if jobroles.simple_mode(company_id):
+        return redirect(url_for("home.index", company_id=company_id), 303)
     require(company_id, "catalog.read")
     member = membership_for(company_id)
     company = db.session.get(Organization, company_id)

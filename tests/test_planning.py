@@ -414,7 +414,7 @@ def test_planning_screens_and_order_actions(factory, client):
 
 def test_read_only_members_cannot_replan(app, records, client):
     company_id = records["companies"]["aurora"]
-    grant(company_id, codes=("factory.read",), role_code="auditor")
+    grant(company_id, codes=("factory.read", "factory.read_all"), role_code="auditor")
     login(client, "auditor@aurora.test")
     board = client.get(f"/companies/{company_id}/factory/planning")
     assert board.status_code == 200 and "Replan all" not in board.text

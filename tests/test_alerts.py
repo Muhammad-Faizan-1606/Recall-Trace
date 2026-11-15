@@ -217,7 +217,7 @@ def test_read_only_members_can_check_but_not_act(mill, client):  # noqa: F811
     db.session.commit()
     alerts.scan(company_id, day=TODAY)
     alert = db.session.scalar(select(FactoryAlert))
-    grant(company_id, codes=("factory.read",), role_code="auditor")
+    grant(company_id, codes=("factory.read", "factory.read_all"), role_code="auditor")
     login(client, "auditor@aurora.test")
     page = client.get(f"/companies/{company_id}/factory/alerts")
     assert page.status_code == 200 and "Acknowledge or resolve" not in page.text

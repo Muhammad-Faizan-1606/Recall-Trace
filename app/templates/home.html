@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Home · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="home-head">
+  <div>
+    <h1>Hello{% if first_name %}, {{ first_name }}{% endif %}</h1>
+    <p class="home-roles">{% for name in roles %}<span class="tag tag-good">{{ name }}</span>{% else %}<span class="tag">No job role yet</span>{% endfor %}</p>
+  </div>
+  {% if alerts %}<a class="home-alerts" href="{{ url_for('insights.listing', company_id=company_id) }}">{{ icon('alert-triangle') }}<span><strong>{{ alerts }}</strong> unresolved alert{{ 's' if alerts != 1 }}</span></a>{% endif %}
+</div>
+
+{% if tiles %}
+<ul class="tiles" aria-label="What would you like to do?">
+  {% for title, about, glyph, href in tiles %}
+  <li><a class="tile" href="{{ href }}"><span class="tile-icon">{{ icon(glyph) }}</span><span class="tile-text"><strong>{{ title }}</strong><span>{{ about }}</span></span></a></li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="panel"><h2>No job role yet</h2><p class="mb-0">Ask your administrator to give you a job role. Until then there is nothing to do here.</p></div>
+{% endif %}
+
+{% if can_preview %}
+<section class="panel preview-panel mt-4" aria-labelledby="preview-title">
+  <h2 id="preview-title">See what each job sees</h2>
+  <p>Preview the menu and this home page as a job role. Your own access does not change.</p>
+  <form method="post" action="{{ url_for('home.preview', company_id=company_id) }}" class="preview-choices">
+    {{ form.hidden_tag() }}
+    {% for code, name, about, _ in job_roles %}<button class="btn {{ 'btn-primary' if preview == code else 'btn-outline-secondary' }}" type="submit" name="role" value="{{ code }}" title="{{ about }}">{{ name }}</button>{% endfor %}
+    {% if preview %}<button class="btn btn-outline-danger" type="submit" name="role" value="">Back to my own view</button>{% endif %}
+  </form>
+</section>
+{% endif %}
+{% endblock %}

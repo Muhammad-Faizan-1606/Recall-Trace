@@ -52,6 +52,7 @@ from app.services.factory import (
     save,
     spec,
 )
+from app.services.jobroles import require_area
 
 bp = Blueprint("factory", __name__, url_prefix="/companies/<uuid:company_id>/factory")
 
@@ -103,12 +104,33 @@ def days_text(mask):
     return ", ".join(names)
 
 
-def context(company_id, resource=None):
-    require(company_id, "factory.read")
+# Which area each register belongs to, and which permission changes things in each area.
+RESOURCE_AREA = {
+    "machines": "machines",
+    "work-centers": "machines",
+    "styles": "engineering",
+    "fabric-specs": "engineering",
+    "maintenance-plans": "maintenance",
+}
+AREA_ACTION = {
+    "planning": "factory.plan",
+    "lines": "factory.plan",
+    "floor": "factory.record",
+    "maintenance": "factory.maintain",
+}
+
+
+def context(company_id, resource=None, area=None):
+    """Page context; opening the page needs the area's access (see app/services/jobroles.py)."""
+    area = area or (RESOURCE_AREA.get(resource, "setup") if resource else None)
+    if area:
+        require_area(company_id, area)
+    else:
+        require(company_id, "factory.read")
     return {
         "company_id": company_id,
         "company": db.session.get(Organization, company_id),
-        "can_manage": allowed(company_id, "factory.manage"),
+        "can_manage": allowed(company_id, AREA_ACTION.get(area, "factory.manage")),
         "resource": resource,
         "resources": {key: value[1] for key, value in RESOURCES.items()},
         "label": label,
@@ -310,7 +332,7 @@ def display(company_id, resource, row):
 @bp.get("")
 @login_required
 def overview(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="planning")
     today = date.today()
     sites = db.session.scalars(
         select(Site)
@@ -401,7 +423,7 @@ def overview(company_id):
 @bp.get("/setup")
 @login_required
 def setup(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="setup")
     counts = {}
     for key, (model, _, _) in RESOURCES.items():
         query = select(func.count()).select_from(model).where(model.organization_id == company_id)

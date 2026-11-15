@@ -285,7 +285,7 @@ def test_trace_screens_and_permissions(chain_ready, client):
     assert response.status_code == 303
     assert "CUT-PO-9-L-1" in client.get(f"{base}/orders/{chain_ready.order.id}/trace").text
 
-    grant(company_id, codes=("factory.read",), role_code="auditor")
+    grant(company_id, codes=("factory.read", "factory.read_all"), role_code="auditor")
     client.post("/logout", data={"csrf_token": csrf(page)})
     login(client, "auditor@aurora.test")
     page = client.get(f"{base}/orders/{chain_ready.order.id}/trace")

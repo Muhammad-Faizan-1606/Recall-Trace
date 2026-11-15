@@ -31,6 +31,7 @@ from app.models.master import Lot, Site
 from app.policies import allowed, require
 from app.services import alerts, balancing, factory_trace, linequality, shopfloor
 from app.services.business import DomainError, scoped
+from app.services.jobroles import require_any
 
 bp = Blueprint("shopfloor", __name__, url_prefix="/companies/<uuid:company_id>/factory")
 
@@ -41,8 +42,9 @@ def day_shift(day, offset):
 
 
 def floor_context(company_id):
-    ctx = context(company_id)
+    ctx = context(company_id, area="floor")
     ctx["can_record"] = allowed(company_id, shopfloor.PERMISSION)
+    ctx["can_check"] = any(allowed(company_id, code) for code in linequality.CHECKERS)
     ctx["action_form"] = ActionForm(version="0")
     return ctx
 
@@ -57,9 +59,9 @@ def chosen_day():
         abort(404)
 
 
-def _record_guard(company_id):
-    context(company_id)
-    require(company_id, shopfloor.PERMISSION)
+def _record_guard(company_id, codes=(shopfloor.PERMISSION,)):
+    context(company_id, area="floor")
+    require_any(company_id, *codes)
     form = ActionForm()
     if not form.validate_on_submit():
         abort(400)
@@ -496,7 +498,7 @@ def batch(company_id, batch_id):
         )
     )
     ctx["action_form"] = ActionForm(version=str(row.version))
-    ctx["can_post"] = allowed(company_id, "factory.manage") and allowed(
+    ctx["can_post"] = allowed(company_id, "factory.record") and allowed(
         company_id, "production.post"
     )
     yarn_ids = {r.yarn_lot_id for r in rolls_in if r.yarn_lot_id}
@@ -731,7 +733,7 @@ def bundle_step(company_id, bundle_id, step):
 @bp.post("/floor/<uuid:line_id>/quality")
 @login_required
 def check_new(company_id, line_id):
-    _record_guard(company_id)
+    _record_guard(company_id, linequality.CHECKERS)
     values = request.form.to_dict()
     try:
         check = linequality.record_check(company_id, line_id, values)
@@ -755,7 +757,7 @@ def check_entry(company_id, check_id):
     row = scoped(LineQualityCheck, company_id, check_id)
     original_id = row.corrects_id or row.id
     if request.method == "POST":
-        _record_guard(company_id)
+        _record_guard(company_id, linequality.CHECKERS)
         try:
             linequality.correct_check(company_id, original_id, request.form.to_dict())
         except DomainError as exc:
@@ -797,7 +799,7 @@ def check_entry(company_id, check_id):
 def order_trace(company_id, order_id):
     ctx = floor_context(company_id)
     order = scoped(ProductionOrder, company_id, order_id)
-    ctx["can_post"] = allowed(company_id, "factory.manage") and allowed(
+    ctx["can_post"] = allowed(company_id, "factory.record") and allowed(
         company_id, "production.post"
     )
     return render_template(
@@ -817,8 +819,8 @@ def _trace_back(company_id, order_id):
 @bp.post("/orders/<uuid:order_id>/trace/<any(lays, packing):stage>")
 @login_required
 def order_trace_post(company_id, order_id, stage):
-    context(company_id)
-    require(company_id, "factory.manage")
+    context(company_id, area="floor")
+    require(company_id, "factory.record")
     if not ActionForm().validate_on_submit():
         abort(400)
     try:
@@ -840,8 +842,8 @@ def order_trace_post(company_id, order_id, stage):
 @bp.post("/dye-batches/<uuid:batch_id>/trace")
 @login_required
 def batch_trace(company_id, batch_id):
-    context(company_id)
-    require(company_id, "factory.manage")
+    context(company_id, area="floor")
+    require(company_id, "factory.record")
     if not ActionForm().validate_on_submit():
         abort(400)
     try:

@@ -36,7 +36,7 @@ from app.policies import membership_for, require
 from app.services.audit import record as audit
 from app.services.business import DomainError, company_lock, scoped
 
-PERMISSION = "factory.record"
+PERMISSION = "factory.maintain"
 WINDOW_DAYS = 90
 DUE_SOON_DAYS = 14
 

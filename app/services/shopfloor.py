@@ -273,9 +273,12 @@ def _transaction(action):
         raise
 
 
-def _start(company_id):
+def _start(company_id, codes=(PERMISSION,)):
+    """Lock the company and re-check permission under the lock (any of `codes`)."""
+    from app.services.jobroles import require_any
+
     company_lock(company_id)
-    require(company_id, PERMISSION)
+    require_any(company_id, *codes)
     member = membership_for(company_id)
     return member.id if member else None
 

@@ -68,7 +68,7 @@
       <div class="table-responsive"><table class="table">
         <thead><tr><th scope="col">Hour</th><th scope="col">Stage</th><th scope="col" class="num">Checked</th><th scope="col" class="num">Defective</th><th scope="col" class="num">Defects</th><th scope="col" class="num">DHU</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
         <tbody>{% for original, c, corrected in quality.checks %}{% set d = c.defects / c.pieces_checked * 100 %}
-          <tr><td>Hour {{ c.hour }}</td><td>{{ 'End-line' if c.stage == 'endline' else 'In-line' }}</td><td class="num">{{ c.pieces_checked }}</td><td class="num">{{ c.defective_pieces }}</td><td class="num">{{ c.defects }}</td><td class="num"><span class="tag {{ 'tag-bad' if d > dhu_limit else ('tag-waiting' if d > 4 else 'tag-good') }}">{{ '%.1f'|format(d) }}</span></td><td class="text-end"><a href="{{ url_for('shopfloor.check_entry', company_id=company_id, check_id=original) }}">{{ 'Corrected' if corrected else ('Correct' if can_record else 'History') }}</a></td></tr>
+          <tr><td>Hour {{ c.hour }}</td><td>{{ 'End-line' if c.stage == 'endline' else 'In-line' }}</td><td class="num">{{ c.pieces_checked }}</td><td class="num">{{ c.defective_pieces }}</td><td class="num">{{ c.defects }}</td><td class="num"><span class="tag {{ 'tag-bad' if d > dhu_limit else ('tag-waiting' if d > 4 else 'tag-good') }}">{{ '%.1f'|format(d) }}</span></td><td class="text-end"><a href="{{ url_for('shopfloor.check_entry', company_id=company_id, check_id=original) }}">{{ 'Corrected' if corrected else ('Correct' if can_check else 'History') }}</a></td></tr>
         {% else %}<tr><td colspan="7" class="empty">No checks recorded.</td></tr>{% endfor %}</tbody>
       </table></div>
       {% if quality.by_operation %}
@@ -125,6 +125,8 @@
       </form>
       {% else %}<p class="mb-0">Add downtime reasons under Factory setup first.</p>{% endif %}
     </section>
+    {% endif %}
+    {% if can_check %}
     <section class="panel floor-entry" aria-labelledby="qc-title">
       <h2 id="qc-title">Record a quality check</h2>
       {% if orders %}
