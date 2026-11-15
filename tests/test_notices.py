@@ -1,5 +1,6 @@
 """Notice scope, independent approval and recipient-only acknowledgement."""
 
+import re
 from decimal import Decimal
 
 import pytest
@@ -197,6 +198,12 @@ def test_notice_recipient_scope_and_independent_mfa(notice_case, evidence_actor)
     s = notice_case
     notice = draft(s, evidence_actor)
     assert "NOTICE-SHIP" in notice.body and "UNRELATED" not in notice.body
+    # The customer sees the lot code, SKU and a plain quantity in the base unit, never an ID.
+    lot = db.session.scalar(select(Lot).where(Lot.lot_code == "NOTICE-LOT"))
+    assert "lot NOTICE-LOT (" in notice.body and str(lot.id) not in notice.body
+    assert re.search(r"potentially affected quantity 4 \S+\.", notice.body)
+    assert notices.quantity_text(Decimal("60.000000")) == "60"
+    assert notices.quantity_text(Decimal("2.500")) == "2.5"
     with evidence_actor("catalog-editor@aurora.test", mfa=True):
         with pytest.raises(DomainError, match="different eligible"):
             notices.approve_notice(s["company"], notice.id, notice.version)

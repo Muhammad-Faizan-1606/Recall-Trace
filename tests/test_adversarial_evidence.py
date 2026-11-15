@@ -85,6 +85,26 @@ def test_invalid_csv_header_returns_safe_http_failure_without_import(
     assert db.session.scalar(select(ImportJob.id)) is None
 
 
+def test_short_import_identifier_is_explained_on_the_page(client, records, evidence_actor):
+    company_id = records["companies"]["aurora"]
+    login(client, "owner@aurora.test")
+    base = f"/companies/{company_id}"
+    page = client.get(base + "/evidence")
+    assert "16 to 100 letters, digits, - or _" in page.text
+    result = client.post(
+        base + "/imports/items",
+        data={
+            "csrf_token": csrf(page),
+            "identifier": "ITEMS-2611",
+            "file": (io.BytesIO(b"code,name,kind\nX-1,Thing,component\n"), "items.csv"),
+        },
+    )
+    assert result.status_code == 422
+    assert "Use 16 to 100 letters, digits, hyphens or underscores." in result.text
+    assert 'value="ITEMS-2611"' in result.text and "Import catalog items" in result.text
+    assert db.session.scalar(select(ImportJob.id)) is None
+
+
 @pytest.mark.parametrize("payload", [None, [], "clean", {"status": "unknown"}])
 def test_malformed_scanner_json_fails_closed(app, monkeypatch, payload):
     monkeypatch.setitem(app.config, "SCANNER_ENDPOINT", "https://scanner.example.test/scan")

@@ -8,10 +8,10 @@
   - `./reset.sh`, `./serve.sh` and `FAST=1 ./run.sh` from the committed scripts: 221 of 221 steps passed.
   - The recorded run that produced the video (17 min) also passed 221/221.
   - `snap.sh` save and load were checked.
-- **Found while recording:**
-  - Draft notices name lots by internal ID instead of lot code.
-  - A short CSV import identifier gets an unexplained 422 page.
-  - Both are left as follow-up tasks, not fixed here.
+- **Found while recording, now fixed:**
+  - **Notice wording.** Draft notices now name each lot by its code, with SKU and a plain quantity in the base unit: "Shipment SH-NHS-0001: lot LAMP-2611-B (C10-LAMP-01), potentially affected quantity 60 EA." They no longer show the lot's internal ID and "60.000000". The lots are loaded in one company-scoped query (`notices.exposure_text`), and unlike SKUs are still never combined.
+  - **CSV import form.** It now explains the identifier rule (16 to 100 letters, digits, - or _). A rejected identifier shows the page again with the message under the field (status 422) instead of a bare error page. The shared `field` macro now shows a field's help text, linked with `aria-describedby`.
+  - **Verification:** new assertions in `tests/test_notices.py` and `tests/test_adversarial_evidence.py`. Full suite: 585 passed, 16 failed (the known PostgreSQL 17 database-access checks). Walkthrough chapters 1–11 on a fresh demo database: 108/108 passed.
 
 ## Clients, planning board, section pictures and a collapsible menu — 15 November 2026
 

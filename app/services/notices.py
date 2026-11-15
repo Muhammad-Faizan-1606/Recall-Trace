@@ -6,9 +6,9 @@ from flask_login import current_user
 from sqlalchemy import func, select
 
 from app.extensions import db
-from app.models import Membership, Organization, now
+from app.models import ItemVariant, Membership, Organization, UnitsOfMeasure, now
 from app.models.evidence import JobOutbox, NoticeAcknowledgement, NoticeDelivery, RecallNotice
-from app.models.master import Partner, PartnerContact
+from app.models.master import Lot, Partner, PartnerContact
 from app.models.operations import SalesOrder, Shipment, ShipmentLine
 from app.models.recall import CaseAffectedShipment, RecallCase
 from app.policies import allowed
@@ -118,17 +118,51 @@ def current_scope(company_id, notice=None, case_id=None, contact_id=None):
     return case, trace, contact, lines
 
 
+def quantity_text(value):
+    """60.000000 → "60", 2.500 → "2.5": the recorded amount without padding zeros."""
+    return format(value.normalize(), "f")
+
+
+def exposure_text(company_id, lines):
+    """One line per affected shipment line, naming the lot as the customer knows it.
+
+    Unlike SKUs are never combined: each line keeps its own lot, SKU and base unit.
+    """
+    lot_ids = {line.lot_id for _, line, _ in lines}
+    lots = {
+        lot_id: (code, sku, unit)
+        for lot_id, code, sku, unit in db.session.execute(
+            select(Lot.id, Lot.lot_code, ItemVariant.sku, UnitsOfMeasure.code)
+            .join(
+                ItemVariant,
+                (ItemVariant.id == Lot.variant_id)
+                & (ItemVariant.organization_id == Lot.organization_id),
+            )
+            .join(
+                UnitsOfMeasure,
+                (UnitsOfMeasure.id == ItemVariant.base_unit_id)
+                & (UnitsOfMeasure.organization_id == ItemVariant.organization_id),
+            )
+            .where(Lot.organization_id == company_id, Lot.id.in_(lot_ids))
+        )
+    }
+    rows = []
+    for affected, line, shipment in lines:
+        code, sku, unit = lots[line.lot_id]
+        rows.append(
+            f"Shipment {shipment.reference}: lot {code} ({sku}), potentially affected "
+            f"quantity {quantity_text(affected.quantity_dispatched)} {unit}."
+        )
+    return "\n".join(rows)
+
+
 def create_notice(company_id, case_id, contact_id, subject=None, body=None):
     member = actor(company_id, "notice.prepare")
     company_lock(company_id)
     case, trace, contact, lines = current_scope(company_id, case_id=case_id, contact_id=contact_id)
     subject = _text(subject or f"Recall {case.reference}: {case.title}", 160, "subject", True)
     if body is None:
-        # Do not combine unlike SKUs; each line preserves its own lot/base-unit quantity.
-        exposure = "\n".join(
-            f"Shipment {shipment.reference}; lot {line.lot_id}; potentially affected quantity {affected.quantity_dispatched} in this SKU's base unit."
-            for affected, line, shipment in lines
-        )
+        exposure = exposure_text(company_id, lines)
         body = f"{case.title}\n\n{case.reason}\n\nYour potentially affected shipments:\n{exposure}\n\nStop use and contact the sender. Acknowledgement does not establish physical recovery."
     body = _text(body, 20000, "notice body")
     revision = (

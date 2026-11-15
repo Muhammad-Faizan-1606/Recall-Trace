@@ -33,7 +33,18 @@ class ImportForm(FlaskForm):
         "UTF-8 item CSV (code,name,kind)", validators=[FileRequired()], id="import-file"
     )
     identifier = StringField(
-        "Import identifier", validators=[DataRequired(), Regexp(r"^[A-Za-z0-9_-]{16,100}$")]
+        "Import identifier",
+        validators=[
+            DataRequired(message="Give the import an identifier."),
+            Regexp(
+                r"^[A-Za-z0-9_-]{16,100}$",
+                message="Use 16 to 100 letters, digits, hyphens or underscores.",
+            ),
+        ],
+        description=(
+            "16 to 100 letters, digits, - or _. Re-sending the same identifier never imports "
+            "twice; keep the one filled in for you unless you are retrying an import."
+        ),
     )
 
 
@@ -77,6 +88,11 @@ def failure(exc):
 @bp.get(BASE + "/evidence")
 @login_required
 def listing(company_id):
+    return evidence_page(company_id)
+
+
+def evidence_page(company_id, import_form=None, status=200):
+    """The evidence page; a rejected import form is shown again with its errors."""
     require(company_id, "evidence.read")
     ctx = context(company_id)
     documents = db.paginate(
@@ -111,10 +127,10 @@ def listing(company_id):
         imports=imports,
         exports=exports,
         upload_form=UploadForm(),
-        import_form=ImportForm(identifier=secrets.token_urlsafe(24)),
+        import_form=import_form or ImportForm(identifier=secrets.token_urlsafe(24)),
         export_form=ExportForm(),
         **ctx,
-    )
+    ), status
 
 
 @bp.post(BASE + "/evidence/upload")
@@ -222,7 +238,11 @@ def delete(company_id, document_id):
 def prepare_import(company_id):
     form = ImportForm()
     if not form.validate_on_submit():
-        abort(422)
+        # Show what is wrong on the page instead of a bare error. A missing CSRF token is
+        # still refused outright by the global CSRF check before this point.
+        require(company_id, "catalog.manage")
+        flash("Check the import form below.", "danger")
+        return evidence_page(company_id, import_form=form, status=422)
     try:
         job = evidence.prepare_import(
             company_id, form.file.data.filename, form.file.data.stream, form.identifier.data

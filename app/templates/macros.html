@@ -1,7 +1,9 @@
 {% macro field(input) %}
 <div class="mb-3">
 {{ input.label(class_='form-label') }}
-{% if input.errors %}{{ input(class_='form-control is-invalid', aria_describedby=input.id ~ '-errors', aria_invalid='true') }}{% else %}{{ input(class_='form-control') }}{% endif %}
-{% if input.errors %}<div id="{{ input.id }}-errors" class="invalid-feedback">{% for error in input.errors %}{{ error }}{% endfor %}</div>{% endif %}
+{% set help = (input.id ~ '-help') if input.description else '' %}
+{% if input.errors %}{{ input(class_='form-control is-invalid', aria_describedby=(input.id ~ '-errors ' ~ help)|trim, aria_invalid='true') }}{% elif help %}{{ input(class_='form-control', aria_describedby=help) }}{% else %}{{ input(class_='form-control') }}{% endif %}
+{% if input.description %}<div id="{{ help }}" class="form-text">{{ input.description }}</div>{% endif %}
+{% if input.errors %}<div id="{{ input.id }}-errors" class="invalid-feedback d-block">{% for error in input.errors %}{{ error }} {% endfor %}</div>{% endif %}
 </div>
 {% endmacro %}
