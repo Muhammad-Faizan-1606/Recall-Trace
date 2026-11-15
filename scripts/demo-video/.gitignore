@@ -1,0 +1,5 @@
+# Generated per run: database URL and random demo passwords, recordings, snapshots.
+demo.env.sh
+out/
+snapshots/
+node_modules/

@@ -1,0 +1,13 @@
+{
+  "name": "recalltrace-demo-video",
+  "private": true,
+  "description": "Records the full RecallTrace walkthrough video and checks every step.",
+  "scripts": {
+    "record": "./run.sh",
+    "check": "FAST=1 ./run.sh",
+    "assemble": "./assemble.sh && node report.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

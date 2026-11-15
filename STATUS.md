@@ -1,5 +1,18 @@
 # RecallTrace implementation status
 
+## Demo walkthrough video and end-to-end check — 15 November 2026
+
+- **`scripts/demo-video/`** drives a real browser through every section and operation. It checks every step against the server's response and records a 28-chapter walkthrough video with captions, a visible cursor and chapter markers. `FAST=1 ./run.sh` is the same run without video, as a quick end-to-end check. See its README.
+- It runs on a separate local demo database rebuilt by `reset.sh` with fictional data. Demo passwords are generated at random into an ignored `demo.env.sh`, and notices go to a local mailbox (`MAIL_MODE=local`).
+- **Verification:**
+  - `./reset.sh`, `./serve.sh` and `FAST=1 ./run.sh` from the committed scripts: 221 of 221 steps passed.
+  - The recorded run that produced the video (17 min) also passed 221/221.
+  - `snap.sh` save and load were checked.
+- **Found while recording:**
+  - Draft notices name lots by internal ID instead of lot code.
+  - A short CSV import identifier gets an unexplained 422 page.
+  - Both are left as follow-up tasks, not fixed here.
+
 ## Clients, planning board, section pictures and a collapsible menu — 15 November 2026
 
 - **Clients** (`app/services/clients.py`, `app/blueprints/clients.py`, menu item "Clients"):
