@@ -4,12 +4,14 @@ set -e
 cd "$(dirname "$0")/out"  # run after ./run.sh has recorded the chapters
 node ../cards.js
 mkdir -p parts && rm -f parts/*.mp4 list.txt
-ENC="-c:v libx264 -preset veryfast -crf 27 -pix_fmt yuv420p -r 25 -an"
-ffmpeg -loglevel error -y -loop 1 -i intro.png -t 5 -vf "scale=1440:900" $ENC parts/00-intro.mp4
+# Sharp screen text at a small size (about 45 MB for the full 17-minute walkthrough).
+ENC="-c:v libx264 -preset slow -crf 30 -tune stillimage -pix_fmt yuv420p -r 25 -an"
+ffmpeg -loglevel error -y -loop 1 -i intro.png -t 5 -vf "scale=1440:900" $ENC parts/000-intro.mp4
 for f in chapter-*.webm; do
   ffmpeg -loglevel error -y -i "$f" -vf "scale=1440:900" $ENC "parts/${f%.webm}.mp4"
 done
-ffmpeg -loglevel error -y -loop 1 -i outro.png -t 6 -vf "scale=1440:900" $ENC parts/99-outro.mp4
+ffmpeg -loglevel error -y -loop 1 -i outro.png -t 6 -vf "scale=1440:900" $ENC parts/zzz-outro.mp4
+# Glob order is the play order: 000-intro, chapter-01 … chapter-28, zzz-outro.
 for f in parts/*.mp4; do echo "file '$PWD/$f'" >> list.txt; done
 # Chapter markers from each part's duration.
 node -e '
