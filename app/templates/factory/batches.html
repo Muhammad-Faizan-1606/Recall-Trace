@@ -1,9 +1,12 @@
 {% extends 'base.html' %}
+{% from 'factory/_visuals.html' import dye_vessels with context %}
 {% from 'factory/_floor_macros.html' import cards_tabs %}
 {% block title %}Dye batches · {{ company.name }}{% endblock %}
 {% block content %}
 <div class="page-head"><div><h1>Batch cards</h1><p>Every roll, dye batch and cut bundle, so fabric can be followed from the knitting frame to the sewing line.</p></div></div>
 {{ cards_tabs('batches', company_id) }}
+{{ dye_vessels(dye_house, company_id) }}
+
 <div class="split">
   <div>
     <section class="section" aria-labelledby="batches-heading">

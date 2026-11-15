@@ -14,3 +14,14 @@
   document.documentElement.setAttribute("data-theme", theme);
   document.documentElement.setAttribute("data-bs-theme", theme);
 })();
+
+/* Restore the collapsed menu before the page paints, so it does not jump. */
+(function () {
+  try {
+    if (localStorage.getItem("recalltrace-sidebar") === "collapsed") {
+      document.documentElement.setAttribute("data-sidebar", "collapsed");
+    }
+  } catch (error) {
+    /* Storage unavailable: keep the full menu. */
+  }
+})();

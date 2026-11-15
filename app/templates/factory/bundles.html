@@ -1,9 +1,12 @@
 {% extends 'base.html' %}
+{% from 'factory/_visuals.html' import bundle_bins with context %}
 {% from 'factory/_floor_macros.html' import cards_tabs %}
 {% block title %}Cut bundles · {{ company.name }}{% endblock %}
 {% block content %}
 <div class="page-head"><div><h1>Batch cards</h1><p>Every roll, dye batch and cut bundle, so fabric can be followed from the knitting frame to the sewing line.</p></div></div>
 {{ cards_tabs('bundles', company_id) }}
+{{ bundle_bins(bins, company_id) }}
+
 <form class="scan-form mb-3" method="get" role="search">
   <label class="form-label" for="number">Scan or type a bundle number</label>
   <div class="input-group"><input class="form-control form-control-lg" id="number" name="number" placeholder="PO-27010-0001" autocomplete="off" maxlength="40"><button class="btn btn-primary" type="submit">Open</button></div>

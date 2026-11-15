@@ -1845,3 +1845,83 @@ def seed_trace(organization, member):
         recall.source(company_id, case.id, lots[0].id, "Reported by the spinner")
         report.append("Draft investigation RC-YARN-2611-A opened on yarn lot YRN-2611-A.")
     return report
+
+
+# ---------- Clients: badges and simple drawn logos for the fictional buyers ----------
+
+CLIENT_LOOKS = {
+    "NPA": ("Northpeak", "#1f4e8c"),
+    "HPA": ("Harbour", "#0f766e"),
+    "VLS": ("Velo", "#c2410c"),
+}
+
+
+def _demo_logo(code, colour):
+    """A plain geometric mark drawn here (no real brand), saved through the normal re-encoder."""
+    import io
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    from app.services.clients import reencode
+
+    size = 256
+    image = Image.new("RGBA", (size, size), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle(
+        (8, 8, size - 8, size - 8), radius=48, fill="#ffffff", outline=colour, width=10
+    )
+    if code == "NPA":  # two mountain peaks
+        draw.polygon([(40, 190), (112, 70), (184, 190)], fill=colour)
+        draw.polygon([(120, 190), (170, 105), (220, 190)], fill="#7aa7d6")
+        draw.polygon([(96, 96), (112, 70), (128, 96)], fill="#ffffff")
+    elif code == "HPA":  # a pine over a wave
+        draw.polygon([(128, 40), (70, 140), (186, 140)], fill=colour)
+        draw.polygon([(128, 80), (60, 180), (196, 180)], fill=colour)
+        draw.rectangle((118, 180, 138, 200), fill="#6b4f2a")
+        draw.arc((40, 180, 128, 240), 200, 340, fill="#38bdf8", width=10)
+        draw.arc((128, 180, 216, 240), 200, 340, fill="#38bdf8", width=10)
+    else:  # a wheel and a V
+        draw.ellipse((44, 44, 212, 212), outline=colour, width=14)
+        font = ImageFont.load_default(size=110)
+        draw.text((128, 132), "V", fill=colour, font=font, anchor="mm")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return reencode(buffer.getvalue())
+
+
+def seed_clients(organization, member):
+    """Give each fictional buyer a badge colour and a drawn demo logo (once)."""
+    import hashlib
+
+    from app.models.factory import ClientBrand
+    from app.models.master import Partner
+
+    company_id = organization.id
+    added = []
+    for code, (short, colour) in CLIENT_LOOKS.items():
+        partner = db.session.scalar(
+            select(Partner).where(Partner.organization_id == company_id, Partner.code == code)
+        )
+        if partner is None:
+            continue
+        exists = db.session.scalar(
+            select(ClientBrand.id).where(
+                ClientBrand.organization_id == company_id, ClientBrand.partner_id == partner.id
+            )
+        )
+        if exists:
+            continue
+        png = _demo_logo(code, colour)
+        db.session.add(
+            ClientBrand(
+                organization_id=company_id,
+                partner_id=partner.id,
+                short_name=short,
+                colour=colour,
+                logo_png=png,
+                logo_sha256=hashlib.sha256(png).hexdigest(),
+            )
+        )
+        added.append(short)
+    db.session.flush()
+    return [f"Client badges and demo logos added: {', '.join(added)}."] if added else []

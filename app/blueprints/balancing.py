@@ -15,7 +15,7 @@ from app.forms import ActionForm, trimmed
 from app.models.factory import LineBalance, OperationBulletin, Style, WorkCenter
 from app.models.master import Site
 from app.policies import require
-from app.services import balancing, engineering
+from app.services import balancing, engineering, visuals
 from app.services.business import DomainError, scoped
 from app.services.capacity import AVAILABLE_STATUSES
 
@@ -115,6 +115,7 @@ def lines(company_id):
     running = [f for f in figures.values() if f[0]]
     return render_template(
         "factory/lines.html",
+        skylines=visuals.line_skylines(company_id),
         groups=[(sites.get(site_id), items) for site_id, items in grouped.items()],
         total=len(rows),
         running=len(running),

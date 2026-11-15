@@ -4,7 +4,7 @@ import math
 from datetime import date, timedelta
 from decimal import Decimal
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import login_required
 from sqlalchemy import select
 from wtforms import IntegerField, SelectField, StringField
@@ -17,13 +17,21 @@ from app.extensions import db
 from app.forms import ActionForm, trimmed
 from app.models.factory import ProductionOrder, SiteTransitTime, Style, WorkCenter
 from app.policies import require
-from app.services import alerts, engineering, planning
+from app.services import alerts, clients, engineering, planning, visuals
 from app.services.business import DomainError, scoped
 from app.services.capacity import q as capacity_round
+from app.services.jobroles import permission_codes
 
 bp = Blueprint("planning", __name__, url_prefix="/companies/<uuid:company_id>/factory")
 
 BOARD_DAYS = 28
+LANES = [
+    (1, "Most urgent"),
+    (2, "High"),
+    (3, "Normal"),
+    (4, "Low"),
+    (5, "Fill-in"),
+]
 PRIORITIES = [
     SelectChoice("1", "1 — most urgent"),
     SelectChoice("2", "2 — high"),
@@ -189,8 +197,25 @@ def board(company_id):
         if cap and (busiest is None or used / cap > busiest[1]):
             busiest = (department, used / cap * 100)
     late = [o for o in orders if slack(o) is not None and slack(o) < 0]
+    badges = clients.order_badges(company_id, orders)
+    today = date.today()
+    lanes = {priority: [] for priority, _ in LANES}
+    for order in orders:
+        current = next(
+            (stage for stage, first, last, *_ in steps.get(order.id, []) if first <= today <= last),
+            None,
+        )
+        lanes[order.priority].append((order, styles.get(order.style_id), current))
+    shown_clients = sorted(
+        {b.partner_id: b for b in badges.values() if b}.values(), key=lambda b: b.name
+    )
     return render_template(
         "factory/board.html",
+        lanes=lanes,
+        lane_names=dict(LANES),
+        badges=badges,
+        shown_clients=shown_clients,
+        can_plan="factory.plan" in permission_codes(company_id),
         span=span,
         rows=rows,
         gantt=gantt,
@@ -278,6 +303,8 @@ def orders(company_id):
     return render_template(
         "factory/orders.html",
         rows=[(o, styles.get(o.style_id), slack(o)) for o in rows],
+        badges=clients.order_badges(company_id, rows),
+        pipeline=visuals.order_pipeline(company_id),
         **ctx,
     )
 
@@ -337,18 +364,8 @@ def order_edit(company_id, order_id):
     return order_editor(company_id, order_id)
 
 
-def what_if(company_id, order):
-    """Preview a change to lines or priority without saving anything."""
-    try:
-        lines = int(request.args.get("lines", order.sewing_lines))
-        priority = int(request.args.get("priority", order.priority))
-    except ValueError:
-        return None
-    if (lines, priority) == (order.sewing_lines, order.priority) or order.status not in (
-        "draft",
-        "planned",
-    ):
-        return None
+def preview_change(company_id, order, lines, priority):
+    """Plan everything in memory with one order changed; nothing is saved."""
     lines = max(1, min(lines, 20))
     priority = max(1, min(priority, 5))
     plans, candidates, _ = planning.simulate(
@@ -370,6 +387,84 @@ def what_if(company_id, order):
         "slack": (order.ex_factory_on - plan.finish).days if plan and plan.finish else None,
         "newly_late": newly_late,
     }
+
+
+def what_if(company_id, order):
+    """Preview a change to lines or priority without saving anything."""
+    try:
+        lines = int(request.args.get("lines", order.sewing_lines))
+        priority = int(request.args.get("priority", order.priority))
+    except ValueError:
+        return None
+    if (lines, priority) == (order.sewing_lines, order.priority) or order.status not in (
+        "draft",
+        "planned",
+    ):
+        return None
+    return preview_change(company_id, order, lines, priority)
+
+
+def _change_values(order):
+    try:
+        lines = int(request.values.get("lines", order.sewing_lines))
+        priority = int(request.values.get("priority", order.priority))
+    except (TypeError, ValueError):
+        return None
+    return lines, priority
+
+
+@bp.get("/planning/orders/<uuid:order_id>/preview.json")
+@login_required
+def board_preview(company_id, order_id):
+    """What moving an order to another priority lane, or changing its lines, would do."""
+    context(company_id, area="planning")
+    require(company_id, "factory.plan")
+    order = scoped(ProductionOrder, company_id, order_id)
+    if order.status not in ("draft", "planned"):
+        return jsonify(error="Released orders keep their plan; it cannot change here."), 409
+    change = _change_values(order)
+    if change is None:
+        return jsonify(error="Lines and priority must be whole numbers."), 400
+    result = preview_change(company_id, order, *change)
+    was = order.planned_finish_on
+    return jsonify(
+        reference=order.reference,
+        lines=result["lines"],
+        priority=result["priority"],
+        finish=result["finish"].isoformat() if result["finish"] else None,
+        finish_text=result["finish"].strftime("%a %d %b") if result["finish"] else None,
+        was_text=was.strftime("%a %d %b") if was else None,
+        slack=result["slack"],
+        newly_late=result["newly_late"],
+        version=order.version,
+    )
+
+
+@bp.post("/planning/orders/<uuid:order_id>/change")
+@login_required
+def board_change(company_id, order_id):
+    """Apply a previewed lane move or line change and re-plan every open order."""
+    context(company_id, area="planning")
+    require(company_id, "factory.plan")
+    payload = request.get_json(silent=True) or {}
+    order = scoped(ProductionOrder, company_id, order_id)
+    try:
+        version = int(payload.get("version"))
+        lines = int(payload.get("lines", order.sewing_lines))
+        priority = int(payload.get("priority", order.priority))
+    except (TypeError, ValueError):
+        return jsonify(error="Reload the board and try again."), 400
+    values = {c.name: getattr(order, c.name) for c in ProductionOrder.__table__.columns}
+    values.update(sewing_lines=lines, priority=priority)
+    try:
+        planning.save_order(company_id, values, order.id, version)
+    except DomainError as exc:
+        return jsonify(error=str(exc)), 409
+    alerts.scan_quietly(company_id)
+    message = f"{order.reference} moved to {dict(LANES)[priority].lower()} with {lines} line"
+    message += ("s" if lines != 1 else "") + "; every open order re-planned."
+    flash(message, "success")
+    return jsonify(ok=True, message=message)
 
 
 @bp.get("/orders/<uuid:order_id>")

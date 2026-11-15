@@ -20,11 +20,12 @@ from app.models.factory import (
     Machine,
     MachineClass,
     OutputLog,
+    Style,
     WorkCenter,
 )
 from app.models.master import Lot, Site
 from app.models.operations import Shipment, ShipmentLine, StockBalance
-from app.services import planning, shopfloor
+from app.services import clients, planning, shopfloor
 
 # The stations of the map in process order: (key, title, departments).
 STATIONS = (
@@ -418,7 +419,7 @@ def floor(company_id, site_id, today=None):
     ).all()
     orders = (
         {
-            o.id: o.reference
+            o.id: o
             for o in db.session.scalars(
                 select(ProductionOrder).where(
                     ProductionOrder.organization_id == company_id,
@@ -436,15 +437,31 @@ def floor(company_id, site_id, today=None):
     )
     figures = shopfloor.floor(company_id, latest, ids) if latest and ids else {}
     targets = shopfloor.line_targets(company_id, lines) if lines else {}
+    badges = clients.order_badges(company_id, orders.values())
+    style_codes = dict(
+        db.session.execute(
+            select(Style.id, Style.code).where(
+                Style.organization_id == company_id,
+                Style.id.in_({o.style_id for o in orders.values()}),
+            )
+        ).all()
+    )
+    client_json = {
+        order_id: badge.as_json(company_id) for order_id, badge in badges.items() if badge
+    }
 
     def box(bundle):
+        order = orders.get(bundle.production_order_id)
         return {
             "id": str(bundle.id),
             "number": bundle.bundle_number,
-            "order": orders.get(bundle.production_order_id, ""),
+            "order": order.reference if order else "",
+            "style": style_codes.get(order.style_id, "") if order else "",
+            "colour": order.colour if order else "",
             "size": bundle.size,
             "pieces": bundle.pieces,
             "version": bundle.version,
+            "client": client_json.get(bundle.production_order_id),
         }
 
     on_line = {}

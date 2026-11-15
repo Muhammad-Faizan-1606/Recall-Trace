@@ -1,0 +1,128 @@
+{# Picture panels for the factory sections (data: app/services/visuals.py).
+   Colours are SVG attributes or CSS classes, never inline styles, so the strict CSP holds. #}
+{% from 'factory/_clients.html' import client_mark with context %}
+
+{% macro iso_box(cls='') %}<svg class="viz-iso {{ cls }}" viewBox="0 0 60 50" aria-hidden="true" focusable="false"><polygon class="f-top" points="30,4 56,17 30,30 4,17"/><polygon class="f-left" points="4,17 30,30 30,48 4,35"/><polygon class="f-right" points="30,30 56,17 56,35 30,48"/><polygon class="f-shade" points="30,30 56,17 56,35 30,48"/><rect class="f-door" x="13" y="28" width="6" height="9" transform="skewY(26)"/></svg>{% endmacro %}
+
+{# ---------- Production orders: the process as a conveyor with order tokens ---------- #}
+{% macro order_pipeline(stations, company_id) %}
+<section class="viz viz-pipeline" aria-labelledby="viz-pipe-title">
+  <div class="viz-head"><h2 id="viz-pipe-title">Where every open order is today</h2><span class="viz-note"><span class="live-dot" aria-hidden="true"></span>From the saved plan</span></div>
+  <ol class="pipe">
+    {% for s in stations %}
+    <li class="pipe-stop stage-{{ s.key }}{{ ' is-busy' if s.count }}">
+      <div class="pipe-station">{{ iso_box() }}<strong>{{ s.name }}</strong><span class="pipe-count">{{ s.count }}</span></div>
+      <ul class="pipe-tokens" aria-label="{{ s.name }}: {{ s.count }} orders">
+        {% for t in s.tokens %}<li><a class="pipe-token{{ ' is-late' if t.late }}" href="{{ url_for('planning.order', company_id=company_id, order_id=t.order.id) }}" title="{{ (t.badge.name ~ ' · ') if t.badge }}{{ t.order.reference }} · {{ t.style }} · {{ '{:,}'.format(t.order.quantity) }} pcs{{ ' · late' if t.late }}">{{ client_mark(t.badge, company_id, 18) if t.badge }}<span>{{ t.order.reference }}</span></a></li>{% endfor %}
+        {% if s.more %}<li class="pipe-more">+{{ s.more }} more</li>{% endif %}
+      </ul>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endmacro %}
+
+{# ---------- Capacity: departments as tanks of booked work (next 7 days) ---------- #}
+{% macro capacity_tanks(tanks) %}
+<section class="viz viz-tanks" aria-labelledby="viz-tank-title">
+  <div class="viz-head"><h2 id="viz-tank-title">How full each department is</h2><span class="viz-note">Booked work ÷ capacity, next 7 days</span></div>
+  <ul class="tank-row">
+    {% for t in tanks %}{% set top = 112 - (t.level * 1.0) %}
+    <li class="tank tank-{{ t.state }}">
+      <svg class="tank-svg" viewBox="0 0 80 120" role="img" aria-label="{{ t.name }}: {{ t.percent|round|int }}% booked">
+        <defs><clipPath id="tank-clip-{{ loop.index }}"><rect x="8" y="8" width="64" height="104" rx="12"/></clipPath></defs>
+        <rect class="tank-glass" x="8" y="8" width="64" height="104" rx="12"/>
+        <g clip-path="url(#tank-clip-{{ loop.index }})">
+          <g transform="translate(0 {{ top|round(1) }})"><path class="tank-liquid tank-wave" d="M-80 0 Q -70 -5 -60 0 T -40 0 T -20 0 T 0 0 T 20 0 T 40 0 T 60 0 T 80 0 T 100 0 T 120 0 T 140 0 T 160 0 V 130 H -80 Z"/></g>
+        </g>
+        <rect class="tank-shine" x="16" y="16" width="6" height="88" rx="3"/>
+        {% for mark in (25, 50, 75) %}<line class="tank-tick" x1="60" x2="72" y1="{{ 112 - mark * 1.04 }}" y2="{{ 112 - mark * 1.04 }}"/>{% endfor %}
+      </svg>
+      <div class="tank-text"><strong>{{ t.percent|round|int }}%</strong><span>{{ t.name }}</span><small>{{ t.used|cap }} of {{ t.capacity|cap }} {{ t.unit }}</small></div>
+    </li>
+    {% else %}<li class="fine-print">No departments with capacity yet.</li>{% endfor %}
+  </ul>
+</section>
+{% endmacro %}
+
+{# ---------- Machines: each work centre as a room of machine lights ---------- #}
+{% macro machine_rooms(rooms, company_id, maintenance_links=False, title='Every machine, live') %}
+<section class="viz viz-rooms" aria-labelledby="viz-rooms-title">
+  <div class="viz-head"><h2 id="viz-rooms-title">{{ title }}</h2><span class="viz-legend"><span class="ml ml-run"></span>running <span class="ml ml-idle"></span>idle <span class="ml ml-down"></span>down{% if maintenance_links %} <span class="ml ml-due"></span>service due{% endif %}</span></div>
+  <ul class="room-grid">
+    {% for room in rooms %}{% set c = room.counts %}
+    <li class="room room-{{ room.center.department }}">
+      <div class="room-head"><strong>{{ room.center.code }}</strong><span class="fine-print">{{ room.center.name }}</span><span class="room-counts"><span class="rc-run">{{ c.run }}</span>{% if c.idle %}<span class="rc-idle">{{ c.idle }}</span>{% endif %}{% if c.down %}<span class="rc-down">{{ c.down }}</span>{% endif %}</span></div>
+      <div class="room-floor">
+        {% for light in room.lights %}{% set m = light.machine %}
+        <a class="mlight m-{{ light.state }}{{ ' has-ticket' if light.ticket }}{{ ' is-due' if light.due }}" href="{{ url_for('maintenance.machine', company_id=company_id, machine_id=m.id) if maintenance_links else url_for('factory.detail', company_id=company_id, resource='machines', record_id=m.id) }}" title="{{ m.asset_tag }} · {{ {'run': 'running', 'idle': 'idle', 'down': 'down for maintenance', 'off': 'decommissioned'}[light.state] }}{{ ' · ticket ' ~ light.ticket.number if light.ticket }}{{ ' · service due' if light.due }}"><span class="visually-hidden">{{ m.asset_tag }}, {{ light.state }}</span></a>
+        {% endfor %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endmacro %}
+
+{# ---------- Line balancing: each line's stations as a skyline against pitch time ---------- #}
+{% macro line_skylines(skylines, company_id) %}
+<section class="viz viz-skylines" aria-labelledby="viz-sky-title">
+  <div class="viz-head"><h2 id="viz-sky-title">Every line's balance at a glance</h2><span class="viz-legend"><span class="sk sk-ok"></span>station load <span class="sk sk-bottleneck"></span>bottleneck <span class="sk sk-pitch"></span>pitch time</span></div>
+  <ul class="sky-grid">
+    {% for sky in skylines %}
+    <li><a class="sky-card" href="{{ url_for('balancing.visual', company_id=company_id, line_id=sky.line.id) }}">
+      <span class="sky-head"><strong>{{ sky.line.code }}</strong><span class="fine-print">{{ sky.style or 'no balance' }}</span>{% if sky.efficiency is not none %}<span class="sky-eff">{{ sky.efficiency|round|int }}%</span>{% endif %}</span>
+      <svg class="sky-svg" viewBox="0 0 200 76" preserveAspectRatio="none" role="img" aria-label="{{ sky.line.code }}: {{ sky.bars|length }} stations{% if sky.efficiency is not none %}, {{ sky.efficiency|round|int }}% balanced{% endif %}">
+        {% set n = sky.bars|length %}{% set w = (196 / n) if n else 0 %}
+        {% for number, height, state in sky.bars %}<rect class="sky-bar sky-{{ state }}" x="{{ (2 + (loop.index0 * w))|round(2) }}" y="{{ (66 - height * 0.62)|round(2) }}" width="{{ (w - 1.5)|round(2) if w > 2 else w }}" height="{{ (height * 0.62)|round(2) }}" rx="1.5"/>{% endfor %}
+        {% if n %}<line class="sky-pitch" x1="0" x2="200" y1="{{ (66 - sky.pitch_level * 0.62)|round(2) }}" y2="{{ (66 - sky.pitch_level * 0.62)|round(2) }}"/>{% else %}<text class="sky-empty" x="100" y="40" text-anchor="middle">No published balance</text>{% endif %}
+        <rect class="sky-belt" x="0" y="68" width="200" height="8" rx="2"/>
+      </svg>
+    </a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endmacro %}
+
+{# ---------- Batch cards: bundles in bins, and dye vessels with their shade ---------- #}
+{% macro bundle_bins(bins, company_id) %}
+<section class="viz viz-bins" aria-labelledby="viz-bins-title">
+  <div class="viz-head"><h2 id="viz-bins-title">Bundles moving through the floor</h2><span class="viz-note">Newest bundles in each bin, labelled with their client</span></div>
+  <ol class="bin-row">
+    {% for b in bins %}
+    <li class="bin bin-{{ b.key }}">
+      <div class="bin-head"><strong>{{ b.name }}</strong><span><b>{{ '{:,}'.format(b.bundles) }}</b> bundles · {{ '{:,}'.format(b.pieces) }} pcs</span></div>
+      <div class="bin-pile" aria-hidden="true">{% for badge, size in b.boxes %}<span class="mini-box">{{ client_mark(badge, company_id, 12) if badge }}<b>{{ size }}</b></span>{% else %}<span class="fine-print">Empty</span>{% endfor %}</div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endmacro %}
+
+{% macro dye_vessels(vessels, company_id) %}
+<section class="viz viz-vessels" aria-labelledby="viz-vessels-title">
+  <div class="viz-head"><h2 id="viz-vessels-title">Dye house</h2><span class="viz-note">Each vessel with its current or last batch (last 3 days)</span></div>
+  <ul class="vessel-row">
+    {% for v in vessels %}{% set st = v.batch.status if v.batch else 'empty' %}
+    <li class="vessel vessel-{{ st }}">
+      {% if v.batch %}<a href="{{ url_for('shopfloor.batch', company_id=company_id, batch_id=v.batch.id) }}" class="vessel-link">{% else %}<span class="vessel-link">{% endif %}
+      <svg class="vessel-svg" viewBox="0 0 90 110" role="img" aria-label="{{ v.machine.asset_tag }}: {{ (v.batch.batch_number ~ ', ' ~ v.batch.colour ~ ', ' ~ st) if v.batch else 'empty' }}">
+        <defs><clipPath id="vessel-clip-{{ loop.index }}"><rect x="14" y="22" width="62" height="74" rx="10"/></clipPath></defs>
+        <rect class="vessel-body" x="12" y="20" width="66" height="78" rx="12"/>
+        {% if v.batch and st in ('loaded', 'dyeing') %}
+        <g clip-path="url(#vessel-clip-{{ loop.index }})">
+          <g transform="translate(0 {{ 40 if st == 'dyeing' else 58 }})"><path class="vessel-liquid{{ ' tank-wave' if st == 'dyeing' }}" fill="{{ v.shade }}" d="M-60 0 Q -52 -4 -45 0 T -30 0 T -15 0 T 0 0 T 15 0 T 30 0 T 45 0 T 60 0 T 75 0 T 90 0 T 105 0 T 120 0 V 80 H -60 Z"/></g>
+          {% if st == 'dyeing' %}<circle class="bubble b1" cx="32" cy="88" r="3"/><circle class="bubble b2" cx="52" cy="90" r="2.4"/><circle class="bubble b3" cx="62" cy="86" r="2"/>{% endif %}
+        </g>
+        {% elif v.batch %}<rect x="26" y="70" width="38" height="18" rx="4" fill="{{ v.shade }}" class="vessel-roll"/>{% endif %}
+        <ellipse class="vessel-lid" cx="45" cy="20" rx="33" ry="7"/>
+        <rect class="vessel-pipe" x="70" y="6" width="6" height="16" rx="2"/>
+        <rect class="vessel-legs" x="20" y="98" width="6" height="10"/><rect class="vessel-legs" x="64" y="98" width="6" height="10"/>
+      </svg>
+      <span class="vessel-text"><strong>{{ v.machine.asset_tag }}</strong>{% if v.batch %}<span>{{ v.batch.batch_number }} · {{ v.batch.colour }}</span><span class="tag tag-{{ {'loaded': 'waiting', 'dyeing': 'waiting', 'passed': 'good', 're_dye': 'bad', 'rejected': 'bad'}[st] }}">{{ {'loaded': 'loaded', 'dyeing': 'dyeing now', 'passed': 'passed', 're_dye': 're-dye', 'rejected': 'rejected'}[st] }}</span>{% else %}<span class="fine-print">Empty</span>{% endif %}</span>
+      {% if v.batch %}</a>{% else %}</span>{% endif %}
+    </li>
+    {% else %}<li class="fine-print">No dyeing vessels set up.</li>{% endfor %}
+  </ul>
+</section>
+{% endmacro %}

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_visuals.html' import machine_rooms with context %}
 {% block title %}{{ title }} · {{ company.name }}{% endblock %}
 {% block content %}
 <p class="back-link"><a href="{{ url_for('factory.overview' if resource in ('machines', 'work-centers', 'styles') else 'factory.setup', company_id=company_id) }}">{{ 'Capacity' if resource in ('machines', 'work-centers', 'styles') else 'Factory setup' }}</a></p>
@@ -6,6 +7,8 @@
   <div><h1>{{ title }}</h1></div>
   {% if can_manage %}<div class="page-actions"><a class="btn btn-primary" href="{{ url_for('factory.create', company_id=company_id, resource=resource) }}">{{ icon('plus') }}New</a></div>{% endif %}
 </div>
+{% if rooms %}{{ machine_rooms(rooms, company_id) }}{% endif %}
+
 <div class="table-responsive"><table class="table">
   <thead><tr>{% for header in headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
   <tbody>{% for row, cells in rows %}

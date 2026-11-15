@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_floor_board.html' import sewing_floor with context %}
 {% from 'factory/_floor_macros.html' import day_nav, eff_tag %}
 {% block title %}Shop floor · {{ company.name }}{% endblock %}
 {% block content %}
@@ -8,6 +9,8 @@
     <p>Hour-by-hour output from every sewing line against its plan. Tap a line to record its hours and stops.</p>
   </div>
 </div>
+{{ sewing_floor(sites, can_move, company_id) }}
+
 {{ day_nav('shopfloor.floor', day, today, {'company_id': company_id}) }}
 {% if fallback %}<div class="alert alert-info" role="status">Nothing is recorded for today yet, so this shows {{ day.strftime('%A %d %b') }}, the latest day with entries.</div>{% endif %}
 
@@ -41,4 +44,5 @@
 {% else %}
 <p class="empty">No sewing lines yet.</p>
 {% endfor %}
+<script src="{{ url_for('static', filename='floor.js') }}" defer></script>
 {% endblock %}

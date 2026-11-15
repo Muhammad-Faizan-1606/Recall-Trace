@@ -1,5 +1,50 @@
 # RecallTrace implementation status
 
+## Clients, planning board, section pictures and a collapsible menu — 15 November 2026
+
+- **Clients** (`app/services/clients.py`, `app/blueprints/clients.py`, menu item "Clients"):
+  - A client is an ordinary Core partner with the customer role. Adding one creates the partner, its customer role and its badge in one step.
+  - Each client gets a badge name (up to 12 letters), a colour and an optional logo.
+  - Who can do what: anyone with factory access can see the clients. Planners and factory managers can add them, edit them and change their logos.
+  - Migration `f10a01` adds one Factory table, `client_brands`. The schema is now 100 tables: 72 Core plus 28 Factory. It has full CRUD grants like `items`, and RLS is disabled like the other Factory tables.
+  - **Logos are re-encoded.**
+    - Uploads must be PNG, JPEG or WebP, at most 2 MB and at most 16 million pixels (checked before decoding).
+    - Pillow decodes the image, shrinks it to at most 256 × 256 and saves a fresh PNG of at most 256 KB.
+    - Only that PNG is stored, so metadata (EXIF) and anything hidden in the original is gone. SVG is refused.
+    - The logo is served only to signed-in members with factory access, at a private address. It carries the app's strict security headers, `nosniff` and an ETag.
+  - The demo buyers get drawn geometric logos (not real brands) through the same re-encoder.
+- **Client badges everywhere:** a coloured badge or logo appears on:
+  - the production orders list, order page, bundle page and printed bundle tickets;
+  - the planning board;
+  - the factory map's bundle boxes (a shipping label in the client's colour, with the size and pieces);
+  - the batch-card bins.
+  - Colours are SVG attributes or set through the CSSOM, so the strict CSP still holds.
+- **Planning board rework** (`templates/factory/board.html`, `static/board.js`):
+  - Orders appear as cards in five priority lanes (Most urgent to Fill-in). Each card shows the client logo, style, colour, pieces, ex-factory and finish dates, the current stage, days late or spare, and the number of sewing lines.
+  - **Drag a card to another lane** (mouse, touch by the grip, or keyboard: Enter on the card, then Enter on a lane), or use **− / +** for sewing lines.
+  - Every change is first **previewed**, and nothing is saved. A drawer shows the new finish date, the days spare or late, and any other order that would become late. **Apply and re-plan** saves the change with the same `planning.save_order` used by the order screen, with a version check, `factory.plan`, a CSRF header and audit. It then re-plans every open order.
+  - Released orders are fixed. Planned orders have a "Release to floor" button on the card.
+  - Filter by client, by text, or late orders only. The order timeline shows client logos and follows the filters. The department heat map moved to the bottom.
+- **Picture panels on each section** (`app/services/visuals.py`, `templates/factory/_visuals.html`). They show recorded data only, drawn on the server as SVG with CSS animation, and stay still under "reduce motion":
+  - Production orders: a conveyor through the stages with each open order's token at the stage its saved plan has it in today.
+  - Capacity: each department as a tank, filled to its booked share of capacity for the next 7 days.
+  - Machines and Maintenance: every work centre as a room of machine lights (running, idle, down blinking). Maintenance adds open tickets and service due, and puts rooms with problems first.
+  - Line balancing: each line's stations as a skyline against pitch time, with the bottleneck in red.
+  - Batch cards: bundles in the cutting, on-line and sewn bins with client labels. The dye house shows each vessel with its batch's shade, and bubbles while dyeing.
+  - Shop floor: the factory map's drag-and-drop sewing floor, now shared through `static/floor.js` and `templates/factory/_floor_board.html`.
+- **Collapsible menu:** the sidebar's collapse button turns it into an icon rail on wide screens, with tooltips and the alert count kept. The choice is remembered in this browser and applied before paint, so the page does not jump.
+- **Dependencies:** added `Pillow 13.0.0` (12.3.0 had two advisories that pip-audit reported; 13.0.0 fixes them). Both lockfiles were regenerated with hashes, and only Pillow changed.
+- **Verification:**
+  - `tests/test_clients.py` (7 tests) covers:
+    - client creation, role and badge; duplicate codes, bad colours and stale versions refused;
+    - logo re-encoding: JPEG with EXIF becomes a 256 px PNG with no metadata; SVG, GIF, oversized, empty and decompression-bomb files refused;
+    - the upload screen, the private logo response (headers, 304), CSRF and sign-out refusals, and read-only staff refused;
+    - board preview saves nothing; apply needs CSRF; stale versions get 409; released orders get 409; read-only staff get 403;
+    - every section panel renders from recorded data, with client data on floor bundles.
+  - The schema contract tests now expect 100 tables.
+  - Full local suite: 583 passed, 16 failed. The 16 are the known `test_database_access` checks that need PostgreSQL 17; CI runs them.
+  - Playwright at 1440 px: a card dragged from lane 4 to lane 2 previewed "finishes 09 Dec, 4 days spare, no other order becomes late". Apply re-planned it, and the client filter worked. All eight section pages loaded with no console errors and no horizontal overflow.
+
 ## 3D factory map with drag-and-drop bundles — 15 November 2026
 
 - **3D factory scene** (`app/static/iso.js`, `templates/factory/map.html`): the map page is now an isometric 3D view of the mill in the style of a live energy-monitoring app.

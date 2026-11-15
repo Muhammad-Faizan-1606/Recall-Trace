@@ -895,3 +895,27 @@ class LineCheckDefect(Owned, db.Model):
             "station_number IS NULL OR station_number BETWEEN 1 AND 200", name="station"
         ),
     )
+
+
+class ClientBrand(Owned, db.Model):
+    """How a client (a partner with the customer role) is recognised on screens: a short
+    badge name, a colour and an optional logo. The logo is stored as a small PNG that the
+    server re-encoded itself, so no uploaded file is ever served back as it arrived."""
+
+    __tablename__ = "client_brands"
+    partner_id: Mapped[uuid.UUID] = mapped_column()
+    short_name: Mapped[str] = mapped_column(db.String(12))
+    colour: Mapped[str] = mapped_column(db.String(7))
+    logo_png: Mapped[bytes | None] = mapped_column(db.LargeBinary, deferred=True)
+    logo_sha256: Mapped[str | None] = mapped_column(db.String(64))
+    __table_args__ = (
+        *identity("partner_id"),
+        tenant_fk("partner_id", "partners"),
+        CheckConstraint("colour ~ '^#[0-9a-f]{6}$'", name="colour"),
+        CheckConstraint("length(trim(short_name)) > 0", name="short_name"),
+        CheckConstraint(
+            "(logo_png IS NULL AND logo_sha256 IS NULL) OR "
+            "(octet_length(logo_png) BETWEEN 1 AND 262144 AND length(logo_sha256) = 64)",
+            name="logo",
+        ),
+    )

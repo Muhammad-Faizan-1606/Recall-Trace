@@ -41,6 +41,28 @@
     });
   });
 
+  // Collapse the desktop menu to an icon rail, remembered in this browser.
+  function syncCollapse() {
+    var collapsed = root.getAttribute("data-sidebar") === "collapsed";
+    document.querySelectorAll("[data-sidebar-collapse]").forEach(function (b) {
+      b.setAttribute("aria-pressed", collapsed ? "true" : "false");
+      var label = collapsed ? "Expand the menu" : "Collapse the menu";
+      b.setAttribute("aria-label", label);
+      b.title = label;
+    });
+  }
+  document.querySelectorAll("[data-sidebar-collapse]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var collapsed = root.getAttribute("data-sidebar") !== "collapsed";
+      if (collapsed) root.setAttribute("data-sidebar", "collapsed");
+      else root.removeAttribute("data-sidebar");
+      try { localStorage.setItem("recalltrace-sidebar", collapsed ? "collapsed" : "open"); } catch (error) { /* ignore */ }
+      syncCollapse();
+      window.dispatchEvent(new Event("resize"));
+    });
+  });
+  syncCollapse();
+
   // Slide-out sidebar on small screens.
   var sidebar = document.getElementById("sidebar");
   var backdrop = document.querySelector(".sidebar-backdrop");

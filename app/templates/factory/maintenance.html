@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_visuals.html' import machine_rooms with context %}
 {% block title %}Maintenance · {{ company.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -7,6 +8,8 @@
     <p>Breakdowns being repaired, preventive jobs coming due, and which machines fail most. A machine with an open breakdown is out of planned capacity until its ticket is closed.</p>
   </div>
 </div>
+{{ machine_rooms(rooms, company_id, maintenance_links=True, title='Machines and their repairs') }}
+
 <dl class="facts">
   <div class="{{ 'is-alert' if open_tickets }}"><dt>Unfinished tickets</dt><dd>{{ open_tickets|length }}</dd></div>
   <div class="{{ 'is-alert' if overdue }}"><dt>Preventive overdue</dt><dd>{{ overdue|length }}<small class="fine-print"> · {{ due|length - overdue|length }} due in 14 days</small></dd></div>

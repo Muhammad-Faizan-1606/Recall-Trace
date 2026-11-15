@@ -29,7 +29,15 @@ from app.models.factory import (
 )
 from app.models.master import Lot, Site
 from app.policies import allowed, require
-from app.services import alerts, balancing, factory_trace, linequality, shopfloor
+from app.services import (
+    alerts,
+    balancing,
+    factory_trace,
+    factorymap,
+    linequality,
+    shopfloor,
+    visuals,
+)
 from app.services.business import DomainError, scoped
 from app.services.jobroles import require_any
 
@@ -129,6 +137,8 @@ def floor(company_id):
     reporting = sum(1 for line in lines if days[line.id].hours)
     return render_template(
         "factory/floor.html",
+        sites=factorymap.sites_with_lines(company_id),
+        can_move=ctx["can_record"],
         day=day,
         today=date.today(),
         groups=[(sites.get(site_id), items) for site_id, items in grouped.items()],
@@ -466,6 +476,7 @@ def batches(company_id):
     all_vessels = {m.id: m for m in machines_in(company_id, "dyeing")}
     return render_template(
         "factory/batches.html",
+        dye_house=visuals.dye_vessels(company_id),
         rows=rows,
         kg=shopfloor.batch_kg(company_id, [r.id for r in rows]),
         vessels=vessels,
@@ -631,6 +642,7 @@ def bundles(company_id):
     lines = {line.id: line for line in balancing.sewing_lines(company_id)}
     return render_template(
         "factory/bundles.html",
+        bins=visuals.bundle_bins(company_id),
         page=page,
         selected=selected,
         released=released,

@@ -1,14 +1,17 @@
 {% extends 'base.html' %}
+{% from 'factory/_clients.html' import client_chip, client_mark with context %}
 {% from 'factory/_floor_macros.html' import qr_svg %}
 {% block title %}Tickets · {{ order.reference }}{% endblock %}
 {% block content %}
 <p class="back-link d-print-none"><a href="{{ url_for('shopfloor.bundles', company_id=company_id, order=order.id) }}">Bundles for {{ order.reference }}</a></p>
 <div class="page-head d-print-none"><div><h1>Bundle tickets · {{ order.reference }}</h1><p>{{ tickets|length }} bundle{{ 's' if tickets|length != 1 }} still at cutting. Print this page and tie each ticket to its bundle; scanning a ticket opens the bundle.</p></div></div>
+{% set badge = style_client(company_id, style) %}
 <div class="ticket-sheet">
 {% for bundle, qr in tickets %}
   <article class="ticket-card">
     <div class="ticket-code">{{ qr_svg(qr) }}</div>
     <div>
+      {% if badge %}<p class="ticket-client">{{ client_mark(badge, company_id, 22) }}<strong>{{ badge.name }}</strong></p>{% endif %}
       <p class="ticket-number">{{ bundle.bundle_number }}</p>
       <p class="mb-0">{{ style.code }} · {{ order.colour }}</p>
       <p class="mb-0">Size <strong>{{ bundle.size }}</strong> · {{ bundle.pieces }} pcs</p>

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_clients.html' import client_chip, client_mark with context %}
 {% from 'factory/_floor_macros.html' import qr_svg %}
 {% block title %}{{ bundle.bundle_number }} · Bundle{% endblock %}
 {% block content %}
@@ -6,7 +7,8 @@
 <div class="record-head">
   <div>
     <h1>Bundle {{ bundle.bundle_number }}</h1>
-    <p class="record-meta">{{ bundle.status|tag }}<span>{{ style.code }} — {{ style.name }}</span><span>Size {{ bundle.size }} · {{ bundle.pieces }} pieces</span></p>
+    {% set badge = style_client(company_id, style) %}
+    <p class="record-meta">{% if badge %}{{ client_chip(badge, company_id) }}{% endif %}{{ bundle.status|tag }}<span>{{ style.code }} — {{ style.name }}</span><span>Size {{ bundle.size }} · {{ bundle.pieces }} pieces</span></p>
   </div>
 </div>
 <div class="split">

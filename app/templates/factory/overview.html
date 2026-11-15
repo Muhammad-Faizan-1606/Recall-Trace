@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_visuals.html' import capacity_tanks with context %}
 {% block title %}Capacity · {{ company.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -11,6 +12,8 @@
     {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('factory.create', company_id=company_id, resource='machines') }}">{{ icon('plus') }}Register machine</a>{% endif %}
   </div>
 </div>
+{{ capacity_tanks(tanks) }}
+
 
 <dl class="facts">
   <div><dt>Sites</dt><dd>{{ sites|length }}</dd></div>

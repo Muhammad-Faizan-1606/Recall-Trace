@@ -38,7 +38,7 @@ from app.models.factory import (
 from app.models.master import Partner, PartnerRoleAssignment, Site
 from app.policies import allowed, require
 from app.presentation import quantity_text, status_tag
-from app.services import capacity, engineering
+from app.services import capacity, engineering, visuals
 from app.services.business import DomainError, scoped
 from app.services.factory import (
     DAY_NAMES,
@@ -410,6 +410,7 @@ def overview(company_id):
     order = {name: index for index, name in enumerate(DEPARTMENTS)}
     return render_template(
         "factory/overview.html",
+        tanks=visuals.capacity_tanks(company_id, today),
         sites=[(site, by_site.get(site.id, [])) for site in sites],
         departments=sorted(departments.items(), key=lambda pair: order.get(pair[0], 99)),
         totals=totals,
@@ -478,6 +479,7 @@ def listing(company_id, resource):
     rows = [(row, [render(row, extra) for _, render in COLUMNS[resource]]) for row in page.items]
     return render_template(
         "factory/listing.html",
+        rooms=visuals.machine_rooms(company_id) if resource == "machines" else None,
         title=title,
         headers=[header for header, _ in COLUMNS[resource]],
         rows=rows,

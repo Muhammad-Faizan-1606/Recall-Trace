@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_visuals.html' import line_skylines with context %}
 {% block title %}Line balancing · {{ company.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -7,6 +8,8 @@
     <p>What each sewing line is running, how evenly the work is shared between its operators, and what that costs in output.</p>
   </div>
 </div>
+{% if skylines %}{{ line_skylines(skylines, company_id) }}{% endif %}
+
 
 <dl class="facts">
   <div><dt>Sewing lines</dt><dd>{{ total }}</dd></div>

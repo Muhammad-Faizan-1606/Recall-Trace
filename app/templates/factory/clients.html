@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% from 'factory/_clients.html' import client_mark with context %}
+{% block title %}Clients · {{ company.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Clients</h1><p>The brands you make for. Each one's badge and logo appear on orders, bundles, the planning board and the factory map, so everyone can tell whose work is whose.</p></div>
+  {% if can_edit %}<div class="page-actions"><a class="btn btn-primary" href="{{ url_for('clients.new', company_id=company_id) }}">{{ icon('plus') }}Add a client</a></div>{% endif %}
+</div>
+{% if rows %}
+<ul class="client-grid" aria-label="Clients">
+  {% for row in rows %}
+  <li>
+    {% set tag = 'a' if can_edit else 'div' %}
+    <{{ tag }} class="client-card{{ ' is-paused' if row.partner.status == 'inactive' }}"{% if can_edit %} href="{{ url_for('clients.edit', company_id=company_id, partner_id=row.partner.id) }}"{% endif %}>
+      <svg class="client-card-band" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect width="100" height="6" fill="{{ row.badge.colour }}"/></svg>
+      <span class="client-card-logo">{{ client_mark(row.badge, company_id, 56) }}</span>
+      <span class="client-card-text">
+        <strong>{{ row.partner.name }}</strong>
+        <span class="fine-print">{{ row.partner.code }} · badge “{{ row.badge.short }}”{% if row.partner.status == 'inactive' %} · paused{% endif %}</span>
+      </span>
+      <span class="client-card-stats">
+        <span><strong>{{ row.open_orders }}</strong> open order{{ 's' if row.open_orders != 1 }}</span>
+        <span><strong>{{ '{:,}'.format(row.open_pieces) }}</strong> pieces</span>
+        <span><strong>{{ row.styles }}</strong> style{{ 's' if row.styles != 1 }}</span>
+      </span>
+    </{{ tag }}>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="panel"><h2>No clients yet</h2><p class="mb-0">{% if can_edit %}Add the brands you make for, with their logo, so their work is easy to spot.{% else %}Ask a planner or administrator to add your clients.{% endif %}</p></div>
+{% endif %}
+{% endblock %}

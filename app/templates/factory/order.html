@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_clients.html' import client_chip, client_mark with context %}
 {% block title %}{{ order.reference }} · Production order{% endblock %}
 {% block content %}
 {% set editable = order.status in ('draft', 'planned') %}
@@ -6,7 +7,8 @@
 <div class="record-head">
   <div>
     <h1>{{ order.reference }} · {{ style.name }}</h1>
-    <p class="record-meta">{{ order.status|tag }}{% if slack is not none and order.status in ('planned', 'released') %}{% if slack < 0 %}<span class="tag tag-bad">{{ -slack }} day{{ 's' if slack != -1 }} late</span>{% else %}<span class="tag tag-good">{{ slack }} day{{ 's' if slack != 1 }} spare</span>{% endif %}{% endif %}<span>{{ style.code }} · {{ order.colour }} · priority {{ order.priority }}</span></p>
+    {% set badge = style_client(company_id, style) %}
+    <p class="record-meta">{% if badge %}{{ client_chip(badge, company_id) }}{% endif %}{{ order.status|tag }}{% if slack is not none and order.status in ('planned', 'released') %}{% if slack < 0 %}<span class="tag tag-bad">{{ -slack }} day{{ 's' if slack != -1 }} late</span>{% else %}<span class="tag tag-good">{{ slack }} day{{ 's' if slack != 1 }} spare</span>{% endif %}{% endif %}<span>{{ style.code }} · {{ order.colour }} · priority {{ order.priority }}</span></p>
   </div>
   {% if can_manage %}
   <div class="page-actions">

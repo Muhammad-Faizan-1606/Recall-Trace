@@ -15,7 +15,7 @@
 {% set sprite = url_for('static', filename='vendor/icons/sprite.svg') %}
 {% macro brand_logo(on_navy=False) %}<a class="brand" href="{{ url_for('catalog.companies') }}">{% if on_navy %}<img class="logo" src="{{ url_for('static', filename='brand/recalltrace-logo-dark.webp') }}" width="520" height="156" alt="RecallTrace">{% else %}<img class="logo logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-logo.webp') }}" width="520" height="156" alt="RecallTrace"><img class="logo logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-logo-dark.webp') }}" width="520" height="156" alt="RecallTrace">{% endif %}</a>{% endmacro %}
 {% macro icon(name) %}<svg class="icon" aria-hidden="true" focusable="false"><use href="{{ sprite }}#i-{{ name }}"></use></svg>{% endmacro %}
-{% macro nav_link(href, text, glyph, match=None) %}{% set prefixes = match if (match is sequence and match is not string) else [match or href] %}{% set ns = namespace(current=request.path == href) %}{% for prefix in prefixes %}{% if request.path.startswith(prefix ~ '/') %}{% set ns.current = true %}{% endif %}{% endfor %}{% set current = ns.current %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
+{% macro nav_link(href, text, glyph, match=None) %}{% set prefixes = match if (match is sequence and match is not string) else [match or href] %}{% set ns = namespace(current=request.path == href) %}{% for prefix in prefixes %}{% if request.path.startswith(prefix ~ '/') %}{% set ns.current = true %}{% endif %}{% endfor %}{% set current = ns.current %}<a class="side-link{{ ' is-current' if current }}" href="{{ href }}" title="{{ text }}"{% if current %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ text }}</span></a>{% endmacro %}
 {% macro brand_mark(href) %}<a class="topbar-mark" href="{{ href }}" aria-label="RecallTrace home"><img class="logo-on-light" src="{{ url_for('static', filename='brand/recalltrace-mark.webp') }}" width="192" height="170" alt=""><img class="logo-on-dark" src="{{ url_for('static', filename='brand/recalltrace-mark-dark.webp') }}" width="192" height="170" alt=""></a>{% endmacro %}
 <body class="{{ 'has-sidebar' if company is defined else 'no-sidebar' }}{{ ' is-signin' if request and request.endpoint == 'auth.login' }}">
 <a class="visually-hidden-focusable skip-link" href="#main">Skip to content</a>
@@ -23,9 +23,11 @@
 <aside class="sidebar" id="sidebar" aria-label="Workspace">
   <div class="sidebar-top">
     {{ brand_logo(true) }}
+    <a class="sidebar-mini-mark" href="{{ url_for('catalog.companies') }}" aria-label="RecallTrace"><img src="{{ url_for('static', filename='brand/recalltrace-mark-dark.webp') }}" width="192" height="170" alt=""></a>
+    <button class="icon-button sidebar-collapse" type="button" data-sidebar-collapse aria-pressed="false" aria-label="Collapse the menu" title="Collapse the menu"><span class="collapse-icon">{{ icon('panel-left-close') }}</span><span class="expand-icon">{{ icon('panel-left-open') }}</span></button>
     <button class="icon-button sidebar-close" type="button" data-sidebar-close aria-label="Close menu">{{ icon('x') }}</button>
   </div>
-  <a class="company-chip" href="{{ url_for('catalog.companies') }}" title="Switch company"><span class="company-initial" aria-hidden="true">{{ company.name[:1] }}</span><span><strong>{{ company.name }}</strong><small>Switch company</small></span></a>
+  <a class="company-chip" href="{{ url_for('catalog.companies') }}" title="{{ company.name }}: switch company"><span class="company-initial" aria-hidden="true">{{ company.name[:1] }}</span><span><strong>{{ company.name }}</strong><small>Switch company</small></span></a>
   <nav aria-label="Workspace sections">
     {% set fbase = '/companies/' ~ company_id ~ '/factory/' %}
     <div class="side-group">
@@ -37,7 +39,8 @@
       <p class="side-heading">Factory</p>
       {{ nav_link(url_for('insights.map', company_id=company_id), 'Factory map', 'activity', [fbase ~ 'map']) }}
       {{ nav_link(url_for('insights.board', company_id=company_id), 'Dashboard', 'layout-dashboard', [fbase ~ 'dashboard']) }}
-      {% set alert_count = factory_alert_count(company_id) %}<a class="side-link{{ ' is-current' if request.path.startswith(fbase ~ 'alerts') }}" href="{{ url_for('insights.listing', company_id=company_id) }}"{% if request.path.startswith(fbase ~ 'alerts') %} aria-current="page"{% endif %}>{{ icon('alert-triangle') }}<span>Alerts</span>{% if alert_count %}<span class="count-pill side-count">{{ alert_count }}<span class="visually-hidden"> unresolved</span></span>{% endif %}</a>
+      {% set alert_count = factory_alert_count(company_id) %}<a class="side-link{{ ' is-current' if request.path.startswith(fbase ~ 'alerts') }}" href="{{ url_for('insights.listing', company_id=company_id) }}" title="Alerts"{% if request.path.startswith(fbase ~ 'alerts') %} aria-current="page"{% endif %}>{{ icon('alert-triangle') }}<span>Alerts</span>{% if alert_count %}<span class="count-pill side-count">{{ alert_count }}<span class="visually-hidden"> unresolved</span></span>{% endif %}</a>
+      {{ nav_link(url_for('clients.listing', company_id=company_id), 'Clients', 'building-2', [fbase ~ 'clients']) }}
       {% if sees(company_id, 'planning') %}
       {{ nav_link(url_for('planning.board', company_id=company_id), 'Planning board', 'calendar', [fbase ~ 'planning']) }}
       {{ nav_link(url_for('planning.orders', company_id=company_id), 'Production orders', 'clipboard-check', [fbase ~ 'orders']) }}
@@ -104,7 +107,7 @@
     {% if company is defined %}
     <button class="icon-button menu-button" type="button" data-sidebar-open aria-controls="sidebar" aria-label="Open menu">{{ icon('menu') }}</button>
     {{ brand_mark(url_for('overview.overview', company_id=company_id)) }}
-    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'planning': 'Planning', 'balancing': 'Line balancing', 'shopfloor': 'Shop floor', 'insights': 'Factory dashboard', 'home': 'Home', 'maintenance': 'Maintenance', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
+    {% set sections = {'overview': 'Overview', 'recall': 'Investigations', 'notices': 'Notices', 'operations': 'Operations', 'factory': 'Factory', 'planning': 'Planning', 'balancing': 'Line balancing', 'shopfloor': 'Shop floor', 'insights': 'Factory dashboard', 'home': 'Home', 'clients': 'Clients', 'maintenance': 'Maintenance', 'quality': 'Quality', 'catalog': 'Catalog', 'master': 'Master data', 'evidence': 'Evidence & reports', 'access': 'Company access', 'security': 'Account security', 'sessions': 'Sessions'} %}
     <ol class="crumbs" aria-label="You are here">
       <li><a href="{{ url_for('overview.overview', company_id=company_id) }}">{{ company.name }}</a></li>
       <li><span aria-current="location">{{ 'Search' if request.endpoint == 'overview.search' else sections.get(request.blueprint, 'Workspace') }}</span></li>

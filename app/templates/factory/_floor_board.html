@@ -1,0 +1,23 @@
+{# The draggable sewing floor (static/floor.js), shared by the factory map and the shop floor. #}
+{% macro icon(name) %}<svg class="icon" aria-hidden="true" focusable="false"><use href="{{ url_for('static', filename='vendor/icons/sprite.svg') }}#i-{{ name }}"></use></svg>{% endmacro %}
+{% macro sewing_floor(sites, can_move, company_id) %}{% if sites %}
+<section class="section floor-section" aria-labelledby="floor-heading"
+  data-floor-source="{{ url_for('insights.floor_data', company_id=company_id) }}"
+  data-move-base="{{ url_for('insights.map', company_id=company_id) }}/bundles/"
+  data-csrf="{{ csrf_token() }}">
+  <div class="section-head"><h2 id="floor-heading">Sewing floor</h2><span class="section-note">{% if can_move %}Drag a bundle from the cutting buffer onto a line, between lines, or onto Sewn. Keyboard: Enter picks a bundle, Enter on a line drops it.{% else %}Bundles waiting at cutting and on each line.{% endif %}</span></div>
+  <nav aria-label="Sites"><ul class="tabs" data-site-tabs>{% for site_id, code, name, count in sites %}<li><a href="#" data-site="{{ site_id }}"{% if loop.first %} aria-current="page"{% endif %}>{{ name.split(' — ')[0] }} <span class="count-pill">{{ count }}</span></a></li>{% endfor %}</ul></nav>
+  <div class="floor-stage" data-floor>
+    <div class="floor-buffer drop-zone" data-drop="buffer" aria-label="Cutting buffer">
+      <h3>{{ icon('tag') }} Cutting buffer</h3>
+      <div class="bundle-pile" data-pile="buffer"></div>
+    </div>
+    <ol class="floor-lines" data-lines aria-label="Sewing lines"></ol>
+    <div class="floor-dock drop-zone" data-drop="sewn" tabindex="0" role="button" aria-label="Sewn: drop a bundle here when its line has finished it">
+      <h3>{{ icon('boxes') }} Sewn</h3>
+      <p class="fine-print mb-0">Drop a bundle here when its line has finished it.</p>
+    </div>
+  </div>
+  <p class="floor-toast" data-toast role="status" aria-live="polite"></p>
+</section>
+{% endif %}{% endmacro %}

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'factory/_floor_board.html' import sewing_floor with context %}
 {% block title %}Factory map · {{ company.name }}{% endblock %}
 {% block content %}
 {% set glyphs = {'yarn': 'package', 'knitting': 'layers', 'dyeing': 'activity', 'finishing': 'ruler', 'cutting': 'tag', 'sewing': 'monitor-smartphone', 'packing': 'boxes', 'shipped': 'truck'} %}
@@ -31,27 +32,7 @@
   <noscript><p class="fine-print p-3">The 3D view needs JavaScript; the department cards below show the same figures.</p></noscript>
 </section>
 
-{% if sites %}
-<section class="section floor-section" aria-labelledby="floor-heading"
-  data-floor-source="{{ url_for('insights.floor_data', company_id=company_id) }}"
-  data-move-base="{{ url_for('insights.map', company_id=company_id) }}/bundles/"
-  data-csrf="{{ csrf_token() }}">
-  <div class="section-head"><h2 id="floor-heading">Sewing floor</h2><span class="section-note">{% if can_move %}Drag a bundle from the cutting buffer onto a line, between lines, or onto Sewn. Keyboard: Enter picks a bundle, Enter on a line drops it.{% else %}Bundles waiting at cutting and on each line.{% endif %}</span></div>
-  <nav aria-label="Sites"><ul class="tabs" data-site-tabs>{% for site_id, code, name, count in sites %}<li><a href="#" data-site="{{ site_id }}"{% if loop.first %} aria-current="page"{% endif %}>{{ name.split(' — ')[0] }} <span class="count-pill">{{ count }}</span></a></li>{% endfor %}</ul></nav>
-  <div class="floor-stage" data-floor>
-    <div class="floor-buffer drop-zone" data-drop="buffer" aria-label="Cutting buffer">
-      <h3>{{ icon('tag') }} Cutting buffer</h3>
-      <div class="bundle-pile" data-pile="buffer"></div>
-    </div>
-    <ol class="floor-lines" data-lines aria-label="Sewing lines"></ol>
-    <div class="floor-dock drop-zone" data-drop="sewn" tabindex="0" role="button" aria-label="Sewn: drop a bundle here when its line has finished it">
-      <h3>{{ icon('boxes') }} Sewn</h3>
-      <p class="fine-print mb-0">Drop a bundle here when its line has finished it.</p>
-    </div>
-  </div>
-  <p class="floor-toast" data-toast role="status" aria-live="polite"></p>
-</section>
-{% endif %}
+{{ sewing_floor(sites, can_move, company_id) }}
 
 <section class="section" aria-labelledby="cards-heading">
   <div class="section-head"><h2 id="cards-heading">All departments</h2><span class="section-note">The same live figures as cards</span></div>
@@ -75,4 +56,5 @@
   <p class="map-legend fine-print"><span class="state-dot state-ok"></span> running normally <span class="state-dot state-busy"></span> busy or a machine down <span class="state-dot state-alert"></span> critical alert <span class="state-dot state-quiet"></span> nothing running{% if latest %} · sewing figures from {{ latest.strftime('%A %d %b') }}{% endif %}</p>
 </section>
 <script src="{{ url_for('static', filename='iso.js') }}" defer></script>
+<script src="{{ url_for('static', filename='floor.js') }}" defer></script>
 {% endblock %}

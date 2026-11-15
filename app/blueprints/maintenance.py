@@ -12,7 +12,7 @@ from app.forms import ActionForm
 from app.models import now
 from app.models.factory import Machine, MaintenancePlan, MaintenanceTicket, WorkCenter
 from app.policies import allowed, require
-from app.services import alerts, maintenance
+from app.services import alerts, maintenance, visuals
 from app.services.business import DomainError, scoped
 
 bp = Blueprint("maintenance", __name__, url_prefix="/companies/<uuid:company_id>/factory")
@@ -82,6 +82,7 @@ def overview(company_id):
     breakdowns = sum(r.breakdowns for r in reliability.values())
     return render_template(
         "factory/maintenance.html",
+        rooms=visuals.machine_rooms(company_id, with_maintenance=True, today=today),
         open_tickets=open_tickets,
         due=due,
         shown=shown,

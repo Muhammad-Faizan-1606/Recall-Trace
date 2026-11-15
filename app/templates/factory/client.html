@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% from 'factory/_clients.html' import client_mark with context %}
+{% block title %}{{ partner.name if partner else 'Add a client' }} · {{ company.name }}{% endblock %}
+{% block content %}
+<p class="back-link"><a href="{{ url_for('clients.listing', company_id=company_id) }}">Clients</a></p>
+<div class="client-editor">
+  <div class="form-panel">
+    <h1>{{ partner.name if partner else 'Add a client' }}</h1>
+    {% if form.errors %}<div class="alert alert-danger" role="alert">Please correct the fields below.</div>{% endif %}
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      {% for input in [form.code, form.name, form.short_name] %}
+      <div class="mb-3">
+        {{ input.label(class_='form-label') }}
+        {% if input.description %}{{ input(class_='form-control' ~ (' is-invalid' if input.errors else ''), aria_describedby=input.id ~ '-help') }}{% else %}{{ input(class_='form-control' ~ (' is-invalid' if input.errors else '')) }}{% endif %}
+        {% if input.description %}<div id="{{ input.id }}-help" class="form-text">{{ input.description }}</div>{% endif %}
+        {% for error in input.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+      </div>
+      {% endfor %}
+      <div class="mb-3">
+        {{ form.colour.label(class_='form-label') }}
+        <div class="colour-row">{{ form.colour(type='color', class_='form-control form-control-color' ~ (' is-invalid' if form.colour.errors else '')) }}<span class="form-text m-0">Pick the brand's main colour.</span></div>
+        {% for error in form.colour.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+      </div>
+      {% if partner %}<div class="form-check mb-3">{{ form.inactive(class_='form-check-input') }} {{ form.inactive.label(class_='form-check-label') }}</div>{% endif %}
+      <button class="btn btn-primary" type="submit">{{ 'Save changes' if partner else 'Add client' }}</button>
+    </form>
+  </div>
+
+  {% if partner %}
+  <aside class="panel client-logo-panel" aria-labelledby="logo-title">
+    <h2 id="logo-title">Logo</h2>
+    <div class="client-logo-preview">{{ client_mark(badge, company_id, 112) }}</div>
+    <p class="fine-print">{% if badge.logo %}Shown on every screen beside the badge name.{% else %}No logo yet: screens show a coloured square with “{{ badge.short[:2]|upper }}”.{% endif %}</p>
+    <form method="post" action="{{ url_for('clients.upload_logo', company_id=company_id, partner_id=partner.id) }}" enctype="multipart/form-data" class="mb-2">
+      {{ logo_form.hidden_tag() }}
+      {{ logo_form.logo.label(class_='form-label') }}
+      {{ logo_form.logo(class_='form-control', accept='image/png,image/jpeg,image/webp') }}
+      <div class="form-text">We shrink it to 256 × 256 and keep our own clean copy. SVG is not accepted.</div>
+      <button class="btn btn-outline-primary mt-2" type="submit">Upload logo</button>
+    </form>
+    {% if badge.logo %}
+    <form method="post" action="{{ url_for('clients.remove_logo', company_id=company_id, partner_id=partner.id) }}">
+      {{ remove_form.hidden_tag() }}
+      <button class="btn btn-outline-danger btn-sm" type="submit">Remove logo</button>
+    </form>
+    {% endif %}
+  </aside>
+  {% endif %}
+</div>
+
+{% if partner %}
+<section class="panel mt-4" aria-labelledby="orders-title">
+  <h2 id="orders-title">Recent orders</h2>
+  {% if orders %}
+  <ul class="plain-list">{% for order in orders %}<li><a href="{{ url_for('planning.order', company_id=company_id, order_id=order.id) }}">{{ order.reference }}</a> · {{ '{:,}'.format(order.quantity) }} pcs · {{ order.colour }} · ex-factory {{ order.ex_factory_on|day }} {{ order.status|tag }}</li>{% endfor %}</ul>
+  {% else %}<p class="mb-0 fine-print">No orders for this client yet. Orders link to a client through the style's buyer.</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}
