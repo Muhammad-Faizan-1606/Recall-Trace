@@ -346,3 +346,134 @@ def department_machines(company_id, departments):
     for machine, name in rows:
         grouped.setdefault(machine.work_center_id, []).append((machine, name))
     return [(center, grouped.get(center.id, [])) for center in centers]
+
+
+# ---------- The interactive sewing floor of one site ----------
+
+MAX_BOXES = 40
+
+
+def sites_with_lines(company_id):
+    return db.session.execute(
+        select(Site.id, Site.code, Site.name, func.count(WorkCenter.id))
+        .join(
+            WorkCenter,
+            (WorkCenter.site_id == Site.id) & (WorkCenter.organization_id == Site.organization_id),
+        )
+        .where(
+            Site.organization_id == company_id,
+            WorkCenter.department == "sewing",
+            WorkCenter.archived_at.is_(None),
+        )
+        .group_by(Site.id, Site.code, Site.name)
+        .order_by(Site.code)
+    ).all()
+
+
+def floor(company_id, site_id, today=None):
+    """Lines of one site with the bundles on them, and the cutting buffer waiting to be issued."""
+    from app.models.factory import ProductionOrder
+
+    today = today or date.today()
+    lines = db.session.scalars(
+        select(WorkCenter)
+        .where(
+            WorkCenter.organization_id == company_id,
+            WorkCenter.site_id == site_id,
+            WorkCenter.department == "sewing",
+            WorkCenter.archived_at.is_(None),
+        )
+        .order_by(WorkCenter.code)
+    ).all()
+    ids = [line.id for line in lines]
+    status = {}
+    for center_id, machine_status, count in db.session.execute(
+        select(Machine.work_center_id, Machine.status, func.count(Machine.id))
+        .where(
+            Machine.organization_id == company_id,
+            Machine.work_center_id.in_(ids),
+            Machine.archived_at.is_(None),
+        )
+        .group_by(Machine.work_center_id, Machine.status)
+    ):
+        status.setdefault(center_id, {})[machine_status] = count
+    issued = (
+        db.session.scalars(
+            select(CutBundle)
+            .where(
+                CutBundle.organization_id == company_id,
+                CutBundle.status == "issued",
+                CutBundle.issued_line_id.in_(ids),
+            )
+            .order_by(CutBundle.issued_at)
+        ).all()
+        if ids
+        else []
+    )
+    buffer = db.session.scalars(
+        select(CutBundle)
+        .where(CutBundle.organization_id == company_id, CutBundle.status == "cut")
+        .order_by(CutBundle.created_at, CutBundle.bundle_number)
+        .limit(MAX_BOXES)
+    ).all()
+    orders = (
+        {
+            o.id: o.reference
+            for o in db.session.scalars(
+                select(ProductionOrder).where(
+                    ProductionOrder.organization_id == company_id,
+                    ProductionOrder.id.in_({b.production_order_id for b in [*issued, *buffer]}),
+                )
+            )
+        }
+        if issued or buffer
+        else {}
+    )
+    latest = db.session.scalar(
+        select(func.max(OutputLog.day)).where(
+            OutputLog.organization_id == company_id, OutputLog.day <= today
+        )
+    )
+    figures = shopfloor.floor(company_id, latest, ids) if latest and ids else {}
+    targets = shopfloor.line_targets(company_id, lines) if lines else {}
+
+    def box(bundle):
+        return {
+            "id": str(bundle.id),
+            "number": bundle.bundle_number,
+            "order": orders.get(bundle.production_order_id, ""),
+            "size": bundle.size,
+            "pieces": bundle.pieces,
+            "version": bundle.version,
+        }
+
+    on_line = {}
+    for bundle in issued:
+        on_line.setdefault(bundle.issued_line_id, []).append(bundle)
+    result = []
+    for line in lines:
+        counts = status.get(line.id, {})
+        day = figures.get(line.id)
+        style = targets.get(line.id, (None, None))[1]
+        result.append(
+            {
+                "id": str(line.id),
+                "code": line.code,
+                "name": line.name,
+                "running": counts.get("active", 0),
+                "idle": counts.get("idle", 0),
+                "down": counts.get("maintenance", 0),
+                "style": style.code if style else "",
+                "good": day.good if day else 0,
+                "efficiency": round(float(day.efficiency), 1)
+                if day and day.efficiency is not None
+                else None,
+                "pieces_on_line": sum(b.pieces for b in on_line.get(line.id, [])),
+                "bundles": [box(b) for b in on_line.get(line.id, [])[:MAX_BOXES]],
+            }
+        )
+    return {
+        "lines": result,
+        "buffer": [box(b) for b in buffer],
+        "day": latest.isoformat() if latest else None,
+    }

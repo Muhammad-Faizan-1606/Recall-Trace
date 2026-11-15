@@ -846,7 +846,7 @@ def cut_bundles(company_id, values):
 
 
 def bundle_step(company_id, bundle_id, step, version, line_id=None):
-    """Issue a cut bundle to a sewing line, or mark an issued bundle sewn."""
+    """Issue a cut bundle to a sewing line, move it to another line, or mark it sewn."""
     require(company_id, PERMISSION)
 
     def action():
@@ -859,6 +859,14 @@ def bundle_step(company_id, bundle_id, step, version, line_id=None):
                 raise DomainError("Only cut bundles can be issued.")
             line = _sewing_line(company_id, line_id)
             bundle.status, bundle.issued_line_id, bundle.issued_at = "issued", line.id, now()
+        elif step == "transfer":
+            # Move work already on one line to another (a line is down or overloaded).
+            if bundle.status != "issued":
+                raise DomainError("Only bundles on a line can move to another line.")
+            line = _sewing_line(company_id, line_id)
+            if line.id == bundle.issued_line_id:
+                raise DomainError("The bundle is already on that line.")
+            bundle.issued_line_id, bundle.issued_at = line.id, now()
         elif step == "sewn":
             if bundle.status != "issued":
                 raise DomainError("Only bundles on a line can be marked sewn.")
@@ -871,7 +879,7 @@ def bundle_step(company_id, bundle_id, step, version, line_id=None):
             "factory.bundle_step",
             "cut_bundles",
             bundle.id,
-            {"to_status": bundle.status},
+            {"to_status": bundle.status, "operation": step},
         )
         return bundle
 

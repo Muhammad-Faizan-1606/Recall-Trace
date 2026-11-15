@@ -1,5 +1,22 @@
 # RecallTrace implementation status
 
+## 3D factory map with drag-and-drop bundles — 15 November 2026
+
+- **3D factory scene** (`app/static/iso.js`, `templates/factory/map.html`): the map page is now an isometric 3D view of the mill in the style of a live energy-monitoring app.
+  - Each department is a building (yarn store, knitting, dyeing with vessels and a smoking chimney, finishing, cutting, sewing with a sawtooth roof, packing, dispatch with a truck).
+  - Machine lights on each building's wall show running (green), idle (grey) and down (blinking red).
+  - Conveyors between departments carry moving parcels whenever work is waiting between them; they stop when nothing is waiting, and stay still under "reduce motion".
+  - Tapping a building (or Enter on the keyboard) opens a details drawer: live figure, machines, booked load, next flow and a link to every machine.
+  - Plain SVG and vanilla JavaScript; no new library and nothing inline, so the strict CSP still holds. The old `static/map.js` is removed.
+- **Sewing floor with drag and drop** (`factorymap.floor`, `GET /map/floor.json`, `POST /map/bundles/<id>`):
+  - Per site: a cutting buffer (cut bundles waiting), each sewing line drawn as a conveyor with its bundles as boxes, and a "Sewn" dock.
+  - Drag a bundle (mouse or touch) from the buffer to a line to **issue** it, from one line to another to **transfer** it, and onto the dock to mark it **sewn**. Keyboard and tap-tap moves work too; Escape cancels.
+  - Each drop calls the same `shopfloor.bundle_step` as the bundle forms: status rules, active sewing line, record version (a stale screen gets "reload"), company scope, `factory.record`, CSRF header, and an audit row naming the operation.
+  - New service step `transfer` moves issued work to another line (refused for cut or sewn bundles and for the same line).
+  - Read-only staff see the floor without the ability to move; the server refuses their moves with 403.
+- **Live means recorded:** the scene and floor refresh every 15 seconds from recorded data. Nothing is simulated.
+- **Verification:** `tests/test_floor_map.py` (4 tests): the service transfer step and its refusals with the audit trail, the floor data per site, the endpoint's issue → transfer → sewn path plus missing CSRF, stale version, unknown and wrong steps, and the read-only refusal. Full local suite: 577 passed, 16 failed (the known `test_database_access` checks that need PostgreSQL 17; CI runs them). Playwright at 1440 px and 390 px: the scene renders, the drawer opens, a mouse drag issued a bundle and a keyboard move transferred it, no console errors and no horizontal overflow.
+
 ## Job roles, simple mode, live factory map and visual lines — 15 November 2026
 
 - **Permissions:** three new ones.
@@ -23,7 +40,7 @@
   - Yarn store → knitting → dyeing → finishing → cutting → sewing → packing → shipped.
   - Each station shows machines running, idle and down, today's booked load, and a live figure (yarn kg, batches in vessels, pieces cut waiting, good pieces, pieces to pack, shipped this week), coloured green, amber or red.
   - Animated flows show work waiting between stations and run only when something is waiting.
-  - Figures refresh every 30 seconds from a JSON endpoint (`static/map.js`, paused while the tab is hidden).
+  - Figures refresh from a JSON endpoint (now 15 seconds, in `static/iso.js`; paused while the tab is hidden).
   - Each station drills down to every machine as a coloured square, grouped by work centre.
 - **Visual line view:** each sewing line drawn as station tiles, showing the machine and its status, the operation chips with shares, the load bar against pitch time, and the bottleneck. On a draft balance, dragging an operation onto another station fills in the move form (press Move to confirm). Click or keyboard selection works too (`static/line.js`). "Rearrange the line" opens a draft from the published balance.
 - **Verification:** `tests/test_jobroles.py` passes 12 tests:

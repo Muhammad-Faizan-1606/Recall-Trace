@@ -5,33 +5,74 @@
 <div class="page-head">
   <div>
     <h1>Factory map</h1>
-    <p>Every department from yarn to shipment, its machines and the work moving between them. Tap a department to see each machine.</p>
+    <p>The whole factory, live: every department from yarn to dispatch, its machines and the work moving between them. Tap a building for details{% if can_move %}, and drag bundles between sewing lines below{% endif %}.</p>
   </div>
-  <p class="live-badge" aria-live="polite"><span class="live-dot" aria-hidden="true"></span><span data-map-updated>Live · updates every 30 seconds</span></p>
+  <p class="live-badge" aria-live="polite"><span class="live-dot" aria-hidden="true"></span><span data-map-updated>Live · updates every 15 seconds</span></p>
 </div>
 
-<ol class="factory-map" data-map-source="{{ url_for('insights.map_data', company_id=company_id) }}" aria-label="Factory process">
-{% for s in stations %}
-  <li class="map-station state-{{ s.state }}" data-station="{{ s.key }}">
-    {% set inner %}
-      <span class="map-icon">{{ icon(glyphs.get(s.key, 'activity')) }}</span>
-      <span class="map-title">{{ s.title }}</span>
-      <span class="map-figure" data-field="figure">{{ s.figure }}</span>
-      <span class="map-note" data-field="note">{{ s.note }}</span>
-      {% if s.running or s.idle or s.down %}
-      <span class="map-machines" aria-label="Machines"><span class="m-run" data-field="running">{{ s.running }}</span> running<span class="m-idle" data-field="idle">{{ s.idle }}</span> idle<span class="m-down" data-field="down">{{ s.down }}</span> down</span>
-      {% endif %}
-      {% if s.load is not none %}
-      <span class="map-load"><span class="load-track"><span class="load-bar lb-{{ [(s.load / 100 * 14)|round|int, 20]|min }}" data-field="loadbar"></span><span class="pitch-mark"></span></span><span class="fine-print"><span data-field="load">{{ s.load|round|int }}</span>% of today's capacity booked</span></span>
-      {% endif %}
-      {% if s.sites %}<span class="map-sites">{% for site, count in s.sites %}{{ site.split(' — ')[0] }}{{ ' · ' if not loop.last }}{% endfor %}</span>{% endif %}
-    {% endset %}
-    {% if links.get(s.key) %}<a class="map-card" href="{{ links[s.key] }}">{{ inner }}</a>{% else %}<div class="map-card">{{ inner }}</div>{% endif %}
-    {% set f = flows.get(s.key) %}
-    {% if f %}<div class="map-flow{{ ' is-moving' if f.moving }}" data-flow="{{ f.source }}" aria-label="{{ f.label }}: {{ f.amount }}"><span class="flow-line" aria-hidden="true"></span><span class="flow-text"><strong data-field="amount">{{ f.amount }}</strong> {{ f.label }}</span></div>{% endif %}
-  </li>
-{% endfor %}
-</ol>
-<p class="map-legend fine-print"><span class="state-dot state-ok"></span> running normally <span class="state-dot state-busy"></span> busy or a machine down <span class="state-dot state-alert"></span> critical alert <span class="state-dot state-quiet"></span> nothing running{% if latest %} · sewing figures from {{ latest.strftime('%A %d %b') }}{% endif %}</p>
-<script src="{{ url_for('static', filename='map.js') }}" defer></script>
+<section class="iso-stage" aria-label="Factory in 3D"
+  data-map-source="{{ url_for('insights.map_data', company_id=company_id) }}"
+  data-station-base="{{ url_for('insights.map', company_id=company_id) }}">
+  <svg class="iso-scene" viewBox="0 0 1200 660" role="img" aria-labelledby="iso-title" data-iso-scene>
+    <title id="iso-title">Isometric factory: yarn store, knitting, dyeing, finishing, cutting, sewing, packing and dispatch, with work flowing between them</title>
+    <defs>
+      <radialGradient id="iso-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="currentColor" stop-opacity=".45"/><stop offset="100%" stop-color="currentColor" stop-opacity="0"/></radialGradient>
+    </defs>
+    <g data-layer="ground"></g>
+    <g data-layer="conveyors"></g>
+    <g data-layer="particles"></g>
+    <g data-layer="buildings"></g>
+    <g data-layer="labels"></g>
+  </svg>
+  <aside class="iso-panel" data-iso-panel hidden aria-live="polite">
+    <button class="icon-button iso-close" type="button" data-iso-close aria-label="Close details">{{ icon('x') }}</button>
+    <div data-iso-panel-body></div>
+  </aside>
+  <noscript><p class="fine-print p-3">The 3D view needs JavaScript; the department cards below show the same figures.</p></noscript>
+</section>
+
+{% if sites %}
+<section class="section floor-section" aria-labelledby="floor-heading"
+  data-floor-source="{{ url_for('insights.floor_data', company_id=company_id) }}"
+  data-move-base="{{ url_for('insights.map', company_id=company_id) }}/bundles/"
+  data-csrf="{{ csrf_token() }}">
+  <div class="section-head"><h2 id="floor-heading">Sewing floor</h2><span class="section-note">{% if can_move %}Drag a bundle from the cutting buffer onto a line, between lines, or onto Sewn. Keyboard: Enter picks a bundle, Enter on a line drops it.{% else %}Bundles waiting at cutting and on each line.{% endif %}</span></div>
+  <nav aria-label="Sites"><ul class="tabs" data-site-tabs>{% for site_id, code, name, count in sites %}<li><a href="#" data-site="{{ site_id }}"{% if loop.first %} aria-current="page"{% endif %}>{{ name.split(' — ')[0] }} <span class="count-pill">{{ count }}</span></a></li>{% endfor %}</ul></nav>
+  <div class="floor-stage" data-floor>
+    <div class="floor-buffer drop-zone" data-drop="buffer" aria-label="Cutting buffer">
+      <h3>{{ icon('tag') }} Cutting buffer</h3>
+      <div class="bundle-pile" data-pile="buffer"></div>
+    </div>
+    <ol class="floor-lines" data-lines aria-label="Sewing lines"></ol>
+    <div class="floor-dock drop-zone" data-drop="sewn" tabindex="0" role="button" aria-label="Sewn: drop a bundle here when its line has finished it">
+      <h3>{{ icon('boxes') }} Sewn</h3>
+      <p class="fine-print mb-0">Drop a bundle here when its line has finished it.</p>
+    </div>
+  </div>
+  <p class="floor-toast" data-toast role="status" aria-live="polite"></p>
+</section>
+{% endif %}
+
+<section class="section" aria-labelledby="cards-heading">
+  <div class="section-head"><h2 id="cards-heading">All departments</h2><span class="section-note">The same live figures as cards</span></div>
+  <ol class="factory-map" aria-label="Factory process">
+  {% for s in stations %}
+    <li class="map-station state-{{ s.state }}" data-station="{{ s.key }}">
+      {% set inner %}
+        <span class="map-icon">{{ icon(glyphs.get(s.key, 'activity')) }}</span>
+        <span class="map-title">{{ s.title }}</span>
+        <span class="map-figure" data-field="figure">{{ s.figure }}</span>
+        <span class="map-note" data-field="note">{{ s.note }}</span>
+        {% if s.running or s.idle or s.down %}<span class="map-machines" aria-label="Machines"><span class="m-run" data-field="running">{{ s.running }}</span> running<span class="m-idle" data-field="idle">{{ s.idle }}</span> idle<span class="m-down" data-field="down">{{ s.down }}</span> down</span>{% endif %}
+        {% if s.load is not none %}<span class="map-load"><span class="load-track"><span class="load-bar lb-{{ [(s.load / 100 * 14)|round|int, 20]|min }}" data-field="loadbar"></span><span class="pitch-mark"></span></span><span class="fine-print"><span data-field="load">{{ s.load|round|int }}</span>% of today's capacity booked</span></span>{% endif %}
+      {% endset %}
+      {% if links.get(s.key) %}<a class="map-card" href="{{ links[s.key] }}">{{ inner }}</a>{% else %}<div class="map-card">{{ inner }}</div>{% endif %}
+      {% set f = flows.get(s.key) %}
+      {% if f %}<div class="map-flow{{ ' is-moving' if f.moving }}" data-flow="{{ f.source }}"><span class="flow-line" aria-hidden="true"></span><span class="flow-text"><strong data-field="amount">{{ f.amount }}</strong> {{ f.label }}</span></div>{% endif %}
+    </li>
+  {% endfor %}
+  </ol>
+  <p class="map-legend fine-print"><span class="state-dot state-ok"></span> running normally <span class="state-dot state-busy"></span> busy or a machine down <span class="state-dot state-alert"></span> critical alert <span class="state-dot state-quiet"></span> nothing running{% if latest %} · sewing figures from {{ latest.strftime('%A %d %b') }}{% endif %}</p>
+</section>
+<script src="{{ url_for('static', filename='iso.js') }}" defer></script>
 {% endblock %}

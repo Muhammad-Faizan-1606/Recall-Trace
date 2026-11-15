@@ -1,5 +1,6 @@
 """Factory Suite step 6: alerts and the management dashboard."""
 
+import uuid
 from datetime import date
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
@@ -18,7 +19,7 @@ from app.models.factory import (
     ProductionOrder,
     WorkCenter,
 )
-from app.policies import allowed
+from app.policies import allowed, require
 from app.services import alerts, dashboard, factorymap
 from app.services.business import DomainError
 from app.services.jobroles import ALERT_ACTORS, require_any
@@ -200,8 +201,11 @@ def map(company_id):  # noqa: A001 - the page is the factory map
         for key, _, departments in factorymap.STATIONS
         if departments
     }
+    sites = factorymap.sites_with_lines(company_id)
     return render_template(
         "factory/map.html",
+        sites=sites,
+        can_move=allowed(company_id, "factory.record"),
         stations=stations,
         flows={f.source: f for f in flows},
         links=links,
@@ -241,3 +245,43 @@ def station(company_id, key):
         counts=counts,
         **ctx,
     )
+
+
+@bp.get("/map/floor.json")
+@login_required
+def floor_data(company_id):
+    context(company_id, area="dashboard")
+    try:
+        site_id = uuid.UUID(request.args.get("site", ""))
+    except ValueError:
+        abort(404)
+    data = factorymap.floor(company_id, site_id)
+    data["can_move"] = allowed(company_id, "factory.record")
+    response = jsonify(data)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.post("/map/bundles/<uuid:bundle_id>")
+@login_required
+def move_bundle(company_id, bundle_id):
+    """Drag-and-drop on the map: issue, transfer or finish a bundle (same rules as the forms)."""
+    from app.services import shopfloor
+
+    context(company_id, area="floor")
+    require(company_id, "factory.record")
+    payload = request.get_json(silent=True) or {}
+    step = payload.get("step")
+    if step not in ("issue", "transfer", "sewn"):
+        return jsonify(error="Unknown operation."), 400
+    try:
+        version = int(payload.get("version"))
+    except (TypeError, ValueError):
+        return jsonify(error="Reload the map and try again."), 400
+    try:
+        bundle = shopfloor.bundle_step(company_id, bundle_id, step, version, payload.get("line_id"))
+    except DomainError as exc:
+        return jsonify(error=str(exc)), 409
+    alerts.scan_quietly(company_id)
+    words = {"issue": "issued to the line", "transfer": "moved to the line", "sewn": "marked sewn"}
+    return jsonify(ok=True, message=f"Bundle {bundle.bundle_number} {words[step]}.")

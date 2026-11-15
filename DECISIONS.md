@@ -310,3 +310,10 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Preview, not test accounts.** Admins preview a job role's menu and Home in their own session. No extra logins or passwords are created for demos, and the preview never changes real permissions.
 - **The map shows recorded data only.** Station figures and flows come from machines, bookings, rolls, batches, bundles, lots and shipments; nothing is simulated. "Live" means a 30-second refresh of what has been recorded. Live machine counters would make it truly real-time and remain out of scope.
 - **Dragging prepares a move; it does not commit it.** A drop fills the move form, and the person presses Move. Accidental drags never change a line, and the same form works without a mouse.
+
+## 15 November 2026 — 3D factory map with drag-and-drop bundles
+
+- **Isometric SVG, not WebGL.** The 3D look is drawn as isometric SVG with vanilla JavaScript. It needs no new dependency, works on low-end phones, keeps the strict CSP and stays readable to screen readers and the keyboard. A full 3D engine would add weight without adding information.
+- **On the floor, a drop is the operation.** Unlike the line-balance view (where dragging only fills a form), dropping a bundle issues, transfers or finishes it straight away. These are single, reversible floor moves already allowed by the bundle forms, and the same service enforces them with a version check, so a stale screen cannot overwrite newer work. Balances stay confirm-first because they change the whole line.
+- **Transfer is a new step, not a reissue.** Moving issued work between lines keeps the bundle "issued" and records the operation in the audit trail, so the history shows where work went.
+- **Still recorded data only.** Animation speed and parcels show that work is waiting; they are not machine telemetry.
