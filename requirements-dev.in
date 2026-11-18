@@ -3,5 +3,5 @@ pytest
 pytest-cov
 ruff
 pip-audit
-playwright>=1,<2
+playwright>=1.65.2,<2
 bandit>=1.9.4,<2
