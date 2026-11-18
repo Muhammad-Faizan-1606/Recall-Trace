@@ -297,7 +297,8 @@ def test_dispatch_rechecks_customer_after_draft_creation(app, operational):
         assert shipment.status == "draft" and shipment.stock_transaction_id is None
 
 
-@pytest.mark.parametrize("note,expected_status", [(None, 303), ("malicious\x00note", 409)])
+# A NUL is now refused for every request before any view runs (400); see test_security_review.
+@pytest.mark.parametrize("note,expected_status", [(None, 303), ("malicious\x00note", 400)])
 def test_shipment_event_missing_or_nul_note_never_causes_server_error(
     app, operational, client, note, expected_status
 ):

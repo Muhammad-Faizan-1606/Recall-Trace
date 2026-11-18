@@ -68,7 +68,8 @@ def test_nul_text_never_reaches_postgresql(client, records, resource):
             "version": 0,
         }
     response = post_form(client, path, values)
-    assert response.status_code == 422
+    # Refused for every request before any view runs (400); see test_security_review.
+    assert response.status_code == 400
     assert db.session.query(Item).filter_by(code="INVALID-NUL").count() == 0
 
 

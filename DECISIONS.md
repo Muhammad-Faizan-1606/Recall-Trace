@@ -325,3 +325,10 @@ Owner request: smoother motion and flow, Poppins and Montserrat as the only font
 - **Moving a card on the board previews first.** Changing priority or lines re-plans every open order, so a drop never saves straight away. The planner sees the new finish date and any order that would become late, then applies. This is unlike a bundle drop on the floor, which is a single reversible move.
 - **Pictures are drawn on the server.** The section panels are SVG built from the same recorded data as the tables, with CSS animation. They need no JavaScript library, work without JavaScript, and keep the strict CSP because colours are attributes, not inline styles. They show recorded data only; animation means "work is here", not machine telemetry.
 - **Pillow 13.** It was added for logo re-encoding. 12.3.0 had pip-audit advisories, so 13.0.0 is pinned and verified by the tests.
+
+## 18 November 2026 — Security review outcomes
+
+- **NUL is refused at the edge.** PostgreSQL text cannot store NUL, and no field needs it. A single `before_request` check now returns 400 for any NUL in query values, form fields or upload filenames, instead of relying on every service to check. Services keep their own validation.
+- **Offensive skill packs are references, not installed skills.** Only the relevant web, API, supply-chain and CI/CD checklists from `SnailSploit/claude-red` were read, after checking the files for hidden instructions. Nothing was installed into Claude's skill folders, and testing used local fictional data only.
+- **Actions pinned to commits** in every workflow that handles production secrets. Dependabot proposes updates, which must pass CI before merging.
+

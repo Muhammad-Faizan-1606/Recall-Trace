@@ -1,5 +1,26 @@
 # RecallTrace implementation status
 
+## Security review against the claude-red web, API and supply-chain checklists — 18 November 2026
+
+- **Method:** the review used `SnailSploit/claude-red` as reference checklists only. The pack was checked before use and not installed. Everything ran on the local demo database with an extra outsider company; the live site was not tested.
+  - `scripts/security-review/sweep.py` crawls every page as the owner and replays every route and form as an outsider company's owner and as a signed-out visitor, then checks the victim companies' data for changes.
+  - `scripts/security-review/fuzz.py` sends hostile input to every form and checks for crashes and unescaped output.
+- **Confirmed sound:**
+  - No cross-company read or write, and no signed-out access.
+  - Partner users are blocked centrally.
+  - No XSS, template injection or SQL injection, and no open redirect.
+  - Upload checks hold.
+  - Sessions, cookies and CSRF are sound.
+  - Workflow permissions and secret handling are sound.
+- **Fixed:**
+  - NUL characters are refused with 400 for every request (one form crashed with a 500).
+  - Added the `Permissions-Policy`, `Cross-Origin-Opener-Policy` and `X-Frame-Options` headers.
+  - The logo upload is rate-limited.
+  - The workflow actions that handle production secrets are pinned to commits.
+  - Dependabot checks pip and GitHub Actions weekly.
+- **Tests:** `tests/test_security_review.py` and a race test for simultaneous bundle moves. Three existing NUL tests now expect the earlier 400.
+- **Report:** `documentation/SECURITY_REVIEW.md` (new section on top; the earlier reviews are kept below it).
+
 ## Demo walkthrough video and end-to-end check — 15 November 2026
 
 - **`scripts/demo-video/`** drives a real browser through every section and operation. It checks every step against the server's response and records a 28-chapter walkthrough video with captions, a visible cursor and chapter markers. `FAST=1 ./run.sh` is the same run without video, as a quick end-to-end check. See its README.

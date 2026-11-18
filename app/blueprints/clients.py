@@ -8,7 +8,7 @@ from wtforms import BooleanField, StringField
 from wtforms.validators import DataRequired, Length, Regexp
 
 from app.blueprints.factory import context
-from app.extensions import db
+from app.extensions import db, limiter
 from app.forms import ActionForm
 from app.models.factory import ProductionOrder, Style
 from app.services import clients
@@ -159,7 +159,9 @@ def edit(company_id, partner_id):
 
 @bp.post("/clients/<uuid:partner_id>/logo")
 @login_required
+@limiter.limit("20 per minute", methods=["POST"])
 def upload_logo(company_id, partner_id):
+    # Each upload is decoded and re-encoded; a limit keeps that from tying up workers.
     manage_guard(company_id)
     form = LogoForm()
     if not form.validate_on_submit():

@@ -1,3 +1,93 @@
+# Security review — 18 November 2026
+
+A review of RecallTrace against the web, API, supply-chain and CI/CD checklists of the open
+`SnailSploit/claude-red` skill pack (MIT). Only the relevant checklists were used, as reference
+material, and the pack was not installed. Before use, its files were read in an isolated folder
+and checked: no hidden instructions, invisible characters, encoded payloads or network calls.
+
+**All testing ran against a local demo database with fictional companies. The live site and
+its Supabase database were not tested.**
+
+## Summary
+
+| Area | Result |
+|---|---|
+| Access between companies (IDOR) | No leak. 3,185 pages crawled, 278 of 368 routes replayed by an outsider company's owner; 308 cross-company POSTs; the victim companies' data was unchanged. The unreached routes were checked in code. |
+| Signed-out access | Every non-public page redirects to sign-in. |
+| Partner-restricted users | Blocked centrally from every internal page (404). |
+| Business rules | Two-person approval, recent-MFA checks, holds, versions and single-use authenticator codes all held. These are covered by existing tests and the walkthrough. |
+| Race conditions | Existing tests cover stock, resets and recovery codes. Factory bundle moves had no race test, so one was added: two people moving the same bundle at once gives exactly one winner. |
+| XSS / template injection / SQL injection | None. 8,685 hostile submissions over 152 forms: every value escaped, `{{7*7}}` never evaluated, no raw SQL anywhere. |
+| File uploads | Disguised HTML, SVG and PNG/HTML polyglots refused. PDFs are quarantined until scanned and downloaded only as attachments. Filenames are reduced to a base name and stored under random keys. Client logos are re-encoded. |
+| Redirects | No open redirect: sign-in never follows a submitted URL, and production pins trusted hosts. |
+| Sessions and cookies | `__Host-` cookie, Secure, HttpOnly, SameSite=Lax, 30-minute idle expiry, new session ID at sign-in, server-side and revocable. |
+| CSRF | Required on every form and JSON action. Requests without a token are refused (400) before anything runs. |
+| Headers | Strict CSP (no inline script or style), `nosniff`, `no-store`, same-origin referrer, HSTS in production. Three hardening headers added (below). |
+| Dependencies | Hash-locked; `pip-audit` clean. |
+| CI/CD | Least-privilege workflow permissions, no `pull_request_target`, secrets passed through environment variables and never printed. |
+
+## Findings and fixes
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| 1 | Low | A NUL character in a field that a service did not check (the breakdown report's asset tag) reached PostgreSQL and failed as an unhandled error (HTTP 500). No data was exposed or changed. | Every request carrying a NUL in its query, form fields or upload filenames is now refused with 400 before any view runs. PostgreSQL text cannot hold NUL, and no field needs it. |
+| 2 | Low (hardening) | No `Permissions-Policy`, `Cross-Origin-Opener-Policy` or `X-Frame-Options` header. | Camera, microphone, location, payment and USB switched off; COOP `same-origin`; `X-Frame-Options: DENY` for older browsers. |
+| 3 | Low | The new client-logo upload (which decodes images) had no rate limit. | 20 uploads per minute. |
+| 4 | Low (supply chain) | Three workflows that handle production secrets pulled GitHub Actions by movable tags (`@v4`). | Pinned to exact commits, as the Pages workflow already did. |
+| 5 | Low (supply chain) | Nothing watched for newly published vulnerabilities in dependencies. | Dependabot weekly checks for pip packages and GitHub Actions. Updates still need CI to pass before merging. |
+
+Regression tests: `tests/test_security_review.py` (NUL refusal, headers, factory JSON endpoints
+refuse another company) and a race test in `tests/test_floor_map.py`. Three existing NUL tests now
+expect the earlier 400 instead of 409/422. They still check that nothing was stored.
+
+## Not covered
+
+- **The live deployment:** Vercel, Supabase grants and RLS, and Upstash. The database grant model is
+  covered by `operations/database_access.py` and its tests, which need PostgreSQL 17.
+- **Denial of service and volumetric attacks.** Rate limits were switched off during the sweeps so
+  they would not hide results; they are tested separately in the existing suite.
+- **Malware scanning.** It is not configured locally, so uploads stay quarantined. Scanner
+  behaviour is covered by its own tests.
+- **Brute force of sign-in and MFA** beyond the existing rate limits and single-use codes, and any
+  social engineering or physical access.
+- **Third-party services** (Resend, Vercel, Supabase), whose security depends on account settings.
+
+## How to repeat it
+
+Run these against the local demo database only. The scripts refuse any other database.
+
+1. Set up the demo database, as described in `scripts/demo-video/README.md`:
+
+   ```bash
+   scripts/demo-video/reset.sh
+   ```
+
+2. Add an outsider company with its own owner (`create-company`, `create-owner`,
+   `init-business`), and export `OUTSIDER_PASSWORD` for that owner.
+
+3. Load the demo settings, then run the cross-company sweep:
+
+   ```bash
+   . scripts/demo-video/demo.env.sh
+   ```
+
+   ```bash
+   .venv/bin/python scripts/security-review/sweep.py
+   ```
+
+4. Run the hostile-input sweep:
+
+   ```bash
+   .venv/bin/python scripts/security-review/fuzz.py
+   ```
+
+`sweep.py` reports any read or write across companies, and any change to the victim companies'
+data. `fuzz.py` reports server errors and payloads rendered unescaped.
+
+---
+
+Earlier reviews follow, newest first.
+
 # Security remediation review — 3 November 2026
 
 The two follow-ups from the earlier review are addressed: the shipped images use supported Alpine bases without the affected Debian packages, and public account recovery/verification requests enqueue encrypted intent before any account lookup or mail transport. The application still has exactly 72 Core models. This is local verification, not certification or proof that no vulnerabilities remain.

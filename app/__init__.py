@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import timedelta
 
-from flask import Flask, g, render_template, request, session
+from flask import Flask, abort, g, render_template, request, session
 from flask_login import current_user, logout_user
 from redis import Redis
 from redis.exceptions import RedisError
@@ -44,6 +44,20 @@ def create_app(config=None):
     def request_reference():
         # Set the reference before extension middleware can fail.
         g.correlation_id = uuid.uuid4()
+
+    @app.before_request
+    def reject_nul_characters():
+        """PostgreSQL text cannot hold NUL, and no field needs it: refuse it up front.
+
+        Without this, a NUL in a field that a service does not check reached the database
+        and failed there as an unhandled error (found by the hostile-input sweep).
+        """
+        values = list(request.args.values())
+        if request.mimetype in ("application/x-www-form-urlencoded", "multipart/form-data"):
+            values += list(request.form.values())
+            values += [f.filename or "" for f in request.files.values()]
+        if any("\x00" in value for value in values):
+            abort(400)
 
     if config:
         app.config.update(config)
@@ -129,6 +143,13 @@ def create_app(config=None):
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
+        # Defence in depth: no page uses these browser features, and none may be framed or
+        # share a window with another site (CSP frame-ancestors covers current browsers).
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+        )
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["X-Frame-Options"] = "DENY"
         if not is_static_path(app, request.path):
             # Pages carry private data; static assets get a CDN policy in app.performance.
             response.headers["Cache-Control"] = "no-store"

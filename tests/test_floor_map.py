@@ -156,3 +156,42 @@ def test_read_only_staff_see_the_floor_but_cannot_move(cut, client):
     )
     assert response.status_code == 403
     assert client.get(f"{base}/map/floor.json?site=nope").status_code == 404
+
+
+def test_two_people_moving_the_same_bundle_at_once_has_one_winner(app, cut):
+    """Both drag the same cut bundle (same version) onto different lines at the same moment:
+    the row lock and version check let exactly one move through."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from flask_login import login_user
+
+    from app.models import User
+
+    company_id = cut.company_id
+    bundle_id, version = cut.bundles[0].id, cut.bundles[0].version
+    lines = [cut.center.id, cut.other.id]
+    user_id = db.session.scalar(select(User.id).where(User.email == "catalog-editor@aurora.test"))
+    db.session.remove()
+    barrier = Barrier(2)
+
+    def move(index):
+        with app.test_request_context():
+            login_user(db.session.get(User, user_id))
+            barrier.wait(timeout=10)
+            try:
+                shopfloor.bundle_step(company_id, bundle_id, "issue", version, lines[index])
+                return "moved"
+            except DomainError:
+                return "refused"
+            finally:
+                db.session.remove()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = sorted(pool.map(move, range(2)))
+    assert outcomes == ["moved", "refused"]
+    from app.models.factory import CutBundle
+
+    bundle = db.session.get(CutBundle, bundle_id)
+    assert bundle.status == "issued" and bundle.version == version + 1
+    assert bundle.issued_line_id in lines
